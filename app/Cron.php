@@ -157,6 +157,7 @@ final class Cron
             $p['status'] = Prospect::MOCKUP;
             return $p;
         });
+        Models::countMockup();
         Events::log($prospectId, 'mockup_generated', ['version' => $version, 'mode' => 'auto']);
 
         return ['ok' => true, 'error' => '', 'version' => $version];

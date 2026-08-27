@@ -280,6 +280,8 @@ final class Stream
             return $p;
         });
 
+        \App\Models::countMockup();
+
         Events::log($id, $mode === 'revise' ? 'mockup_revised' : 'mockup_generated', [
             'version' => $version,
             'instruction' => $instruction,

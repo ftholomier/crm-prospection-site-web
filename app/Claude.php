@@ -31,26 +31,79 @@ final class Claude
         ];
     }
 
-    /** Corps de requête commun aux deux modes. */
+    /**
+     * Corps de requête commun aux deux modes.
+     *
+     * Les paramètres sont ajustés aux capacités réelles du modèle choisi : tous
+     * n'acceptent pas la réflexion adaptative, les niveaux d'effort ni les
+     * sorties structurées, et envoyer un paramètre non supporté renvoie une 400.
+     */
     private static function payload(array $options): array
     {
+        $modelId = (string) Config::get('claude.model', 'claude-opus-5');
+        $model = Models::find($modelId);
+        $system = (string) ($options['system'] ?? '');
+
         $payload = [
-            'model' => (string) Config::get('claude.model', 'claude-opus-5'),
+            'model' => $modelId,
             'max_tokens' => (int) ($options['max_tokens'] ?? Config::get('claude.max_tokens', 24000)),
             'messages' => $options['messages'],
-            'thinking' => ['type' => 'adaptive'],
-            'output_config' => ['effort' => (string) Config::get('claude.effort', 'high')],
         ];
-        if (!empty($options['system'])) {
-            $payload['system'] = $options['system'];
+
+        if (!empty($model['adaptive'])) {
+            $payload['thinking'] = ['type' => 'adaptive'];
         }
+
+        $effort = self::resolveEffort((array) $model['efforts']);
+        if ($effort !== null) {
+            $payload['output_config'] = ['effort' => $effort];
+        }
+
         if (!empty($options['schema'])) {
-            $payload['output_config']['format'] = [
-                'type' => 'json_schema',
-                'schema' => $options['schema'],
-            ];
+            if (!empty($model['structured'])) {
+                $payload['output_config']['format'] = [
+                    'type' => 'json_schema',
+                    'schema' => $options['schema'],
+                ];
+            } else {
+                // Sans sorties structurées, la consigne remplace le schéma et
+                // decodeJson() extrait l'objet de la réponse.
+                $system = trim($system . "\n\nRéponds exclusivement par un objet JSON valide, sans texte autour"
+                    . " ni bloc Markdown, conforme à ce schéma :\n"
+                    . json_encode($options['schema'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+            }
+        }
+
+        if ($system !== '') {
+            $payload['system'] = $system;
         }
         return $payload;
+    }
+
+    /**
+     * Niveau d'effort réellement applicable : le niveau demandé s'il est
+     * supporté, sinon le plus proche en dessous, sinon rien.
+     */
+    private static function resolveEffort(array $supported): ?string
+    {
+        if ($supported === []) {
+            return null;
+        }
+        $ladder = ['low', 'medium', 'high', 'xhigh', 'max'];
+        $wanted = (string) Config::get('claude.effort', 'high');
+        if (in_array($wanted, $supported, true)) {
+            return $wanted;
+        }
+        $index = array_search($wanted, $ladder, true);
+        if ($index === false) {
+            return $supported[count($supported) - 1];
+        }
+        for ($i = (int) $index; $i >= 0; $i--) {
+            if (in_array($ladder[$i], $supported, true)) {
+                return $ladder[$i];
+            }
+        }
+        return $supported[0];
     }
 
     /**
@@ -96,12 +149,15 @@ final class Claude
         }
 
         $text = self::extractText($data);
+        $usage = $data['usage'] ?? [];
+        Models::recordUsage($usage);
+
         return [
             'ok' => true,
             'error' => '',
             'text' => $text,
             'json' => self::decodeJson($text),
-            'usage' => $data['usage'] ?? [],
+            'usage' => $usage,
             'stop_reason' => $data['stop_reason'] ?? '',
         ];
     }
@@ -209,6 +265,8 @@ final class Claude
         if ($text === '') {
             return self::failure('Le modèle n\'a renvoyé aucun contenu.');
         }
+
+        Models::recordUsage($usage);
 
         return [
             'ok' => true,

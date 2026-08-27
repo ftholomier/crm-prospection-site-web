@@ -12,6 +12,7 @@ use App\Events;
 use App\Flash;
 use App\Mail\Smtp;
 use App\Mailer;
+use App\Models;
 use App\Mockup;
 use App\Prospect;
 use App\Router;
@@ -663,9 +664,15 @@ final class Admin
     public static function settings(): void
     {
         Auth::requireLogin();
+        Models::refreshIfStale();
+
         echo render('admin/settings', [
             'title' => 'Réglages',
             'config' => Config::all(),
+            'models' => Models::catalog(),
+            'modelsFetchedAt' => Models::fetchedAt(),
+            'profile' => Models::profile(),
+            'spent' => Models::spentSoFar(),
             'modes' => Enrich::modes(),
             'providers' => Screenshot::PROVIDERS,
             'health' => self::health(),
@@ -688,7 +695,7 @@ final class Admin
                 'signature' => (string) ($post['signature'] ?? ''),
             ],
             'claude' => [
-                'model' => trim((string) ($post['claude_model'] ?? 'claude-opus-5')),
+                'model' => self::chosenModel($post),
                 'effort' => (string) ($post['claude_effort'] ?? 'high'),
                 'max_tokens' => Util::clamp((int) ($post['claude_max_tokens'] ?? 24000), 4000, 64000),
             ],
@@ -817,6 +824,35 @@ final class Admin
                 : Flash::error('SMTP : ' . $result['error']);
         }
         Util::redirect(Router::url('settings') . '#smtp');
+    }
+
+    /**
+     * Modèle retenu : la valeur de la liste, ou l'identifiant saisi à la main
+     * quand l'option « Autre » est sélectionnée.
+     */
+    private static function chosenModel(array $post): string
+    {
+        $selected = trim((string) ($post['claude_model'] ?? ''));
+        if ($selected === '__custom__') {
+            $custom = trim((string) ($post['claude_model_custom'] ?? ''));
+            if ($custom !== '') {
+                return $custom;
+            }
+            return (string) Config::get('claude.model', 'claude-opus-5');
+        }
+        return $selected !== '' ? $selected : (string) Config::get('claude.model', 'claude-opus-5');
+    }
+
+    /** Recharge la liste des modèles depuis l'API. */
+    public static function modelsRefresh(): void
+    {
+        Auth::requireLogin();
+        Csrf::requireValid();
+        $result = Models::refresh();
+        $result['ok']
+            ? Flash::success($result['count'] . ' modèle(s) récupéré(s) depuis l\'API.')
+            : Flash::error('Liste des modèles : ' . $result['error']);
+        Util::redirect(Router::url('settings') . '#claude');
     }
 
     public static function testClaude(): void

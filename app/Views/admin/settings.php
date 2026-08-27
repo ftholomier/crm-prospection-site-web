@@ -69,11 +69,96 @@ $secretPlaceholder = static fn (string $value): string => $value !== '' ? 'Valeu
             <input type="password" name="claude_api_key" id="claude_api_key" autocomplete="off" placeholder="<?= e($secretPlaceholder((string) $config['claude']['api_key'])) ?>">
             <span class="hint muted tiny">À créer sur console.anthropic.com. La clé est stockée dans data/config.json, hors de la racine web.</span>
         </div>
-        <div class="field-row three">
-            <div class="field">
-                <label for="claude_model">Modèle</label>
-                <input type="text" name="claude_model" id="claude_model" value="<?= e((string) $config['claude']['model']) ?>">
-            </div>
+        <?php
+        $currentModel = (string) $config['claude']['model'];
+        $known = array_column($models, 'id');
+        $isCustom = !in_array($currentModel, $known, true);
+        ?>
+        <div class="field">
+            <label for="claude_model">
+                Modèle
+                <span class="hint">Classés du moins cher au plus cher, sur la base du coût estimé d'une maquette complète.</span>
+            </label>
+            <select name="claude_model" id="claude_model" onchange="document.getElementById('custom-model').hidden = this.value !== '__custom__';">
+                <?php foreach ($models as $model): ?>
+                    <option value="<?= e($model['id']) ?>" <?= $currentModel === $model['id'] ? 'selected' : '' ?>>
+                        <?= e($model['name']) ?>
+                        — <?= $model['cost'] === null ? 'tarif inconnu' : e(App\Models::formatCost($model['cost'])) . ' / maquette' ?>
+                        <?php if ($model['input'] !== null): ?>
+                            (<?= e(rtrim(rtrim(number_format((float) $model['input'], 2, ',', ' '), '0'), ',')) ?> $
+                            / <?= e(rtrim(rtrim(number_format((float) $model['output'], 2, ',', ' '), '0'), ',')) ?> $ par million de tokens)
+                        <?php endif; ?>
+                        <?= (!$model['live'] && $modelsFetchedAt > 0) ? ' — absent de votre catalogue API' : '' ?>
+                    </option>
+                <?php endforeach; ?>
+                <option value="__custom__" <?= $isCustom ? 'selected' : '' ?>>Autre — saisir un identifiant</option>
+            </select>
+        </div>
+
+        <div class="field" id="custom-model" <?= $isCustom ? '' : 'hidden' ?>>
+            <label for="claude_model_custom">Identifiant du modèle</label>
+            <input type="text" name="claude_model_custom" id="claude_model_custom"
+                   value="<?= $isCustom ? e($currentModel) : '' ?>" placeholder="claude-opus-5">
+            <span class="hint muted tiny">Un modèle absent de la liste est présumé de génération courante : réflexion adaptative et niveaux d'effort activés.</span>
+        </div>
+
+        <div class="table-wrap mb">
+            <table>
+                <thead>
+                <tr>
+                    <th>Modèle</th>
+                    <th class="right">Entrée</th>
+                    <th class="right">Sortie</th>
+                    <th class="right">Coût / maquette</th>
+                    <th>Capacités</th>
+                </tr>
+                </thead>
+                <tbody>
+                <?php foreach ($models as $model): ?>
+                    <tr<?= $currentModel === $model['id'] ? ' style="background:var(--brand-soft)"' : '' ?>>
+                        <td>
+                            <strong><?= e($model['name']) ?></strong>
+                            <?php if ($currentModel === $model['id']): ?><span class="badge brand">Actif</span><?php endif; ?>
+                            <div class="tiny muted mono"><?= e($model['id']) ?></div>
+                        </td>
+                        <td class="right nowrap"><?= $model['input'] === null ? '<span class="faint">—</span>' : e(number_format((float) $model['input'], 2, ',', ' ')) . ' $' ?></td>
+                        <td class="right nowrap"><?= $model['output'] === null ? '<span class="faint">—</span>' : e(number_format((float) $model['output'], 2, ',', ' ')) . ' $' ?></td>
+                        <td class="right nowrap strong"><?= e(App\Models::formatCost($model['cost'])) ?></td>
+                        <td class="tiny muted">
+                            <?= !empty($model['adaptive']) ? 'réflexion adaptative' : 'sans réflexion adaptative' ?><?php
+                            ?><?= $model['efforts'] === [] ? ', sans niveau d\'effort' : ', effort ' . e(implode('/', $model['efforts'])) ?><?php
+                            ?><?= empty($model['structured']) ? ', sans sortie structurée' : '' ?>
+                        </td>
+                    </tr>
+                <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
+
+        <p class="tiny muted">
+            La liste et les capacités proviennent de l'API
+            <?= $modelsFetchedAt > 0 ? '(relevé ' . e(ago($modelsFetchedAt)) . ')' : '(pas encore interrogée)' ?>,
+            et se rafraîchissent seules une fois par jour.
+            Les tarifs ne sont pas exposés par l'API : ils viennent de la grille publique relevée le
+            <?= e(date('d/m/Y', strtotime(App\Models::PRICING_DATE))) ?>, à vérifier sur
+            <a href="<?= e(App\Models::PRICING_SOURCE) ?>" target="_blank" rel="noopener noreferrer">la page tarifs</a>.
+            <?php if (!empty($profile['measured'])): ?>
+                Le coût par maquette est calculé sur votre consommation réelle
+                (<?= number_format((int) $profile['input'], 0, ',', ' ') ?> tokens en entrée et
+                <?= number_format((int) $profile['output'], 0, ',', ' ') ?> en sortie en moyenne,
+                sur <?= (int) $profile['samples'] ?> maquette(s)).
+            <?php else: ?>
+                Tant qu'aucune maquette n'a été générée, le coût est estimé sur un profil de référence
+                (<?= number_format((int) $profile['input'], 0, ',', ' ') ?> tokens en entrée,
+                <?= number_format((int) $profile['output'], 0, ',', ' ') ?> en sortie) ;
+                il s'ajustera ensuite à votre consommation réelle.
+            <?php endif; ?>
+            <?php if ($spent !== null): ?>
+                Dépense cumulée estimée depuis la mise en service : <strong><?= e(App\Models::formatCost($spent)) ?></strong>.
+            <?php endif; ?>
+        </p>
+
+        <div class="field-row">
             <div class="field">
                 <label for="claude_effort">Niveau d'effort</label>
                 <select name="claude_effort" id="claude_effort">
@@ -81,6 +166,7 @@ $secretPlaceholder = static fn (string $value): string => $value !== '' ? 'Valeu
                         <option value="<?= e($value) ?>" <?= $config['claude']['effort'] === $value ? 'selected' : '' ?>><?= e($label) ?></option>
                     <?php endforeach; ?>
                 </select>
+                <span class="hint muted tiny">Ramené automatiquement au niveau le plus proche si le modèle choisi ne le propose pas.</span>
             </div>
             <div class="field">
                 <label for="claude_max_tokens">Tokens maximum par page</label>
@@ -338,10 +424,16 @@ $secretPlaceholder = static fn (string $value): string => $value !== '' ? 'Valeu
 <div class="grid cols-2">
     <div class="card">
         <div class="card-head"><h2>Tester la configuration</h2></div>
-        <form method="post" action="<?= e(url('test_claude')) ?>" class="mb">
-            <?= Csrf::field() ?>
-            <button class="btn" type="submit">Tester la clé API Claude</button>
-        </form>
+        <div class="row mb">
+            <form method="post" action="<?= e(url('test_claude')) ?>">
+                <?= Csrf::field() ?>
+                <button class="btn" type="submit">Tester la clé API Claude</button>
+            </form>
+            <form method="post" action="<?= e(url('models_refresh')) ?>">
+                <?= Csrf::field() ?>
+                <button class="btn" type="submit">Recharger la liste des modèles</button>
+            </form>
+        </div>
         <form method="post" action="<?= e(url('test_smtp')) ?>" class="stack">
             <?= Csrf::field() ?>
             <div class="field">

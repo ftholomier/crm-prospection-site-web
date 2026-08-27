@@ -105,7 +105,8 @@ Dans **Réglages** :
   les liens envoyés aux prospects ; sans elle, l'URL est devinée depuis la
   requête, ce qui échoue derrière un proxy.
 - **Clé API Claude** — depuis `console.anthropic.com`. Le bouton « Tester »
-  vérifie qu'elle répond.
+  vérifie qu'elle répond, et « Recharger la liste des modèles » remplit le
+  sélecteur de modèles avec les tarifs et le coût estimé par maquette.
 - **SMTP** — serveur, port, identifiants et adresse d'expédition. Le bouton
   « Tester » valide la connexion, et envoie un vrai message si vous renseignez
   une adresse de test.
@@ -158,6 +159,7 @@ app/
 ├── Enrich.php               Enrichissement en cascade (site → base entreprise)
 ├── Screenshot.php           Capture du site actuel (service externe ou import)
 ├── Claude.php               Client Messages API en HTTP brut (classique + flux)
+├── Models.php               Catalogue des modèles, capacités, tarifs et coûts
 ├── Generator.php            Brief de direction artistique puis pages
 ├── Mockup.php               Stockage, versions et préparation à l'affichage
 ├── Templates.php            Modèles des trois emails
@@ -189,6 +191,8 @@ bin/                         cron.php et serve.php
 | `data/sends.json` | Envois, ouvertures et clics |
 | `data/suppression.json` | Désinscriptions |
 | `data/auth.json` | Tentatives de connexion et jeton de réinitialisation (haché) |
+| `data/models.json` | Cache du catalogue des modèles et de leurs capacités |
+| `data/usage.json` | Tokens consommés, pour affiner l'estimation des coûts |
 
 Les écritures passent par un fichier temporaire suivi d'un `rename`, et les
 cycles lecture-modification-écriture sont protégés par un verrou : le cron et
@@ -212,8 +216,37 @@ Si une capture du site est disponible, elle est jointe à la requête : le modè
 voit alors réellement le site avant de le refondre, au lieu de le deviner à
 partir du code.
 
-Le modèle par défaut est `claude-opus-5`, avec la réflexion adaptative. Modèle,
-niveau d'effort et plafond de tokens sont modifiables dans les Réglages.
+### Choix du modèle
+
+**Réglages → Génération des maquettes** propose la liste des modèles
+**récupérée en direct sur l'API**, classée du moins cher au plus cher, avec pour
+chacun le prix par million de tokens et le **coût estimé d'une maquette
+complète**. Un tableau comparatif détaille les capacités de chaque modèle. Le
+bouton « Recharger la liste » force la mise à jour ; sinon elle se rafraîchit
+seule une fois par jour.
+
+Deux précisions sur ce que fait réellement l'API :
+
+- Elle renvoie la liste et un arbre de **capacités** complet. L'application s'en
+  sert pour **adapter automatiquement chaque requête** : un modèle sans
+  réflexion adaptative ne la reçoit pas, un niveau d'effort non supporté est
+  ramené au plus proche en dessous, et un modèle sans sorties structurées reçoit
+  le schéma JSON en consigne. Choisir un modèle ancien ne provoque donc pas
+  d'erreur 400.
+- Elle **ne renvoie pas les tarifs**. Ceux-ci proviennent de la grille publique
+  relevée à la date affichée sous la liste, et les modèles absents de cette
+  table sont signalés « tarif inconnu » puis classés en fin de liste — jamais
+  d'un chiffre inventé.
+
+Le coût par maquette est d'abord une estimation sur un profil de référence
+(environ 18 000 tokens en entrée et 24 000 en sortie). Dès la première
+génération, l'application le recalcule **sur votre consommation réelle** et
+affiche la dépense cumulée estimée.
+
+Un modèle absent de la liste peut être saisi à la main via l'option « Autre » :
+il est alors présumé de génération courante.
+
+Le modèle par défaut est `claude-opus-5`, avec la réflexion adaptative.
 
 > L'API est appelée en **HTTP brut via cURL**, sans le SDK Anthropic : le
 > projet impose du PHP natif sans Composer.
