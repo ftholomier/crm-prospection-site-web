@@ -140,11 +140,11 @@ final class Config
                 'monthly_price' => 79,
                 'currency' => '€',
                 'included' => [
-                    'Hébergement haute performance',
-                    'Sauvegardes quotidiennes',
-                    'Mises à jour techniques et sécurité',
-                    'Mises à jour de contenu illimitées',
-                    'Sans engagement, résiliable à tout moment',
+                    'Toutes les pages de votre site, pas seulement ces trois-là',
+                    'Reprise de vos contenus, textes et photos existants',
+                    'Hébergement et sauvegardes quotidiennes',
+                    'Mises à jour techniques et de sécurité',
+                    'Modifications de contenu illimitées, à la demande',
                 ],
             ],
             'smtp' => [

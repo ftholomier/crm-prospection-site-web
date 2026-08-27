@@ -27,8 +27,8 @@ body{padding-bottom:82px!important}
 </style>
 <div class="ps-bar" role="complementary" aria-label="Proposition de refonte">
     <div class="ps-bar__label">
-        Maquette proposée à <?= e(Prospect::displayName($prospect)) ?>
-        <span><?= e($price) ?> par mois, tout compris, sans engagement</span>
+        Aperçu du futur site de <?= e(Prospect::displayName($prospect)) ?>
+        <span>Échantillon de 3 pages — le site entier refait pour <?= e($price) ?> par mois, tout compris, sans engagement</span>
     </div>
     <div class="ps-bar__links">
         <?php if ($introUrl !== ''): ?>
@@ -36,6 +36,6 @@ body{padding-bottom:82px!important}
         <?php else: ?>
             <a href="<?= e($currentSiteUrl) ?>" target="_blank" rel="noopener noreferrer">Voir mon site actuel</a>
         <?php endif; ?>
-        <a class="ps-bar__cta" href="<?= e($interestUrl) ?>">Ça m'intéresse</a>
+        <a class="ps-bar__cta" href="<?= e($interestUrl) ?>">Je veux le site complet</a>
     </div>
 </div>

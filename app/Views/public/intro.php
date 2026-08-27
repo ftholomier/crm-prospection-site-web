@@ -69,8 +69,21 @@ $score = isset($audit['score']) ? (int) $audit['score'] : null;
         grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:10px; }
     .offer li { padding-left:26px; position:relative; color:#334155; }
     .offer li::before { content:"✓"; position:absolute; left:0; color:#059669; font-weight:700; }
+    .offer-lede { font-size:17px; color:#334155; max-width:760px; margin:10px 0 0; }
+    .steps { display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:20px; margin:30px 0; }
+    .step { position:relative; padding-left:44px; }
+    .step .num { position:absolute; left:0; top:0; width:30px; height:30px; border-radius:50%;
+        background:var(--brand); color:#fff; display:grid; place-items:center; font-weight:700; font-size:14px; }
+    .step strong { display:block; margin-bottom:4px; }
+    .step span:not(.num) { color:var(--muted); font-size:14.5px; line-height:1.55; }
+    .price-block { display:grid; grid-template-columns:minmax(220px,1fr) 2fr; gap:24px;
+        align-items:start; padding:24px; background:#f8fafc; border-radius:12px; }
+    .price-note { color:var(--muted); font-size:14px; margin:6px 0 0; }
+    .closing { margin-top:26px; padding-top:24px; border-top:1px solid var(--line); }
+    .closing p { max-width:680px; }
     .note { text-align:center; color:var(--muted); font-size:14px; margin-top:30px; }
     @media (max-width:820px) {
+        .price-block { grid-template-columns:1fr; }
         .compare { grid-template-columns:1fr; }
         .viewport { height:300px; }
         .viewport iframe { transform:scale(.28); }
@@ -85,11 +98,13 @@ $score = isset($audit['score']) ? (int) $audit['score'] : null;
         <h1>Voici à quoi pourrait ressembler votre site.</h1>
         <p class="lede">
             <?php if ($shotUrl !== null): ?>
-                À gauche, votre site tel qu'il est aujourd'hui. À droite, une maquette réelle,
-                entièrement conçue à partir de votre activité, de vos prestations et de votre univers.
+                À gauche, votre site tel qu'il est aujourd'hui. À droite, trois pages réelles,
+                conçues à partir de votre activité et de vos prestations — un échantillon de ce que
+                deviendrait <strong>l'ensemble</strong> de votre site.
             <?php else: ?>
-                À gauche, ce que révèle l'analyse de votre site actuel. À droite, une maquette réelle,
-                entièrement conçue à partir de votre activité, de vos prestations et de votre univers.
+                À gauche, ce que révèle l'analyse de votre site actuel. À droite, trois pages réelles,
+                conçues à partir de votre activité et de vos prestations — un échantillon de ce que
+                deviendrait <strong>l'ensemble</strong> de votre site.
             <?php endif; ?>
         </p>
     </header>
@@ -140,23 +155,59 @@ $score = isset($audit['score']) ? (int) $audit['score'] : null;
     </div>
 
     <div class="cta">
-        <a class="btn" href="<?= e($mockupUrl) ?>">Parcourir la maquette complète</a>
+        <a class="btn" href="<?= e($mockupUrl) ?>">Parcourir les trois pages</a>
         <a class="btn plain" href="<?= e($interestUrl) ?>">Ça m'intéresse</a>
     </div>
 
     <div class="offer">
-        <h2>Si elle vous plaît, je la mets en ligne</h2>
-        <div class="price"><?= e($price) ?> <small>par mois, tout compris</small></div>
-        <?php if ($included !== []): ?>
-            <ul>
-                <?php foreach ($included as $item): ?>
-                    <li><?= e($item) ?></li>
-                <?php endforeach; ?>
-            </ul>
-        <?php endif; ?>
+        <h2>Ces trois pages ne sont qu'un échantillon</h2>
+        <p class="offer-lede">
+            Accueil, à propos, prestations : de quoi juger sur pièces plutôt que sur promesse.
+            Si cette direction vous convient, c'est <strong>l'intégralité de votre site</strong> qui est
+            refaite ainsi — toutes vos pages, tous vos contenus repris, la même exigence de mise en page,
+            de lisibilité et de rendu sur téléphone.
+        </p>
+
+        <div class="steps">
+            <div class="step">
+                <span class="num">1</span>
+                <strong>Vous validez la direction</strong>
+                <span>Couleurs, ton, mise en page. Tout se discute et se modifie avant d'aller plus loin.</span>
+            </div>
+            <div class="step">
+                <span class="num">2</span>
+                <strong>Je refais le site entier</strong>
+                <span>Chaque page existante est reprise et remise en forme. Vous n'avez rien à ressaisir.</span>
+            </div>
+            <div class="step">
+                <span class="num">3</span>
+                <strong>Il reste à jour</strong>
+                <span>Un texte à changer, une photo à remplacer, une prestation à ajouter : vous demandez, je m'en occupe.</span>
+            </div>
+        </div>
+
+        <div class="price-block">
+            <div>
+                <div class="price"><?= e($price) ?> <small>par mois, tout compris</small></div>
+                <p class="price-note">Pas de facture de création à régler d'avance. Pas de durée minimum.</p>
+            </div>
+            <?php if ($included !== []): ?>
+                <ul>
+                    <?php foreach ($included as $item): ?>
+                        <li><?= e($item) ?></li>
+                    <?php endforeach; ?>
+                </ul>
+            <?php endif; ?>
+        </div>
+
+        <div class="closing">
+            <p><strong>Vous arrêtez quand vous voulez.</strong> Sans justification, sans préavis, sans frais.
+               C'est à moi de vous donner envie de rester, pas à un contrat de vous retenir.</p>
+            <a class="btn" href="<?= e($interestUrl) ?>">Discutons de mon site complet</a>
+        </div>
     </div>
 
-    <p class="note">Cette page est privée et ne vous engage à rien.</p>
+    <p class="note">Cette page est privée, elle ne vous engage à rien, et personne d'autre n'y a accès.</p>
 </div>
 </body>
 </html>
