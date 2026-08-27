@@ -6,6 +6,7 @@ namespace App\Controllers;
 use App\Assets;
 use App\Config;
 use App\Events;
+use App\Generator;
 use App\Mailer;
 use App\Mockup;
 use App\Portrait;
@@ -52,6 +53,10 @@ final class PublicSite
                     : null,
                 'mockupUrl' => Router::mockupUrl($prospect, 'accueil'),
                 'interestUrl' => Router::publicUrl('interest', ['t' => $prospect['tokens']['public']]),
+                // La page de proposition emprunte la charte du prospect : c'est
+                // la même couleur que dans la maquette, dès la première ligne.
+                'palette' => Generator::palette($prospect),
+                'socleUrl' => rtrim(Config::baseUrl(), '/') . '/assets/maquette/socle.css',
             ]);
             return;
         }
