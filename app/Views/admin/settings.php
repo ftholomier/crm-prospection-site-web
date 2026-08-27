@@ -433,6 +433,12 @@ $secretPlaceholder = static fn (string $value): string => $value !== '' ? 'Valeu
         </div>
 
         <div class="field">
+            <label for="about_quote">Phrase signature <span class="muted">— facultative</span></label>
+            <input type="text" name="about_quote" id="about_quote" value="<?= e((string) ($config['about']['quote'] ?? '')) ?>">
+            <span class="hint muted tiny">Affichée en exergue sous votre présentation.</span>
+        </div>
+
+        <div class="field">
             <label for="about_points">Points de réassurance <span class="muted">— un par ligne</span></label>
             <textarea name="about_points" id="about_points" rows="4"><?= e(implode("\n", (array) $config['about']['points'])) ?></textarea>
             <span class="hint muted tiny">Trois lignes courtes suffisent. Vérifiez que chacune est exacte : elles sont affichées comme des engagements.</span>

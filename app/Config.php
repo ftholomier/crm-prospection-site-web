@@ -184,15 +184,19 @@ final class Config
                 'enabled' => true,
                 'title' => 'Qui suis-je',
                 'name' => 'Frédéric Tholomier',
-                'role' => 'Expert du digital depuis 27 ans',
-                'bio' => "Je m'appelle Frédéric Tholomier et je travaille dans le digital depuis 27 ans.\n\n"
-                    . "Les pages que vous venez de voir, c'est moi qui les ai faites, à partir de votre "
-                    . "activité et de vos prestations. Pas un modèle acheté, pas une agence à qui je "
-                    . "sous-traite : vous parlez à la personne qui conçoit et qui entretient votre site.",
+                'role' => 'Fondateur de LE-DIGITAL.com — expert webmarketing depuis 27 ans',
+                'bio' => "Je m'appelle Frédéric Tholomier. Je suis fondateur de LE-DIGITAL.com et je travaille "
+                    . "dans le digital depuis 27 ans : formation, conseil et prestations pour des chefs "
+                    . "d'entreprise — plusieurs centaines accompagnés à ce jour — entre Besançon, Montbéliard "
+                    . "et Belfort, et partout en France.\n\n"
+                    . "Les pages que vous venez de voir, c'est moi qui les ai faites, à partir de votre activité "
+                    . "et de vos prestations. Pas un modèle acheté, pas une agence à qui je sous-traite : vous "
+                    . "parlez directement à la personne qui conçoit votre site et qui l'entretiendra.",
+                'quote' => 'Le digital provoque la conversation. La conversation provoque la conversion.',
                 'points' => [
                     '27 ans de métier dans le digital',
-                    'Un interlocuteur unique, du premier échange à la mise en ligne',
-                    'Sans engagement de durée : je mise sur la durée, pas sur un contrat',
+                    'Des centaines de chefs d\'entreprise accompagnés',
+                    'Besançon, Montbéliard, Belfort — et partout en France',
                 ],
                 'site_url' => 'https://le-digital.com',
                 'site_label' => 'le-digital.com',

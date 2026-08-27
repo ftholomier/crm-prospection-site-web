@@ -816,6 +816,7 @@ final class Admin
                 'name' => trim((string) ($post['about_name'] ?? '')),
                 'role' => trim((string) ($post['about_role'] ?? '')),
                 'bio' => trim((string) ($post['about_bio'] ?? '')),
+                'quote' => trim((string) ($post['about_quote'] ?? '')),
                 'points' => array_values(array_filter(array_map(
                     'trim',
                     preg_split('/\r\n|\r|\n/', (string) ($post['about_points'] ?? '')) ?: []

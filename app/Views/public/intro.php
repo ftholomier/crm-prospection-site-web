@@ -103,6 +103,8 @@ $score = isset($audit['score']) ? (int) $audit['score'] : null;
         grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:10px; }
     .about-points li { padding-left:26px; position:relative; color:#334155; font-size:15px; }
     .about-points li::before { content:"✓"; position:absolute; left:0; color:#059669; font-weight:700; }
+    .about-quote { margin:20px 0 0; padding:14px 20px; border-left:3px solid var(--brand);
+        background:#f8fafc; border-radius:0 8px 8px 0; font-size:16px; font-style:italic; color:#1e293b; }
     .about-site { margin:20px 0 0; font-size:15px; }
     .note { text-align:center; color:var(--muted); font-size:14px; margin-top:30px; }
     @media (max-width:820px) {
@@ -251,6 +253,10 @@ $score = isset($audit['score']) ? (int) $audit['score'] : null;
             <?php foreach ($bioParagraphs as $paragraph): ?>
                 <p class="about-bio"><?= nl2br(e($paragraph)) ?></p>
             <?php endforeach; ?>
+
+            <?php if (trim((string) ($about['quote'] ?? '')) !== ''): ?>
+                <blockquote class="about-quote"><?= e((string) $about['quote']) ?></blockquote>
+            <?php endif; ?>
 
             <?php $points = array_values(array_filter((array) ($about['points'] ?? []))); ?>
             <?php if ($points !== []): ?>
