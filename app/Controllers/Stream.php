@@ -26,6 +26,56 @@ use App\Store;
  */
 final class Stream
 {
+    /** Journal du traitement en cours, conservé pour la fiche prospect. */
+    private static array $journal = [];
+    private static ?string $journalProspect = null;
+    private static string $journalType = '';
+
+    /** Ouvre un journal rattaché à un prospect, écrit à chaque étape. */
+    private static function startJournal(string $prospectId, string $type): void
+    {
+        self::$journal = [];
+        self::$journalProspect = $prospectId;
+        self::$journalType = $type;
+    }
+
+    /**
+     * Enregistre le déroulé sur la fiche.
+     *
+     * Sans cela, le détail défile puis disparaît au rechargement de la page :
+     * impossible de relire ce que l'analyse a trouvé.
+     */
+    private static function saveJournal(bool $ok, string $conclusion = ''): void
+    {
+        if (self::$journalProspect === null) {
+            return;
+        }
+        // Une étape suivie d'une autre est forcément achevée : on la marque
+        // comme telle, sans quoi tout le déroulé reste « en cours » à la relecture.
+        $steps = self::$journal;
+        $dernier = count($steps) - 1;
+        foreach ($steps as $index => $step) {
+            if ($index < $dernier && ($step['state'] ?? '') === 'running') {
+                $steps[$index]['state'] = 'done';
+            }
+        }
+        if ($ok && $dernier >= 0 && ($steps[$dernier]['state'] ?? '') === 'running') {
+            $steps[$dernier]['state'] = 'done';
+        }
+
+        $entry = [
+            'type' => self::$journalType,
+            'at' => time(),
+            'ok' => $ok,
+            'conclusion' => $conclusion,
+            'steps' => $steps,
+        ];
+        Prospect::update(self::$journalProspect, static function (array $p) use ($entry): array {
+            $p['last_run'] = $entry;
+            return $p;
+        });
+    }
+
     /** Prépare la réponse SSE et désactive toute mise en tampon intermédiaire. */
     private static function open(): void
     {
@@ -48,6 +98,13 @@ final class Stream
 
     private static function emit(string $event, array $data): void
     {
+        if ($event === 'step') {
+            self::$journal[] = [
+                'message' => (string) ($data['message'] ?? ''),
+                'state' => (string) ($data['state'] ?? 'running'),
+                'at' => time(),
+            ];
+        }
         echo 'event: ' . $event . "\n";
         echo 'data: ' . json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . "\n\n";
         @flush();
@@ -55,6 +112,8 @@ final class Stream
 
     private static function fail(string $message): never
     {
+        self::$journal[] = ['message' => $message, 'state' => 'error', 'at' => time()];
+        self::saveJournal(false, $message);
         self::emit('error', ['message' => $message]);
         exit;
     }
@@ -71,6 +130,7 @@ final class Stream
             self::fail('Prospect introuvable.');
         }
 
+        self::startJournal($id, 'Analyse du site');
         self::emit('step', ['message' => 'Analyse démarrée']);
         $result = Analyzer::run($id, static function (string $message, string $state): void {
             self::emit('step', ['message' => $message, 'state' => $state]);
@@ -81,6 +141,11 @@ final class Stream
         }
 
         $prospect = $result['prospect'];
+        $conclusion = 'Score ' . ($prospect['audit']['score'] ?? 0) . '/100 — '
+            . ($prospect['audit']['level'] ?? '')
+            . ' · ' . count($prospect['audit']['findings'] ?? []) . ' constat(s)';
+        self::saveJournal(true, $conclusion);
+
         self::emit('done', [
             'score' => $prospect['audit']['score'] ?? 0,
             'level' => $prospect['audit']['level'] ?? '',
@@ -105,6 +170,7 @@ final class Stream
         if ($prospect === null) {
             self::fail('Prospect introuvable.');
         }
+        self::startJournal($id, 'Lecture du site par l\'IA');
         if (!\App\SiteReader::isAvailable()) {
             self::fail('Renseignez la clé API Claude dans les Réglages : la lecture par l\'IA en dépend.');
         }
@@ -119,6 +185,9 @@ final class Stream
 
         $prospect = $result['prospect'];
         $analysis = $prospect['analysis'] ?? [];
+        self::saveJournal(true, count($analysis['pages_found'] ?? []) . ' page(s) lue(s), '
+            . count($analysis['services'] ?? []) . ' prestation(s) relevée(s)');
+
         self::emit('done', [
             'company' => $prospect['company'] ?? '',
             'email' => $prospect['email'] ?? '',

@@ -4,6 +4,60 @@
 (function () {
     'use strict';
 
+    /** Pilote la barre de progression et le chronomètre du panneau. */
+    var suivi = {
+        depart: 0,
+        minuteur: null,
+        total: 0,
+        faits: 0,
+
+        demarrer: function (titre, total) {
+            var panneau = document.getElementById('run-panel');
+            var barre = document.getElementById('run-progress');
+            var titreEl = document.getElementById('run-title');
+            if (panneau) panneau.hidden = false;
+            if (titreEl && titre) titreEl.textContent = titre;
+
+            this.depart = Date.now();
+            this.total = total || 0;
+            this.faits = 0;
+            if (barre) {
+                barre.classList.toggle('indeterminate', !this.total);
+                var jauge = barre.firstElementChild;
+                if (jauge) jauge.style.width = this.total ? '2%' : '';
+            }
+
+            var self = this;
+            clearInterval(this.minuteur);
+            this.minuteur = setInterval(function () {
+                var horloge = document.getElementById('run-clock');
+                if (!horloge) return;
+                var s = Math.round((Date.now() - self.depart) / 1000);
+                horloge.textContent = s < 60 ? s + ' s' : Math.floor(s / 60) + ' min ' + (s % 60) + ' s';
+            }, 500);
+        },
+
+        avancer: function () {
+            this.faits++;
+            var barre = document.getElementById('run-progress');
+            if (!barre || !this.total) return;
+            var jauge = barre.firstElementChild;
+            if (jauge) jauge.style.width = Math.min(100, Math.round(this.faits / this.total * 100)) + '%';
+        },
+
+        terminer: function (reussi) {
+            clearInterval(this.minuteur);
+            var barre = document.getElementById('run-progress');
+            if (!barre) return;
+            barre.classList.remove('indeterminate');
+            var jauge = barre.firstElementChild;
+            if (jauge) {
+                jauge.style.width = '100%';
+                if (!reussi) jauge.style.background = 'var(--danger)';
+            }
+        }
+    };
+
     /** Écrit une ligne dans la console de progression. */
     function logLine(box, text, kind) {
         if (!box) return;
@@ -32,10 +86,15 @@
                 fn(value);
             }
 
+            var enCours = null;
             source.addEventListener('step', function (event) {
                 var data = JSON.parse(event.data);
                 progressLine = null;
-                logLine(box, data.message, data.state === 'done' ? 'done' : (data.state === 'warn' ? 'warn' : ''));
+                // L'étape précédente cesse de clignoter dès que la suivante arrive.
+                if (enCours) enCours.classList.remove('pending');
+                var kind = data.state === 'done' ? 'done' : (data.state === 'warn' ? 'warn' : 'pending');
+                enCours = logLine(box, data.message, kind);
+                if (data.state === 'done') { enCours.classList.remove('pending'); enCours = null; }
             });
 
             source.addEventListener('progress', function (event) {
@@ -83,9 +142,8 @@
 
             function start() {
                 var box = document.getElementById('console');
-                var panel = document.getElementById('run-panel');
-                if (panel) panel.hidden = false;
                 if (box) box.innerHTML = '';
+                suivi.demarrer(button.dataset.title || 'Traitement en cours', 0);
 
                 // Les autres déclencheurs sont neutralisés le temps du traitement.
                 Array.prototype.forEach.call(document.querySelectorAll('[data-analyze]'), function (other) {
@@ -95,10 +153,14 @@
 
                 runStep(button.dataset.analyze, box, {})
                     .then(function (data) {
+                        suivi.terminer(true);
                         logLine(box, resume(data), 'done');
-                        setTimeout(function () { window.location.reload(); }, 900);
+                        // Délai volontaire : le temps de lire la conclusion, qui
+                        // reste ensuite consultable dans « dernier traitement ».
+                        setTimeout(function () { window.location.reload(); }, 2200);
                     })
                     .catch(function () {
+                        suivi.terminer(false);
                         Array.prototype.forEach.call(document.querySelectorAll('[data-analyze]'), function (other) {
                             other.disabled = false;
                         });
@@ -140,11 +202,11 @@
                     : (form.dataset.pages || '').split(',').filter(Boolean);
 
                 var box = document.getElementById('console');
-                var panel = document.getElementById('run-panel');
                 var submit = form.querySelector('[type=submit]');
 
-                if (panel) panel.hidden = false;
                 if (box) box.innerHTML = '';
+                // Brief + une étape par page : la progression est mesurable.
+                suivi.demarrer(mode === 'revise' ? 'Retouche de la maquette' : 'Génération de la maquette', pages.length + 1);
                 if (submit) { submit.disabled = true; submit.dataset.label = submit.textContent; submit.textContent = 'Génération en cours…'; }
 
                 var query = function (extra) {
@@ -154,6 +216,7 @@
 
                 runStep(query({ step: 'brief', mode: mode, instruction: instruction }), box, {})
                     .then(function (data) {
+                        suivi.avancer();
                         var version = data.version;
                         // Les pages s'enchaînent séquentiellement : une requête
                         // par page reste sous les limites d'exécution des
@@ -165,15 +228,17 @@
                                     mode: mode,
                                     version: version,
                                     instruction: instruction
-                                }), box, {});
+                                }), box, {}).then(function (r) { suivi.avancer(); return r; });
                             });
                         }, Promise.resolve());
                     })
                     .then(function () {
-                        logLine(box, 'Maquette prête. Rechargement…', 'done');
-                        setTimeout(function () { window.location.reload(); }, 900);
+                        suivi.terminer(true);
+                        logLine(box, 'Maquette prête.', 'done');
+                        setTimeout(function () { window.location.reload(); }, 2200);
                     })
                     .catch(function () {
+                        suivi.terminer(false);
                         if (submit) { submit.disabled = false; submit.textContent = submit.dataset.label || 'Relancer'; }
                     });
             });

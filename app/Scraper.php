@@ -122,7 +122,10 @@ final class Scraper
         }
 
         foreach (self::variants($url) as $label => $attempt) {
-            $notify('Refus du site (' . $response['status'] . ') — nouvelle tentative : ' . $label);
+            $motif = $response['status'] > 0
+                ? 'Refus du site (' . $response['status'] . ')'
+                : 'Site injoignable';
+            $notify($motif . ' — nouvelle tentative : ' . $label);
             $retry = Http::get($attempt['url'], 25, $attempt['agent']);
             if ($retry['ok'] && trim($retry['body']) !== '') {
                 $notify('Accès obtenu (' . $label . ')', 'done');

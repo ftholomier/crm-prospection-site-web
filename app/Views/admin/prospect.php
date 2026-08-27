@@ -41,6 +41,7 @@ $mailable = Prospect::isMailable($p);
         <button class="btn" type="button"
                 data-analyze="<?= e(url('analyze_stream', ['id' => $id])) ?>"
                 data-busy="Analyse en cours…"
+                data-title="Analyse du site"
                 data-autorun="<?= $autorun ? '1' : '0' ?>">
             <?= $hasAnalysis ? 'Relancer l\'analyse' : 'Analyser le site' ?>
         </button>
@@ -55,10 +56,41 @@ $mailable = Prospect::isMailable($p);
 </div>
 
 <div class="card" id="run-panel" hidden>
-    <div class="card-head"><h2>Traitement en cours</h2></div>
+    <div class="card-head">
+        <h2 id="run-title">Traitement en cours</h2>
+        <div class="actions">
+            <span class="badge brand" id="run-clock">0 s</span>
+        </div>
+    </div>
+    <div class="progress" id="run-progress"><span></span></div>
     <div class="console" id="console"></div>
-    <p class="tiny muted mt">Ne fermez pas cet onglet : chaque étape est enregistrée dès qu'elle est terminée.</p>
+    <p class="tiny muted mt">Ne fermez pas cet onglet : chaque étape est enregistrée dès qu'elle est terminée, et le détail reste consultable après coup.</p>
 </div>
+
+<?php $run = $p['last_run'] ?? null; ?>
+<?php if (is_array($run) && !empty($run['steps'])): ?>
+    <div class="card" id="dernier-traitement">
+        <div class="card-head">
+            <h2><?= e((string) ($run['type'] ?? 'Dernier traitement')) ?></h2>
+            <div class="actions">
+                <span class="badge <?= !empty($run['ok']) ? 'ok' : 'danger' ?>">
+                    <?= !empty($run['ok']) ? 'Terminé' : 'Interrompu' ?>
+                </span>
+                <span class="tiny muted"><?= e(ago((int) ($run['at'] ?? 0))) ?></span>
+            </div>
+        </div>
+        <?php if (trim((string) ($run['conclusion'] ?? '')) !== ''): ?>
+            <p class="strong"><?= e((string) $run['conclusion']) ?></p>
+        <?php endif; ?>
+        <ol class="run-steps">
+            <?php foreach ($run['steps'] as $step): ?>
+                <li class="run-step run-step--<?= e((string) ($step['state'] ?? 'running')) ?>">
+                    <?= e((string) $step['message']) ?>
+                </li>
+            <?php endforeach; ?>
+        </ol>
+    </div>
+<?php endif; ?>
 
 <div class="grid side">
     <div>
@@ -129,6 +161,7 @@ $mailable = Prospect::isMailable($p);
             <button class="btn primary" type="button"
                     data-analyze="<?= e(url('read_site_stream', ['id' => $id])) ?>"
                     data-busy="Lecture du site en cours…"
+                    data-title="Lecture du site par l'IA"
                     data-autorun="0">Lire le site avec l'IA</button>
             <p class="tiny muted mt">
                 Le modèle rapporte ce qu'il lit, sans rien inventer. Il ne voit ni les couleurs, ni les
@@ -198,7 +231,7 @@ $mailable = Prospect::isMailable($p);
                         <button type="button" data-width="390px">Mobile</button>
                     </div>
                     <div class="actions" style="margin-left:auto">
-                        <a class="btn small" href="<?= e(url('mockup_preview', ['id' => $id, 'v' => $currentVersion, 'p' => $previewPage])) ?>" target="_blank" rel="noopener">Ouvrir</a>
+                        <a class="btn small" href="<?= e(url('mockup_preview', ['id' => $id, 'v' => $currentVersion, 'p' => $previewPage])) ?>" target="_blank" rel="noopener">Ouvrir en grand</a>
                         <a class="btn small" href="<?= e(url('mockup_download', ['id' => $id, 'v' => $currentVersion, 'p' => $previewPage])) ?>">Télécharger</a>
                     </div>
                 </div>

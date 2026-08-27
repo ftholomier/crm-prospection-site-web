@@ -328,9 +328,41 @@ final class Admin
         if (!$result['ok']) {
             Flash::error($result['error']);
         } else {
-            $audit = $result['prospect']['audit'] ?? [];
+            $prospect = $result['prospect'];
+            $audit = $prospect['audit'] ?? [];
+            $analysis = $prospect['analysis'] ?? [];
+
+            // Le collage laisse la même trace consultable qu'une analyse en flux.
+            $steps = [];
+            foreach (array_keys($sources) as $role) {
+                $steps[] = ['message' => 'Page « ' . $role . ' » analysée', 'state' => 'done', 'at' => time()];
+            }
+            foreach ([
+                'Société : ' . ($prospect['company'] ?: 'non identifiée'),
+                'Email : ' . ($prospect['email'] ?: 'non trouvé'),
+                'Téléphone : ' . ($prospect['phone'] ?: 'non trouvé'),
+                'SIREN : ' . ($prospect['siren'] ?: 'non trouvé'),
+                count($analysis['services'] ?? []) . ' prestation(s) relevée(s)',
+                count($analysis['images'] ?? []) . ' photo(s) repérée(s)'
+                    . (($analysis['logo'] ?? '') !== '' ? ', logo identifié' : ', aucun logo identifié'),
+            ] as $ligne) {
+                $steps[] = ['message' => $ligne, 'state' => 'done', 'at' => time()];
+            }
+
+            Prospect::update($id, static function (array $p) use ($steps, $audit): array {
+                $p['last_run'] = [
+                    'type' => 'Analyse depuis le code collé',
+                    'at' => time(),
+                    'ok' => true,
+                    'conclusion' => 'Score ' . ($audit['score'] ?? '?') . '/100 — '
+                        . ($audit['level'] ?? '') . ' · ' . count($audit['findings'] ?? []) . ' constat(s)',
+                    'steps' => $steps,
+                ];
+                return $p;
+            });
+
             Flash::success(count($sources) . ' page(s) analysée(s) — score '
-                . ($audit['score'] ?? '?') . '/100. Vérifiez les coordonnées avant de générer.');
+                . ($audit['score'] ?? '?') . '/100. Le détail reste consultable sur la fiche.');
         }
         Util::redirect(Router::url('prospect', ['id' => $id]));
     }

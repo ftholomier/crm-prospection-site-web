@@ -284,6 +284,25 @@ td.right, th.right { text-align: right; }
 .device-bar button { border: 1px solid var(--line); background: #fff; border-radius: 7px; padding: 5px 10px; font: inherit; font-size: 13px; cursor: pointer; }
 .device-bar button.active { background: var(--brand); color: #fff; border-color: var(--brand); }
 
+/* Barre de progression des traitements longs : sans elle, rien ne distingue
+   un calcul en cours d'une application plantée. */
+.progress { height: 6px; border-radius: 99px; background: #e5e9ef; overflow: hidden; margin-bottom: 14px; }
+.progress > span { display: block; height: 100%; width: 0; border-radius: 99px;
+    background: linear-gradient(90deg, var(--brand), #60a5fa); transition: width .4s ease; }
+.progress.indeterminate > span { width: 40%; animation: glisse 1.15s ease-in-out infinite; }
+@keyframes glisse { 0% { margin-left: -40%; } 100% { margin-left: 100%; } }
+
+/* Déroulé conservé après le traitement, relisible à tête reposée. */
+.run-steps { list-style: none; margin: 0; padding: 0; }
+.run-step { position: relative; padding: 7px 0 7px 26px; font-size: 13.5px; border-bottom: 1px solid var(--line); }
+.run-step:last-child { border-bottom: 0; }
+.run-step::before { position: absolute; left: 0; top: 7px; font-weight: 700; }
+.run-step--done::before { content: "✓"; color: var(--ok); }
+.run-step--running::before { content: "·"; color: var(--faint); font-size: 20px; line-height: .7; }
+.run-step--warn::before { content: "!"; color: var(--warn); }
+.run-step--error::before { content: "✕"; color: var(--danger); }
+.run-step--error { color: var(--danger); }
+
 .console {
     background: #0b1220;
     color: #cbd5e1;
@@ -303,6 +322,8 @@ td.right, th.right { text-align: right; }
 .console .line.warn { color: #fcd34d; }
 .console .line.err { color: #fca5a5; }
 .console .line.progress { color: #93c5fd; }
+.console .line.pending::after { content: "…"; animation: pointille 1.2s steps(4) infinite; }
+@keyframes pointille { 0% { content: "."; } 33% { content: ".."; } 66% { content: "..."; } }
 
 .findings { list-style: none; margin: 0; padding: 0; }
 .findings li { display: flex; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--line); font-size: 13.5px; }

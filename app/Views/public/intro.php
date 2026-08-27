@@ -49,7 +49,16 @@ $score = isset($audit['score']) ? (int) $audit['score'] : null;
     .viewport { position:relative; height:460px; overflow:hidden; background:#fff; }
     .viewport img { width:100%; display:block; }
     .viewport iframe { width:1280px; height:1610px; border:0; transform:scale(.36); transform-origin:top left; }
-    .veil { position:absolute; inset:0; }
+    /* L'aperçu s'ouvre en grand dans un nouvel onglet : la page de proposition
+       reste ouverte derrière, avec l'offre et les coordonnées. */
+    .veil { position:absolute; inset:0; display:grid; place-items:center; text-decoration:none;
+        background:transparent; transition:background .25s ease; }
+    .veil:hover, .veil:focus-visible { background:rgba(15,23,42,.32); }
+    .veil__action { opacity:0; transform:translateY(6px); transition:opacity .25s ease, transform .25s ease;
+        background:#fff; color:var(--ink); font-weight:600; font-size:15px; padding:12px 22px;
+        border-radius:999px; box-shadow:0 6px 20px rgba(15,23,42,.25); }
+    .veil:hover .veil__action, .veil:focus-visible .veil__action { opacity:1; transform:none; }
+    @media (hover:none) { .veil__action { opacity:1; transform:none; } }
     .viewport.diagnostic { height:auto; min-height:460px; padding:26px; overflow-y:auto; background:#fff; }
     .score-line { display:flex; align-items:center; gap:14px; padding-bottom:18px; border-bottom:1px solid var(--line); }
     .score-dial { width:52px; height:52px; flex:0 0 52px; border-radius:50%; background:#dc2626; color:#fff;
@@ -175,13 +184,15 @@ $score = isset($audit['score']) ? (int) $audit['score'] : null;
             <div class="tag">La proposition</div>
             <div class="viewport">
                 <iframe src="<?= e($mockupUrl) ?>" title="Aperçu de la nouvelle maquette" loading="lazy" scrolling="no" tabindex="-1"></iframe>
-                <span class="veil"></span>
+                <a class="veil" href="<?= e($mockupUrl) ?>" target="_blank" rel="noopener">
+                    <span class="veil__action">Ouvrir en grand</span>
+                </a>
             </div>
         </div>
     </div>
 
     <div class="cta">
-        <a class="btn" href="<?= e($mockupUrl) ?>">Parcourir les trois pages</a>
+        <a class="btn" href="<?= e($mockupUrl) ?>" target="_blank" rel="noopener">Parcourir les trois pages</a>
         <a class="btn plain" href="<?= e($interestUrl) ?>">Ça m'intéresse</a>
     </div>
 
