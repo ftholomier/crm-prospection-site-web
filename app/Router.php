@@ -21,6 +21,7 @@ final class Router
         'unsubscribe' => ['pretty' => 'u/{t}', 'key' => 'u', 'params' => ['t']],
         'interest' => ['pretty' => 'i/{t}', 'key' => 'i', 'params' => ['t']],
         'shot' => ['pretty' => 's/{t}.jpg', 'key' => 's', 'params' => ['t']],
+        'asset' => ['pretty' => 'a/{t}/{f}', 'key' => 'a', 'params' => ['t', 'f']],
         'portrait' => ['pretty' => 'p/portrait.jpg', 'key' => 'p', 'params' => []],
     ];
 

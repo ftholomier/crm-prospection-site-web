@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace App\Controllers;
 
 use App\Analyzer;
+use App\Assets;
 use App\Auth;
 use App\Claude;
 use App\Config;
@@ -230,6 +231,8 @@ final class Admin
             'brokenShot' => Screenshot::hasBrokenFile($id),
             'hasManualSource' => Analyzer::hasStoredSource($id),
             'shotUrl' => Router::url('shot_admin', ['id' => $id, 'v' => time()]),
+            'palette' => $prospect['palette'] ?? [],
+            'actifs' => Assets::catalogue($id),
         ]);
     }
 
@@ -481,9 +484,27 @@ final class Admin
         foreach (array_keys(Mockup::PAGES) as $key) {
             $links[$key] = Router::url('mockup_preview', ['id' => $id, 'v' => $version, 'p' => $key]);
         }
+        $ressources = Mockup::resources(Mockup::assetPattern(
+            Router::url('mockup_asset', ['id' => $id, 'f' => '{f}'])
+        ));
+
         header('Content-Type: text/html; charset=UTF-8');
         header('X-Robots-Tag: noindex, nofollow');
-        echo Mockup::forPublic($html, $links);
+        echo Mockup::forPublic($html, $links, '', $ressources);
+    }
+
+    /** Sert un actif de maquette dans la prévisualisation de l'administration. */
+    public static function mockupAsset(): void
+    {
+        Auth::requireLogin();
+        $path = Assets::pathOf((string) ($_GET['id'] ?? ''), (string) ($_GET['f'] ?? ''));
+        if ($path === null) {
+            http_response_code(404);
+            exit;
+        }
+        header('Content-Type: ' . Assets::mediaType($path));
+        header('Content-Length: ' . (string) filesize($path));
+        readfile($path);
     }
 
     /** Télécharge une version complète sous forme de fichiers HTML concaténés. */
@@ -799,6 +820,7 @@ final class Admin
                 'global_prompt' => (string) ($post['design_prompt'] ?? ''),
                 'allow_google_fonts' => !empty($post['allow_google_fonts']),
                 'use_site_images' => !empty($post['use_site_images']),
+                'assets_mode' => ($post['assets_mode'] ?? '') === 'liens' ? 'liens' : 'copie',
             ],
             'offer' => [
                 'monthly_price' => (float) str_replace(',', '.', (string) ($post['monthly_price'] ?? 79)),

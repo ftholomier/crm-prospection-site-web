@@ -2,7 +2,9 @@
 /**
  * @var array $p @var array $versions @var string $currentVersion @var array $timeline
  * @var array $sends @var array $schedule @var string $mockupUrl @var bool $hasShot @var string $shotUrl
+ * @var array $palette @var array $actifs
  */
+use App\Assets;
 use App\Config;
 use App\Csrf;
 use App\Events;
@@ -510,6 +512,94 @@ $mailable = Prospect::isMailable($p);
                 </div>
             </form>
         </div>
+
+        <?php if (!empty($palette['marque'])): ?>
+            <div class="card">
+                <div class="card-head">
+                    <h2>Charte reprise du site</h2>
+                    <span class="badge <?= ($palette['source'] ?? '') === 'site' ? 'ok' : 'warn' ?>">
+                        <?= ($palette['source'] ?? '') === 'site' ? 'couleur du site' : 'teinte de repli' ?>
+                    </span>
+                </div>
+                <p class="muted small">
+                    <?php if (($palette['source'] ?? '') === 'site'): ?>
+                        Couleur relevée sur le site du prospect. Les trois déclinaisons en sont dérivées en
+                        ne bougeant que la luminosité : la teinte reste reconnaissable, et chaque variante
+                        atteint le contraste minimal là où elle est employée.
+                    <?php else: ?>
+                        Aucune couleur de charte nette n'a été trouvée — le site n'emploie que des gris ou
+                        des beiges. La maquette utilise une teinte neutre, à corriger dans les consignes de
+                        la fiche si vous connaissez la couleur de l'entreprise.
+                    <?php endif; ?>
+                </p>
+                <div class="palette">
+                    <?php
+                    $jetons = [
+                        'marque' => ['Marque', null],
+                        'fonce' => ['Aplats', $palette['mesures']['fonce_sur_blanc'] ?? null],
+                        'texte' => ['Texte de marque', $palette['mesures']['texte_sur_teinte'] ?? null],
+                        'claire' => ['Sur fond sombre', $palette['mesures']['claire_sur_sombre'] ?? null],
+                        'voile' => ['Voile', null],
+                    ];
+                    ?>
+                    <?php foreach ($jetons as $cle => [$label, $ratio]): ?>
+                        <?php if (!empty($palette[$cle])): ?>
+                            <div class="jeton">
+                                <span class="jeton__pastille" style="background: <?= e((string) $palette[$cle]) ?>"></span>
+                                <span class="jeton__label"><?= e($label) ?></span>
+                                <code class="tiny"><?= e((string) $palette[$cle]) ?></code>
+                                <?php if ($ratio !== null): ?>
+                                    <span class="tiny muted"><?= e(number_format((float) $ratio, 2, ',', ' ')) ?>:1</span>
+                                <?php endif; ?>
+                            </div>
+                        <?php endif; ?>
+                    <?php endforeach; ?>
+                </div>
+                <p class="small mt">Police : <strong><?= e((string) ($palette['police_nom'] ?? '—')) ?></strong>
+                    <?= empty($palette['police_import']) ? '<span class="muted tiny">(non chargée : repli système)</span>' : '<span class="muted tiny">(chargée depuis Google Fonts)</span>' ?>
+                </p>
+            </div>
+        <?php endif; ?>
+
+        <?php
+        $photos = $actifs['photos'] ?? [];
+        $aDesActifs = !empty($actifs['logo']) || !empty($actifs['favicon']) || $photos !== [];
+        ?>
+        <?php if ($aDesActifs): ?>
+            <div class="card">
+                <div class="card-head">
+                    <h2>Actifs récupérés</h2>
+                    <span class="badge"><?= ($actifs['mode'] ?? 'copie') === 'liens' ? 'liens distants' : 'copiés ici' ?></span>
+                </div>
+                <p class="muted small">
+                    Ce sont ces fichiers-là que la maquette affichera. Ce qui ne figure pas ici n'existera pas
+                    dans les pages générées.
+                </p>
+                <ul class="liste-actifs">
+                    <?php foreach (['logo' => 'Logo', 'favicon' => 'Favicon'] as $cle => $label): ?>
+                        <?php $src = Assets::src($actifs[$cle] ?? null); ?>
+                        <?php if ($src !== null): ?>
+                            <li>
+                                <img src="<?= e(str_starts_with($src, 'assets/')
+                                    ? url('mockup_asset', ['id' => $id, 'f' => basename($src)])
+                                    : $src) ?>" alt="<?= e($label) ?>" loading="lazy">
+                                <span class="tiny"><?= e($label) ?></span>
+                            </li>
+                        <?php endif; ?>
+                    <?php endforeach; ?>
+                    <?php foreach ($photos as $photo): ?>
+                        <?php $src = Assets::src($photo); ?>
+                        <?php if ($src === null) { continue; } ?>
+                        <li>
+                            <img src="<?= e(str_starts_with($src, 'assets/')
+                                ? url('mockup_asset', ['id' => $id, 'f' => basename($src)])
+                                : $src) ?>" alt="<?= e((string) ($photo['alt'] ?? '')) ?>" loading="lazy">
+                            <span class="tiny muted"><?= (int) $photo['largeur'] ?>×<?= (int) $photo['hauteur'] ?> · <?= e((string) $photo['orientation']) ?></span>
+                        </li>
+                    <?php endforeach; ?>
+                </ul>
+            </div>
+        <?php endif; ?>
 
         <?php if (!empty($p['enrichment']['sources'])): ?>
             <div class="card">

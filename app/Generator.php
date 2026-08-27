@@ -24,17 +24,14 @@ final class Generator
         );
     }
 
-    /** Prompt système commun : règles du projet + offre commerciale. */
+    /** Prompt système commun : discipline du socle + consignes de l'utilisateur. */
     private static function systemPrompt(array $prospect): string
     {
         $rules = trim((string) Config::get('design.global_prompt', Config::defaultDesignPrompt()));
 
         $constraints = [];
-        if (!Config::get('design.allow_google_fonts', true)) {
-            $constraints[] = "Les polices Google Fonts sont interdites : utilise uniquement des piles de polices système.";
-        }
         if (!Config::get('design.use_site_images', true)) {
-            $constraints[] = "N'utilise aucune photo du site d'origine : remplace-les par des compositions CSS ou du SVG inline.";
+            $constraints[] = "Aucune photo : remplace les blocs illustrés par des sections de texte, ou supprime-les.";
         }
 
         $custom = trim((string) ($prospect['design_prompt'] ?? ''));
@@ -42,9 +39,20 @@ final class Generator
             $constraints[] = "Consignes spécifiques à ce prospect, prioritaires sur le reste :\n" . $custom;
         }
 
-        return "Tu es directeur artistique et intégrateur web. Tu produis des maquettes de site en HTML et CSS purs.\n\n"
+        return "Tu es directeur artistique et intégrateur web. Tu remplis un socle de maquettage existant.\n\n"
             . $rules
             . ($constraints !== [] ? "\n\nCONTRAINTES SUPPLÉMENTAIRES\n- " . implode("\n- ", $constraints) : '');
+    }
+
+    /**
+     * Gabarit de référence d'une page : c'est lui qui fixe la structure.
+     * Seul l'intérieur du <body> est transmis, le <head> étant assemblé ici.
+     */
+    public static function gabarit(string $page): string
+    {
+        $path = dirname(__DIR__) . '/app/Design/gabarits/' . Mockup::safePage($page) . '.html';
+        $html = is_file($path) ? (string) file_get_contents($path) : '';
+        return Mockup::bodyOf($html);
     }
 
     /** Profil condensé du site analysé, transmis au modèle en JSON compact. */
@@ -82,10 +90,16 @@ final class Generator
         ], static fn ($value): bool => $value !== '' && $value !== [] && $value !== null);
     }
 
-    /** Schéma du brief, imposé au modèle via les sorties structurées. */
+    /**
+     * Schéma du brief.
+     *
+     * Ni palette ni polices : elles sont calculées en PHP à partir des
+     * couleurs relevées sur le site, avec les contrastes mesurés. Les
+     * demander au modèle reviendrait à lui faire estimer à l'œil ce qui se
+     * calcule, et à laisser passer du texte illisible.
+     */
     private static function briefSchema(): array
     {
-        $stringArray = ['type' => 'array', 'items' => ['type' => 'string']];
         $sections = [
             'type' => 'array',
             'items' => [
@@ -94,8 +108,9 @@ final class Generator
                     'type' => ['type' => 'string'],
                     'titre' => ['type' => 'string'],
                     'contenu' => ['type' => 'string'],
+                    'photo' => ['type' => 'string'],
                 ],
-                'required' => ['type', 'titre', 'contenu'],
+                'required' => ['type', 'titre', 'contenu', 'photo'],
                 'additionalProperties' => false,
             ],
         ];
@@ -104,33 +119,12 @@ final class Generator
             'type' => 'object',
             'properties' => [
                 'entreprise' => ['type' => 'string'],
+                'baseline' => ['type' => 'string'],
                 'accroche' => ['type' => 'string'],
                 'secteur' => ['type' => 'string'],
                 'ton' => ['type' => 'string'],
-                'palette' => [
-                    'type' => 'object',
-                    'properties' => [
-                        'primaire' => ['type' => 'string'],
-                        'secondaire' => ['type' => 'string'],
-                        'accent' => ['type' => 'string'],
-                        'fond' => ['type' => 'string'],
-                        'surface' => ['type' => 'string'],
-                        'texte' => ['type' => 'string'],
-                        'texte_secondaire' => ['type' => 'string'],
-                    ],
-                    'required' => ['primaire', 'secondaire', 'accent', 'fond', 'surface', 'texte', 'texte_secondaire'],
-                    'additionalProperties' => false,
-                ],
-                'polices' => [
-                    'type' => 'object',
-                    'properties' => [
-                        'titres' => ['type' => 'string'],
-                        'texte' => ['type' => 'string'],
-                        'import_google_fonts' => ['type' => 'string'],
-                    ],
-                    'required' => ['titres', 'texte', 'import_google_fonts'],
-                    'additionalProperties' => false,
-                ],
+                'meta_titre' => ['type' => 'string'],
+                'meta_description' => ['type' => 'string'],
                 'prestations' => [
                     'type' => 'array',
                     'items' => [
@@ -138,12 +132,25 @@ final class Generator
                         'properties' => [
                             'titre' => ['type' => 'string'],
                             'description' => ['type' => 'string'],
+                            'photo' => ['type' => 'string'],
                         ],
-                        'required' => ['titre', 'description'],
+                        'required' => ['titre', 'description', 'photo'],
                         'additionalProperties' => false,
                     ],
                 ],
-                'photos_retenues' => $stringArray,
+                'chiffres' => [
+                    'type' => 'array',
+                    'items' => [
+                        'type' => 'object',
+                        'properties' => [
+                            'valeur' => ['type' => 'string'],
+                            'label' => ['type' => 'string'],
+                            'source' => ['type' => 'string'],
+                        ],
+                        'required' => ['valeur', 'label', 'source'],
+                        'additionalProperties' => false,
+                    ],
+                ],
                 'appels_action' => [
                     'type' => 'object',
                     'properties' => [
@@ -153,14 +160,16 @@ final class Generator
                     'required' => ['principal', 'secondaire'],
                     'additionalProperties' => false,
                 ],
+                'sections_a_supprimer' => ['type' => 'array', 'items' => ['type' => 'string']],
                 'plan_accueil' => $sections,
                 'plan_a_propos' => $sections,
                 'plan_prestations' => $sections,
                 'pied_de_page' => ['type' => 'string'],
             ],
             'required' => [
-                'entreprise', 'accroche', 'secteur', 'ton', 'palette', 'polices',
-                'prestations', 'photos_retenues', 'appels_action',
+                'entreprise', 'baseline', 'accroche', 'secteur', 'ton',
+                'meta_titre', 'meta_description', 'prestations', 'chiffres',
+                'appels_action', 'sections_a_supprimer',
                 'plan_accueil', 'plan_a_propos', 'plan_prestations', 'pied_de_page',
             ],
             'additionalProperties' => false,
@@ -168,12 +177,13 @@ final class Generator
     }
 
     /**
-     * Étape 1 : produit le brief de direction artistique.
+     * Étape 1 : produit le brief éditorial.
      * @return array{ok:bool,error:string,brief:array,usage:array}
      */
     public static function brief(array $prospect, string $instruction = ''): array
     {
         $profile = self::siteProfile($prospect);
+        $actifs = Assets::forPrompt((string) $prospect['id']);
 
         $content = [];
         $shot = Config::get('screenshot.send_to_model', true)
@@ -183,19 +193,26 @@ final class Generator
             $content[] = $shot;
             $content[] = [
                 'type' => 'text',
-                'text' => "L'image ci-dessus est la capture du site actuel de l'entreprise. Analyse sa direction artistique réelle pour t'en inspirer sur l'univers et t'en démarquer sur la qualité d'exécution.",
+                'text' => "L'image ci-dessus est la capture du site actuel de l'entreprise. Elle sert à comprendre son activité et son univers, pas à reproduire sa mise en page.",
             ];
         }
 
         $task = "Voici l'analyse du site actuel d'une entreprise, au format JSON :\n\n"
             . json_encode($profile, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT)
-            . "\n\nÉtablis le brief de direction artistique de sa refonte en trois pages : accueil, à propos, prestations."
+            . "\n\nPhotos réellement disponibles pour la maquette :\n"
+            . json_encode($actifs['photos'] ?? [], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT)
+            . "\n\nÉtablis le brief éditorial de sa refonte en trois pages : accueil, à propos, prestations."
+            . "\n\nLa charte graphique n'est pas de ton ressort : la couleur, la police et la mise en page"
+            . " sont déjà fixées par le socle du projet. Ne propose ni couleur ni police."
             . "\n\nAttendus :"
-            . "\n- Une palette cohérente en codes hexadécimaux, dérivée des couleurs de marque quand elles sont identifiables."
-            . "\n- Un couple de polices Google Fonts et la balise <link> d'import correspondante (champ import_google_fonts). Laisse ce champ vide si tu choisis des polices système."
             . "\n- Les prestations réellement proposées par l'entreprise, reformulées, jamais inventées."
-            . "\n- Le plan détaillé de chaque page : pour chaque section, son type, son titre et le texte définitif à afficher."
-            . "\n- Parmi photos_disponibles, ne retiens dans photos_retenues que les URL réellement exploitables (photos de fond ou d'illustration, jamais les logos ni les icônes).";
+            . "\n- Dans « chiffres », uniquement des nombres que l'on peut justifier par une phrase du site :"
+            . " le champ « source » cite l'extrait exact qui les atteste. Aucun chiffre sans source. Renvoie un"
+            . " tableau vide plutôt qu'un chiffre inventé."
+            . "\n- Le plan de chaque page, section par section : son type, son titre, le texte définitif,"
+            . " et le champ « photo » renseigné avec l'une des adresses de la liste ci-dessus (ou vide)."
+            . "\n- Dans « sections_a_supprimer », nomme les sections du gabarit qui n'ont pas de matière :"
+            . " mieux vaut une page plus courte qu'une section remplie de vide.";
 
         if (trim($instruction) !== '') {
             $task .= "\n\nConsignes complémentaires de l'utilisateur, prioritaires :\n" . trim($instruction);
@@ -248,7 +265,13 @@ final class Generator
     }
 
     /**
-     * Étape 2 : produit une page complète, en streaming.
+     * Étape 2 : produit une page, en streaming.
+     *
+     * Le modèle n'écrit que l'intérieur du <body>, avec les classes du socle.
+     * Le document, lui, est assemblé ici : c'est ce qui garantit que les trois
+     * pages partagent exactement la même charte, et que la palette servie est
+     * bien celle qui a été calculée, pas celle que le modèle aurait redessinée.
+     *
      * @return array{ok:bool,error:string,html:string,usage:array}
      */
     public static function page(
@@ -262,18 +285,21 @@ final class Generator
         $page = Mockup::safePage($page);
         $planKey = 'plan_' . str_replace('-', '_', $page);
         $label = Mockup::PAGES[$page];
+        $actifs = Assets::forPrompt((string) $prospect['id']);
 
         $context = [
             'entreprise' => $brief['entreprise'] ?? '',
+            'baseline' => $brief['baseline'] ?? '',
             'accroche' => $brief['accroche'] ?? '',
             'ton' => $brief['ton'] ?? '',
-            'palette' => $brief['palette'] ?? [],
-            'polices' => $brief['polices'] ?? [],
             'prestations' => $brief['prestations'] ?? [],
-            'photos_retenues' => $brief['photos_retenues'] ?? [],
+            'chiffres' => $brief['chiffres'] ?? [],
             'appels_action' => $brief['appels_action'] ?? [],
+            'sections_a_supprimer' => $brief['sections_a_supprimer'] ?? [],
             'pied_de_page' => $brief['pied_de_page'] ?? '',
             'plan_de_cette_page' => $brief[$planKey] ?? [],
+            'photos_disponibles' => $actifs['photos'] ?? [],
+            'logo' => $actifs['logo']['src'] ?? '',
         ];
 
         $contact = array_filter([
@@ -285,27 +311,39 @@ final class Generator
             $context['coordonnees'] = $contact;
         }
 
-        $task = "Brief de direction artistique commun aux trois pages :\n\n"
-            . json_encode($context, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT)
-            . "\n\nProduis maintenant la page « " . $label . " » du site."
-            . "\n\nExigences :"
-            . "\n- Un document HTML complet et autonome, du <!DOCTYPE html> à </html>."
-            . "\n- Applique rigoureusement la palette et les polices du brief : les trois pages doivent partager la même charte."
-            . "\n- En-tête et pied de page identiques d'une page à l'autre, navigation vers accueil.html, a-propos.html et prestations.html."
-            . "\n- Marque le lien de la page courante avec aria-current=\"page\" et un style distinctif."
-            . "\n- Réponds uniquement avec le code HTML, sans commentaire introductif ni bloc Markdown.";
-
         if ($currentHtml !== null && trim($currentHtml) !== '') {
-            $task = "Voici la version actuelle de la page « " . $label . " » :\n\n"
-                . $currentHtml
-                . "\n\n---\n\n"
-                . "Brief de direction artistique en vigueur :\n\n"
+            $task = "Voici le contenu actuel du <body> de la page « " . $label . " » :\n\n"
+                . Mockup::bodyOf($currentHtml)
+                . "\n\n---\n\nBrief en vigueur :\n\n"
                 . json_encode($context, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT)
                 . "\n\nApplique la demande de modification suivante :\n" . trim($instruction)
-                . "\n\nConserve tout ce qui n'est pas concerné par la demande : structure, charte, textes et navigation restent identiques."
-                . "\n\nRéponds uniquement avec le code HTML complet de la page modifiée, sans commentaire ni bloc Markdown.";
-        } elseif (trim($instruction) !== '') {
-            $task .= "\n\nConsignes complémentaires de l'utilisateur, prioritaires :\n" . trim($instruction);
+                . "\n\nConserve tout ce qui n'est pas concerné par la demande, et n'utilise que les classes déjà présentes."
+                . "\n\n" . self::sortieAttendue();
+        } else {
+            $task = "GABARIT DE RÉFÉRENCE — page « " . $label . " ».\n"
+                . "Cette structure est la norme du projet : ses classes, ses composants et l'ordre de ses\n"
+                . "sections sont ceux du socle CSS. Elle est remplie d'un contenu de démonstration.\n\n"
+                . "```html\n" . self::gabarit($page) . "\n```\n\n"
+                . "BRIEF DE L'ENTREPRISE À MAQUETTER :\n\n"
+                . json_encode($context, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT)
+                . "\n\nProduis la page « " . $label . " » de cette entreprise en repartant du gabarit."
+                . "\n\nRègles :"
+                . "\n- Garde les mêmes classes, les mêmes composants et le même ordre de sections."
+                . "\n- Remplace uniquement les textes, les photos (src et alt), les liens et les coordonnées."
+                . "\n- Si une section n'a pas de matière réelle, SUPPRIME-LA entièrement. N'invente jamais un"
+                . " chiffre, un témoignage, un label ou une récompense pour remplir un trou."
+                . "\n- N'utilise comme src que les adresses listées dans photos_disponibles, telles quelles."
+                . " Respecte l'orientation indiquée : une photo portrait ne va pas dans un bandeau panoramique."
+                . " S'il n'y a pas assez de photos, supprime les blocs illustrés plutôt que d'en réutiliser une"
+                . " trois fois."
+                . "\n- N'ajoute aucune classe nouvelle, aucun style en ligne, aucune balise <style> ni <script>."
+                . "\n- Navigation entre les pages : accueil.html, a-propos.html, prestations.html, avec"
+                . " aria-current=\"page\" sur la page courante."
+                . "\n\n" . self::sortieAttendue();
+
+            if (trim($instruction) !== '') {
+                $task .= "\n\nConsignes complémentaires de l'utilisateur, prioritaires :\n" . trim($instruction);
+            }
         }
 
         $result = Claude::stream([
@@ -326,7 +364,86 @@ final class Generator
             ];
         }
 
-        $html = Mockup::sanitizeOutput($result['text']);
-        return ['ok' => true, 'error' => '', 'html' => $html, 'usage' => $result['usage']];
+        $corps = Mockup::bodyOf(Mockup::stripFence($result['text']));
+        if (trim($corps) === '') {
+            return ['ok' => false, 'error' => 'La page renvoyée est vide.', 'html' => '', 'usage' => $result['usage']];
+        }
+
+        return [
+            'ok' => true,
+            'error' => '',
+            'html' => self::assemble($prospect, $brief, $page, $corps),
+            'usage' => $result['usage'],
+        ];
+    }
+
+    private static function sortieAttendue(): string
+    {
+        return "SORTIE ATTENDUE : uniquement le contenu intérieur de <body>, du premier élément au dernier."
+            . " Pas de <!doctype>, pas de <html>, pas de <head>, pas de <body>, pas de bloc Markdown,"
+            . " aucune phrase d'introduction.";
+    }
+
+    /**
+     * Assemble le document final autour du corps produit par le modèle.
+     *
+     * Le <head> n'est jamais confié au modèle : c'est lui qui porte le socle
+     * CSS et le bloc de palette calculé. Le construire ici rend impossible la
+     * dérive d'une page à l'autre.
+     */
+    public static function assemble(array $prospect, array $brief, string $page, string $corps): string
+    {
+        $palette = self::palette($prospect);
+        $actifs = Assets::catalogue((string) $prospect['id']);
+
+        $entreprise = (string) ($brief['entreprise'] ?? $prospect['company'] ?? '');
+        $titre = trim((string) ($brief['meta_titre'] ?? ''));
+        if ($titre === '') {
+            $titre = trim($entreprise . ' — ' . Mockup::PAGES[Mockup::safePage($page)]);
+        }
+        $description = (string) ($brief['meta_description'] ?? $brief['accroche'] ?? '');
+
+        $head = '';
+        $import = (string) ($palette['police_import'] ?? '');
+        if ($import !== '') {
+            $head .= '<link rel="preconnect" href="https://fonts.googleapis.com">' . "\n"
+                . '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>' . "\n"
+                . '<link rel="stylesheet" href="' . htmlspecialchars($import, ENT_QUOTES) . '">' . "\n";
+        }
+        $favicon = Assets::src($actifs['favicon'] ?? null);
+        if ($favicon !== null) {
+            $head .= '<link rel="icon" href="' . htmlspecialchars($favicon, ENT_QUOTES) . '">' . "\n";
+        }
+
+        // La palette est posée après le socle : elle en écrase les jetons de
+        // marque sans toucher au reste de la feuille.
+        $root = Palette::rootBlock($palette, (string) ($palette['police'] ?? ''), '');
+
+        return "<!doctype html>\n<html lang=\"fr\">\n<head>\n"
+            . "<meta charset=\"utf-8\">\n"
+            . "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n"
+            . '<title>' . htmlspecialchars($titre, ENT_QUOTES) . "</title>\n"
+            . '<meta name="description" content="' . htmlspecialchars(mb_substr($description, 0, 180), ENT_QUOTES) . "\">\n"
+            . "<meta name=\"robots\" content=\"noindex, nofollow\">\n"
+            . $head
+            . "<link rel=\"stylesheet\" href=\"socle.css\">\n"
+            . "<style>\n" . $root . "\n</style>\n"
+            . "</head>\n<body>\n"
+            . trim($corps) . "\n"
+            . "<script src=\"socle.js\"></script>\n"
+            . "</body>\n</html>\n";
+    }
+
+    /**
+     * Palette du prospect : celle calculée à l'analyse, recalculée à la volée
+     * pour les fiches analysées avant la mise en place du socle.
+     */
+    public static function palette(array $prospect): array
+    {
+        $palette = $prospect['palette'] ?? [];
+        if (is_array($palette) && isset($palette['marque'], $palette['mesures'])) {
+            return $palette;
+        }
+        return Palette::forAnalysis($prospect['analysis'] ?? []);
     }
 }

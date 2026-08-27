@@ -1,0 +1,331 @@
+<!doctype html>
+<!--
+  ============================================================================
+  MAQUETTE 1 / 3 — PAGE D'ACCUEIL
+  ----------------------------------------------------------------------------
+  CONTENU DE DÉMONSTRATION. La marque « Maison Rivage », les textes, les
+  chiffres et les photos sont des remplissages : tout est à substituer par ce
+  qui a été extrait du site du prospect. Voir CRM-MAQUETTES.md, § « Les trois
+  pages » pour le rôle de chaque section, et § « Adapter à un prospect » pour
+  la marche à suivre.
+
+  La palette se règle dans socle.css, bloc :root — nulle part ailleurs.
+  ============================================================================
+-->
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Maison Rivage — Paysagiste à Besançon</title>
+<meta name="description" content="Conception, aménagement et entretien d'extérieurs. Terrasses, dallages, plantations : un seul interlocuteur du plan à la dernière taille.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%232b2724'/%3E%3Cpath d='M9 23c0-8 5-13 14-14-1 9-6 14-14 14z' fill='%23e8a68e'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@200;300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="socle.css">
+</head>
+<body>
+
+<a class="evitement" href="#contenu">Aller au contenu</a>
+
+<!-- ---------------------------------------------------------------------
+     EN-TÊTE — identique sur les trois pages.
+     Transparent sur la photo du bandeau, anthracite translucide dès qu'on
+     défile. Le faisceau s'allume au passage en mode collant.
+     --------------------------------------------------------------------- -->
+<header class="entete">
+  <div class="entete__interieur">
+    <a class="entete__logo" href="accueil.html">
+      MAISON RIVAGE
+      <span>Paysagiste</span>
+    </a>
+    <nav class="navbar" aria-label="Navigation principale">
+      <a href="a-propos.html">À propos</a>
+      <a href="prestations.html">Nos prestations</a>
+      <a href="#realisations">Réalisations</a>
+      <a href="#contact">Contact</a>
+    </nav>
+    <div class="entete__droite">
+      <a class="entete__tel" href="tel:+33381000000">03 81 00 00 00</a>
+      <a class="btn btn--plein btn--petit" href="#contact">Demander un devis</a>
+    </div>
+  </div>
+  <span class="entete__faisceau" aria-hidden="true"><i class="entete__onde"></i></span>
+</header>
+
+<main id="contenu">
+
+<!-- ---------------------------------------------------------------------
+     1. BANDEAU — une photo de chantier fini, un titre en trois lignes, deux
+     actions. Le titre nomme le métier et le territoire : c'est la seule
+     phrase que lira un visiteur pressé.
+     --------------------------------------------------------------------- -->
+<section class="heros">
+  <div class="heros__photo">
+    <img src="img/jardin-contemporain.jpg" alt="Jardin contemporain avec dallage clair et graminées">
+  </div>
+  <div class="conteneur">
+    <div class="heros__contenu">
+      <p class="surtitre surtitre--clair">Paysagiste à Besançon</p>
+      <h1 class="heros__titre">Des extérieurs pensés pour durer</h1>
+      <p class="heros__texte">
+        Conception, réalisation et entretien. Un seul interlocuteur du premier
+        relevé de terrain à la dernière taille — et des matériaux choisis pour
+        ce qu'ils deviennent, pas pour ce qu'ils coûtent le jour de la pose.
+      </p>
+      <div class="heros__actions">
+        <a class="btn btn--plein" href="#contact">Demander un devis</a>
+        <a class="btn btn--clair" href="prestations.html">Voir nos prestations</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ---------------------------------------------------------------------
+     2. INDICATEURS — la preuve chiffrée, juste sous le bandeau. Quatre
+     nombres, pas plus : au-delà, plus aucun ne se retient.
+     --------------------------------------------------------------------- -->
+<section class="indicateurs" aria-label="L'entreprise en chiffres">
+  <div class="indicateur">
+    <p class="indicateur__chiffre">25</p>
+    <p class="indicateur__label">ans de métier</p>
+  </div>
+  <div class="indicateur">
+    <p class="indicateur__chiffre">30 km</p>
+    <p class="indicateur__label">rayon d'intervention</p>
+  </div>
+  <div class="indicateur">
+    <p class="indicateur__chiffre">12</p>
+    <p class="indicateur__label">personnes sur le terrain</p>
+  </div>
+  <div class="indicateur">
+    <p class="indicateur__chiffre">5,0</p>
+    <p class="indicateur__label">note moyenne sur 20 avis</p>
+  </div>
+</section>
+
+<!-- ---------------------------------------------------------------------
+     3. PRESTATIONS — trois cartes, jamais quatre sur une page d'accueil.
+     Chacune montre un chantier réel, pas un pictogramme.
+     --------------------------------------------------------------------- -->
+<section class="section" id="prestations">
+  <div class="conteneur">
+    <div class="section__tete reveler">
+      <p class="surtitre">Ce que nous faisons</p>
+      <h2 class="titre-section">Trois métiers, une même exigence</h2>
+      <p class="section__chapo">
+        Du plan de conception à l'entretien saisonnier, chaque étape est menée
+        par les mêmes équipes. Rien ne se perd entre un commercial et une
+        équipe de pose.
+      </p>
+    </div>
+
+    <div class="cartes">
+      <article class="carte reveler">
+        <div class="carte__media">
+          <div class="carte__cadre"><img src="img/dallage-piscine-vue.jpg" alt="Dallage en grès cérame autour d'une piscine"></div>
+          <span class="carte__icone" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 20h18M5 20V9l7-5 7 5v11"/></svg>
+          </span>
+        </div>
+        <div class="carte__corps">
+          <h3 class="carte__titre">Conception</h3>
+          <p class="carte__texte">
+            Relevé du terrain, plan à l'échelle, choix des matériaux et des
+            essences. Vous voyez le jardin avant qu'il n'existe.
+          </p>
+          <p class="carte__pied"><a class="lien-fleche" href="prestations.html">En savoir plus</a></p>
+        </div>
+      </article>
+
+      <article class="carte reveler">
+        <div class="carte__media">
+          <div class="carte__cadre"><img src="img/cheminement-bois-itauba.jpg" alt="Cheminement en bois exotique entre deux massifs"></div>
+          <span class="carte__icone" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 19h16M6 19V8m6 11V5m6 14v-7"/></svg>
+          </span>
+        </div>
+        <div class="carte__corps">
+          <h3 class="carte__titre">Aménagement</h3>
+          <p class="carte__texte">
+            Terrasses, dallages, murets, clôtures, plantations. Le gros œuvre
+            du jardin, exécuté par ceux qui l'ont dessiné.
+          </p>
+          <p class="carte__pied"><a class="lien-fleche" href="prestations.html">En savoir plus</a></p>
+        </div>
+      </article>
+
+      <article class="carte reveler">
+        <div class="carte__media">
+          <div class="carte__cadre"><img src="img/art-topiaire-bonsai.jpg" alt="Art topiaire sur un sujet taillé en nuage"></div>
+          <span class="carte__icone" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 21v-6m0 0c-4 0-6-2.5-6-5.5S8 4 12 4s6 2.5 6 5.5S16 15 12 15Z"/></svg>
+          </span>
+        </div>
+        <div class="carte__corps">
+          <h3 class="carte__titre">Entretien</h3>
+          <p class="carte__texte">
+            Tailles, tontes, élagage, remise en état. Un passage régulier vaut
+            mieux qu'une reprise tous les cinq ans.
+          </p>
+          <p class="carte__pied"><a class="lien-fleche" href="prestations.html">En savoir plus</a></p>
+        </div>
+      </article>
+    </div>
+  </div>
+</section>
+
+<!-- ---------------------------------------------------------------------
+     4. BLOC IMAGE + TEXTE — l'entreprise et son dirigeant. C'est ici que la
+     page cesse d'être un catalogue et devient quelqu'un.
+     --------------------------------------------------------------------- -->
+<section class="section section--teinte">
+  <div class="conteneur">
+    <div class="duo">
+      <div class="duo__media reveler">
+        <!-- Le cadre est carré et cale à droite : la photo est en paysage et
+             le sujet se tient de ce côté. Voir CRM-MAQUETTES.md, § Cadrage. -->
+        <img src="img/benjamin-baron.jpg" alt="Le dirigeant de Maison Rivage à son bureau, devant un plan de jardin"
+             style="object-position: right 30%;">
+      </div>
+
+      <div class="duo__texte reveler">
+        <p class="surtitre">Maison Rivage</p>
+        <h2 class="titre-section">Une entreprise de terrain</h2>
+        <p>
+          Vingt-cinq ans d'aménagement paysager, et la même conviction : un
+          jardin se juge dix ans après sa livraison. Les créations sont donc
+          pensées pour vieillir, pas pour photographier.
+        </p>
+
+        <div class="points">
+          <div class="point">
+            <span class="point__numero">01</span>
+            <div>
+              <p class="point__titre">Un seul interlocuteur</p>
+              <p class="point__texte">
+                Celui qui relève votre terrain est celui qui suit le chantier,
+                puis l'entretien.
+              </p>
+            </div>
+          </div>
+          <div class="point">
+            <span class="point__numero">02</span>
+            <div>
+              <p class="point__titre">Des matériaux choisis pour ce qu'ils deviennent</p>
+              <p class="point__texte">
+                Grès cérame, bois exotique, acier corten, pierre naturelle : ce
+                qui tient dans le temps, pas ce qui brille à la pose.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <a class="lien-fleche" href="a-propos.html">En savoir plus sur nous</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ---------------------------------------------------------------------
+     5. CITATION — une respiration sombre au milieu de la page. Elle casse
+     l'alternance blanc / teinté et donne une voix à l'entreprise.
+     --------------------------------------------------------------------- -->
+<section class="citation">
+  <div class="conteneur">
+    <p class="citation__texte">« Un jardin réussi, c'est celui qu'on oublie d'admirer parce qu'on y vit. »</p>
+    <p class="citation__auteur">Le fondateur</p>
+  </div>
+</section>
+
+<!-- ---------------------------------------------------------------------
+     6. RÉALISATIONS — six visuels, sans filtre ni fioriture sur l'accueil.
+     Le tri appartient à la page dédiée.
+     --------------------------------------------------------------------- -->
+<section class="section" id="realisations">
+  <div class="conteneur">
+    <div class="section__tete section__tete--centre reveler">
+      <p class="surtitre surtitre--centre">Réalisations</p>
+      <h2 class="titre-section">Quelques chantiers récents</h2>
+    </div>
+
+    <div class="galerie reveler">
+      <figure class="galerie__item"><img src="img/cour-enrobe-massif.jpg" alt="Cour en enrobé bordée d'un massif"><figcaption class="galerie__legende">Cour en enrobé et massif de graminées</figcaption></figure>
+      <figure class="galerie__item"><img src="img/brise-vue-lumiere.jpg" alt="Brise-vue en bois rétroéclairé"><figcaption class="galerie__legende">Brise-vue bois et éclairage intégré</figcaption></figure>
+      <figure class="galerie__item"><img src="img/allee-dallee-graminees.jpg" alt="Allée dallée entre des graminées"><figcaption class="galerie__legende">Allée dallée, plantation de graminées</figcaption></figure>
+      <figure class="galerie__item"><img src="img/elagage-hauteur.jpg" alt="Élagage en hauteur"><figcaption class="galerie__legende">Élagage en hauteur sur cordes</figcaption></figure>
+      <figure class="galerie__item"><img src="img/bimuros-gris-jura.jpg" alt="Muret en pierre grise du Jura"><figcaption class="galerie__legende">Muret en pierre grise du Jura</figcaption></figure>
+      <figure class="galerie__item"><img src="img/equipe-baron-mathay.jpg" alt="L'équipe devant l'atelier"><figcaption class="galerie__legende">L'équipe devant l'atelier</figcaption></figure>
+    </div>
+  </div>
+</section>
+
+<!-- ---------------------------------------------------------------------
+     7. BANDE D'APPEL — la même sur les trois pages, en clôture.
+     --------------------------------------------------------------------- -->
+<section class="bande-cta" id="contact">
+  <div class="conteneur">
+    <p class="surtitre surtitre--clair surtitre--centre">Parlons de votre projet</p>
+    <h2>Une étude et un devis, sans engagement</h2>
+    <p>
+      Décrivez-nous votre extérieur en quelques lignes, ou appelez-nous
+      directement. Nous venons relever les cotes sur place avant de chiffrer
+      quoi que ce soit.
+    </p>
+    <div class="bande-cta__actions">
+      <a class="btn btn--plein" href="#">Demander un devis</a>
+      <a class="btn btn--clair" href="tel:+33381000000">Appeler le 03 81 00 00 00</a>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<!-- ---------------------------------------------------------------------
+     PIED DE PAGE — identique sur les trois pages.
+     --------------------------------------------------------------------- -->
+<footer class="pied">
+  <div class="conteneur">
+    <div class="pied__haut">
+      <div>
+        <p class="entete__logo" style="color:#fff;margin-bottom:1.2rem;">MAISON RIVAGE<span>Paysagiste</span></p>
+        <p>Le déplacement et les conseils sont gratuits. Parlons de votre extérieur.</p>
+        <p style="font-size:1.3rem;font-weight:600;color:#fff;margin-top:1rem;">03 81 00 00 00</p>
+      </div>
+      <div>
+        <h2>Le site</h2>
+        <ul class="pied__liens">
+          <li><a href="a-propos.html">À propos</a></li>
+          <li><a href="prestations.html">Nos prestations</a></li>
+          <li><a href="#realisations">Réalisations</a></li>
+          <li><a href="#contact">Contact</a></li>
+        </ul>
+      </div>
+      <div>
+        <h2>Nos prestations</h2>
+        <ul class="pied__liens">
+          <li><a href="prestations.html">Conception</a></li>
+          <li><a href="prestations.html">Aménagement</a></li>
+          <li><a href="prestations.html">Entretien</a></li>
+          <li><a href="prestations.html">Élagage &amp; taille</a></li>
+        </ul>
+      </div>
+      <div>
+        <h2>Nous trouver</h2>
+        <address style="font-style:normal;">
+          Maison Rivage<br>
+          12 rue des Vergers<br>
+          25000 Besançon
+        </address>
+      </div>
+    </div>
+    <div class="pied__bas">
+      <p>© 2026 Maison Rivage — Tous droits réservés</p>
+      <p>Mentions légales · Gestion des cookies</p>
+    </div>
+  </div>
+</footer>
+
+<script src="socle.js"></script>
+</body>
+</html>

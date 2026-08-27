@@ -9,6 +9,14 @@ namespace App;
  */
 final class Config
 {
+    /**
+     * Empreintes des prompts de design livrés par défaut dans les versions
+     * précédentes. Servent uniquement à reconnaître un réglage jamais modifié.
+     */
+    private const PROMPTS_OBSOLETES = [
+        'ed6c9071564c1c368488ec83915fe371',
+    ];
+
     private static array $data = [];
     private static bool $loaded = false;
 
@@ -24,7 +32,25 @@ final class Config
         }
         $stored = Store::read(self::path());
         self::$data = self::mergeDeep(self::defaults(), $stored);
+        self::$data['design']['global_prompt'] = self::migrateDesignPrompt(
+            (string) (self::$data['design']['global_prompt'] ?? '')
+        );
         self::$loaded = true;
+    }
+
+    /**
+     * Le prompt de design est modifiable dans les Réglages, donc conservé tel
+     * quel — sauf s'il est resté sur un ancien défaut. Ces textes décrivaient
+     * une maquette écrite de zéro ; ils contrediraient aujourd'hui le socle,
+     * qui impose sa feuille de style. Un prompt personnalisé, lui, n'est jamais
+     * touché : seuls les défauts connus mot pour mot sont remplacés.
+     */
+    private static function migrateDesignPrompt(string $prompt): string
+    {
+        $empreinte = md5(trim($prompt));
+        return in_array($empreinte, self::PROMPTS_OBSOLETES, true) || trim($prompt) === ''
+            ? self::defaultDesignPrompt()
+            : $prompt;
     }
 
     public static function all(): array
@@ -135,6 +161,10 @@ final class Config
                 'global_prompt' => self::defaultDesignPrompt(),
                 'allow_google_fonts' => true,
                 'use_site_images' => true,
+                // « copie » : les images sont recopiées chez nous, la maquette
+                // survit à une refonte du site d'origine. « liens » : on garde
+                // les adresses distantes, rien n'est stocké.
+                'assets_mode' => 'copie',
             ],
             'offer' => [
                 'monthly_price' => 79,
@@ -224,27 +254,26 @@ final class Config
     public static function defaultDesignPrompt(): string
     {
         return <<<TXT
-Tu conçois une maquette de refonte destinée à convaincre un dirigeant de TPE/PME que son site actuel est dépassé.
+Tu remplis un socle de maquettage existant pour convaincre un dirigeant de TPE/PME que son site actuel est dépassé.
 
-RÈGLES TECHNIQUES ABSOLUES
-- Uniquement du HTML5 et du CSS3. Aucun JavaScript, aucun framework, aucune bibliothèque.
-- Tout le CSS dans une unique balise <style> placée dans le <head>. Pas de fichier CSS séparé.
-- Seules ressources externes autorisées : les polices Google Fonts et les photos existantes du site d'origine (via leur URL absolue). Rien d'autre.
-- Pour toute illustration non photographique, utilise des dégradés CSS, des formes CSS ou du SVG inline.
-- Responsive impeccable : conception mobile-first, grilles flexibles, points de rupture à 900px et 600px.
-- Accessibilité : contrastes conformes, hiérarchie de titres cohérente, attributs alt renseignés, texte courant à 16px minimum.
-- La navigation entre les trois pages utilise exactement ces liens relatifs : accueil.html, a-propos.html, prestations.html.
+LE SOCLE COMMANDE, PAS TOI
+- La feuille de style socle.css est déjà écrite et déjà chargée. Tu n'écris aucun CSS : ni balise <style>, ni attribut style=, ni classe nouvelle.
+- Tu n'écris aucun JavaScript. Les animations d'apparition et l'en-tête collant sont déjà gérés par le socle.
+- Tu produis uniquement le contenu intérieur du <body>. L'en-tête du document, la police et la palette sont assemblés hors de ta réponse.
+- La palette est calculée à partir des couleurs relevées sur le site du prospect, avec les contrastes vérifiés. Ne propose ni couleur ni police, et n'écris jamais une couleur en dur : les jetons var(--marque), var(--encre) et les autres sont déjà appliqués par les classes.
+- Tu pars du gabarit fourni : mêmes classes, mêmes composants, même ordre de sections. C'est la structure du projet, pas une suggestion.
 
-DIRECTION ARTISTIQUE
-- Interface moderne et épurée, espaces blancs généreux, typographie soignée et hiérarchisée.
-- Respecte l'univers du site d'origine : même secteur, même ton, couleurs de marque reprises si elles sont identifiables, même nom d'entreprise.
-- Le résultat doit ressembler à un site professionnel conçu en 2026, jamais à un modèle générique.
+CE QUE TU CHANGES
+- Les textes, les photos (src et alt), les liens, les coordonnées. Rien d'autre.
+- La navigation entre les trois pages utilise exactement ces liens relatifs : accueil.html, a-propos.html, prestations.html, avec aria-current="page" sur la page courante.
+- Les photos sont celles fournies dans photos_disponibles, à leur adresse exacte. Respecte l'orientation indiquée : une photo portrait ne va pas dans un bandeau panoramique.
 
 CONTENU
 - Conserve les informations réelles de l'entreprise : nom, ville, téléphone, métier, prestations effectivement proposées.
-- N'invente jamais de chiffres, de tarifs, de témoignages clients, de récompenses ni de références.
-- Réécris les textes dans un français clair et orienté bénéfice client, sans jargon marketing creux.
-- Chaque page comporte la même navigation, un pied de page cohérent et au moins un appel à l'action.
+- N'invente jamais un chiffre, un tarif, un témoignage, un avis, une récompense, une certification ni une référence client.
+- Si une section du gabarit n'a pas de matière réelle, SUPPRIME-LA entièrement. Une page plus courte se signe ; une page remplie de vide se repère au premier coup d'œil.
+- Réécris les textes dans un français clair et orienté bénéfice client, sans jargon marketing creux. Le titrage nomme le métier et le territoire.
+- Chaque page garde le même en-tête, le même pied de page et au moins un appel à l'action.
 TXT;
     }
 }

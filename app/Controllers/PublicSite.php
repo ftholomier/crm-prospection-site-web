@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Controllers;
 
+use App\Assets;
 use App\Config;
 use App\Events;
 use App\Mailer;
@@ -73,9 +74,34 @@ final class PublicSite
             'currentSiteUrl' => (string) $prospect['url'],
         ]);
 
+        $ressources = Mockup::resources(Mockup::assetPattern(
+            Router::publicUrl('asset', ['t' => $prospect['tokens']['public'], 'f' => '{f}'])
+        ));
+
         header('Content-Type: text/html; charset=UTF-8');
         header('X-Robots-Tag: noindex, nofollow');
-        echo Mockup::forPublic($html, $links, $bar);
+        echo Mockup::forPublic($html, $links, $bar, $ressources);
+    }
+
+    /**
+     * Sert un actif de la maquette : logo, favicon ou photo recopiée du site
+     * du prospect. Les fichiers sont hors de la racine web, et le jeton du
+     * lien conditionne l'accès comme pour les pages.
+     */
+    public static function asset(array $params): void
+    {
+        $prospect = Prospect::findByToken((string) ($params['t'] ?? ''), 'public');
+        $path = $prospect === null
+            ? null
+            : Assets::pathOf((string) $prospect['id'], (string) ($params['f'] ?? ''));
+        if ($path === null) {
+            http_response_code(404);
+            exit;
+        }
+        header('Content-Type: ' . Assets::mediaType($path));
+        header('Content-Length: ' . (string) filesize($path));
+        header('Cache-Control: private, max-age=86400');
+        readfile($path);
     }
 
     /** Sert la capture du site actuel, stockée hors de la racine web. */

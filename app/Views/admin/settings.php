@@ -184,8 +184,22 @@ $secretPlaceholder = static fn (string $value): string => $value !== '' ? 'Valeu
         </label>
         <label class="check">
             <input type="checkbox" name="use_site_images" value="1" <?= !empty($config['design']['use_site_images']) ? 'checked' : '' ?>>
-            <span>Réutiliser les photos du site d'origine <span class="hint">La maquette ressemble davantage à « leur » site. À décocher si les sites ciblés bloquent les images externes.</span></span>
+            <span>Réutiliser les photos du site d'origine <span class="hint">La maquette montre les vraies photos du prospect : c'est ce qui la fait passer d'un gabarit à une projection.</span></span>
         </label>
+        <div class="field">
+            <label for="assets_mode">Ces photos, on les copie ou on les pointe ?</label>
+            <select name="assets_mode" id="assets_mode">
+                <option value="copie" <?= ($config['design']['assets_mode'] ?? 'copie') !== 'liens' ? 'selected' : '' ?>>Copier les fichiers sur le serveur (recommandé)</option>
+                <option value="liens" <?= ($config['design']['assets_mode'] ?? 'copie') === 'liens' ? 'selected' : '' ?>>Garder les adresses du site d'origine</option>
+            </select>
+            <span class="hint muted tiny">
+                Copier coûte quelques mégaoctets par prospect et règle trois problèmes d'un coup : les sites
+                protégés contre le vol d'images refusent l'affichage depuis un autre domaine, une refonte
+                ou une simple réorganisation de dossiers casse les adresses, et un site en HTTP est bloqué
+                dans une page servie en HTTPS. Garder les liens ne stocke rien, mais la maquette dépend
+                alors du site que vous cherchez justement à remplacer.
+            </span>
+        </div>
     </div>
 
     <div class="card" id="offer">

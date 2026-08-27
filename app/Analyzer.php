@@ -173,6 +173,24 @@ final class Analyzer
             $notify($source, 'done');
         }
 
+        // La maquette reprendra la couleur du site : on la choisit ici, une
+        // fois pour toutes, et on garde la trace de ce qui a été retenu pour
+        // que ce ne soit pas une décision invisible.
+        $notify('Identification de la couleur et de la police du site');
+        $palette = Palette::forAnalysis($analysis['data']);
+        $prospect['palette'] = $palette;
+        $notify(
+            'Couleur retenue ' . $palette['marque']
+                . ($palette['source'] === 'site' ? ' (reprise du site)' : ' (aucune couleur nette trouvée, teinte neutre)')
+                . ' — police ' . $palette['police'],
+            $palette['source'] === 'site' ? 'done' : 'warn'
+        );
+
+        if (Config::get('design.use_site_images', true)) {
+            $notify('Récupération du logo et des photos');
+            Assets::collect($prospectId, $analysis['data'], $notify);
+        }
+
         if (Config::get('screenshot.auto', true)) {
             $notify('Capture du site actuel');
             $shot = Screenshot::capture($prospectId, (string) $analysis['data']['url']);

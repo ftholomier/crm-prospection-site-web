@@ -90,6 +90,7 @@ final class Scraper
             'colors' => self::colors($home['body'], $css),
             'fonts' => self::fonts($home['body'], $css),
             'logo' => self::logo($doc, $finalUrl),
+            'favicon' => self::favicon($doc, $finalUrl),
             'contact' => self::contact($allHtml, $pages),
             'social' => self::social($doc),
             'pages_found' => array_map(static fn (array $p): array => ['url' => $p['url'], 'title' => $p['title']], $pages),
@@ -271,6 +272,7 @@ final class Scraper
             'colors' => self::colors($html, []),
             'fonts' => self::fonts($html, []),
             'logo' => self::logo($doc, $url),
+            'favicon' => self::favicon($doc, $url),
             'contact' => self::contact($allHtml, $pages),
             'social' => self::social($doc),
             'pages_found' => array_map(
@@ -529,6 +531,54 @@ final class Scraper
             }
         }
         return '';
+    }
+
+    /**
+     * Icône du site. La balise <link> est prioritaire sur /favicon.ico, qui
+     * n'existe pas toujours ; à taille égale on préfère la plus grande, une
+     * favicon de 16 px ne servant à rien dans une maquette.
+     */
+    private static function favicon(\DOMDocument $doc, string $base): string
+    {
+        $xpath = new \DOMXPath($doc);
+        $nodes = $xpath->query('//link[@rel]');
+        $best = null;
+        $bestScore = -1;
+        foreach ($nodes ?? [] as $node) {
+            if (!$node instanceof \DOMElement) {
+                continue;
+            }
+            $rel = strtolower($node->getAttribute('rel'));
+            if (!str_contains($rel, 'icon')) {
+                continue;
+            }
+            $href = trim($node->getAttribute('href'));
+            if ($href === '') {
+                continue;
+            }
+            $score = 0;
+            if (str_contains($rel, 'apple-touch')) {
+                $score += 120;   // toujours en haute définition
+            }
+            if (preg_match('/(\d{2,4})x\d{2,4}/', $node->getAttribute('sizes'), $m)) {
+                $score += min((int) $m[1], 512);
+            }
+            if (preg_match('/\.(png|svg|webp)(\?|$)/i', $href)) {
+                $score += 30;    // le .ico se décode mal côté serveur
+            }
+            if ($score > $bestScore) {
+                $bestScore = $score;
+                $best = $href;
+            }
+        }
+        if ($best !== null) {
+            $abs = Util::absoluteUrl($best, $base);
+            if ($abs !== null) {
+                return $abs;
+            }
+        }
+        $racine = Util::absoluteUrl('/favicon.ico', $base);
+        return $racine ?? '';
     }
 
     /** Emails, téléphones, SIREN/SIRET et adresse trouvés dans les pages lues. */

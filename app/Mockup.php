@@ -105,9 +105,10 @@ final class Mockup
      * vers les URL tokenisées, neutralise les scripts éventuels et injecte la
      * barre avant/après ainsi que les appels à l'action suivis.
      */
-    public static function forPublic(string $html, array $links, string $inject = ''): string
+    public static function forPublic(string $html, array $links, string $inject = '', array $ressources = []): string
     {
         foreach ($links as $page => $target) {
+            $target = htmlspecialchars((string) $target, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
             foreach ([$page . '.html', './' . $page . '.html', '/' . $page . '.html'] as $needle) {
                 $html = str_replace(
                     ['href="' . $needle . '"', "href='" . $needle . "'"],
@@ -117,9 +118,23 @@ final class Mockup
             }
         }
 
-        // Le modèle ne doit pas produire de JavaScript ; on le retire malgré tout,
-        // puisque cette page est servie à un tiers depuis notre domaine.
-        $html = preg_replace('~<script\b[^>]*>.*?</script>~is', '', $html) ?? $html;
+        $html = self::rewriteResources($html, $ressources);
+
+        // Tout JavaScript est retiré, sauf le socle : c'est notre fichier, servi
+        // depuis notre domaine, et sans lui l'en-tête collant et les apparitions
+        // au défilement ne fonctionnent pas — la maquette perdrait la moitié de
+        // ce qui la fait paraître moderne.
+        $socle = (string) ($ressources['js'] ?? '');
+        $html = preg_replace_callback(
+            '~<script\b([^>]*)>(.*?)</script>~is',
+            static function (array $m) use ($socle): string {
+                $garde = $socle !== ''
+                    && trim($m[2]) === ''
+                    && str_contains($m[1], $socle);
+                return $garde ? $m[0] : '';
+            },
+            $html
+        ) ?? $html;
         $html = preg_replace('~\son[a-z]+\s*=\s*"[^"]*"~i', '', $html) ?? $html;
         $html = preg_replace("~\son[a-z]+\s*=\s*'[^']*'~i", '', $html) ?? $html;
 
@@ -127,6 +142,103 @@ final class Mockup
             $html = self::injectBeforeBodyEnd($html, $inject);
         }
         return $html;
+    }
+
+    /**
+     * Réécrit les adresses relatives de la maquette vers des URL servables.
+     *
+     * Les fichiers sont écrits une fois pour toutes avec des chemins relatifs
+     * — socle.css, socle.js, assets/photo-01.jpg — ce qui les rend ouvrables
+     * tels quels dans un navigateur. Au moment de les servir, ces chemins
+     * deviennent des URL de notre domaine, éventuellement tokenisées.
+     *
+     * @param array{css?:string,js?:string,assets?:string} $ressources
+     */
+    public static function rewriteResources(string $html, array $ressources): string
+    {
+        foreach (['socle.css' => 'css', 'socle.js' => 'js'] as $fichier => $cle) {
+            $cible = (string) ($ressources[$cle] ?? '');
+            if ($cible === '') {
+                continue;
+            }
+            // Les URL de repli portent des « & » : dans un attribut, ils
+            // doivent être encodés.
+            $cible = htmlspecialchars($cible, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+            foreach ([$fichier, './' . $fichier] as $needle) {
+                $html = str_replace(
+                    ['="' . $needle . '"', "='" . $needle . "'"],
+                    ['="' . $cible . '"', "='" . $cible . "'"],
+                    $html
+                );
+            }
+        }
+
+        $base = (string) ($ressources['assets'] ?? '');
+        if ($base !== '') {
+            $html = preg_replace_callback(
+                '~(src|href)=(["\'])\.?/?assets/([a-z0-9._-]+)\2~i',
+                static fn (array $m): string => $m[1] . '=' . $m[2]
+                    . htmlspecialchars(
+                        str_replace('{f}', rawurlencode($m[3]), $base),
+                        ENT_QUOTES | ENT_SUBSTITUTE,
+                        'UTF-8'
+                    ) . $m[2],
+                $html
+            ) ?? $html;
+        }
+        return $html;
+    }
+
+    /**
+     * URL des ressources d'une maquette, à passer à forPublic().
+     *
+     * Le socle est un fichier statique de notre domaine, servi tel quel ; les
+     * actifs du prospect vivent hors de la racine web et passent par une route.
+     * Le jeton {f} est laissé en place : rewriteResources() y met le nom du
+     * fichier rencontré.
+     */
+    public static function resources(string $assetsBase): array
+    {
+        $base = rtrim(Config::baseUrl(), '/');
+        return [
+            'css' => $base . '/assets/maquette/socle.css',
+            'js' => $base . '/assets/maquette/socle.js',
+            'assets' => $assetsBase,
+        ];
+    }
+
+    /** Les URL sont encodées : on rend au gabarit {f} sa forme lisible. */
+    public static function assetPattern(string $url): string
+    {
+        return str_replace(['%7Bf%7D', '%7bf%7d'], '{f}', $url);
+    }
+
+    /** Retire un éventuel bloc Markdown autour de la réponse du modèle. */
+    public static function stripFence(string $raw): string
+    {
+        $html = trim($raw);
+        if (preg_match('/```(?:html)?\s*(.+?)```/s', $html, $m)) {
+            return trim($m[1]);
+        }
+        return $html;
+    }
+
+    /**
+     * Contenu intérieur du <body>. Sert aussi bien à lire un gabarit qu'à
+     * reprendre une page existante pour la faire retoucher.
+     */
+    public static function bodyOf(string $html): string
+    {
+        if (preg_match('~<body\b[^>]*>(.*)</body>~is', $html, $m)) {
+            $corps = $m[1];
+        } else {
+            // Pas de <body> : le modèle a répondu avec le fragment attendu,
+            // dont on retire seulement l'entête éventuelle.
+            $corps = preg_replace('~<head\b.*?</head>~is', '', $html) ?? $html;
+            $corps = preg_replace('~</?(?:!doctype|html|body)\b[^>]*>~i', '', $corps) ?? $corps;
+        }
+        $corps = preg_replace('~<script\b[^>]*>.*?</script>~is', '', $corps) ?? $corps;
+        return trim($corps);
     }
 
     /** Insère un fragment juste avant </body>, ou en fin de document à défaut. */
@@ -169,13 +281,14 @@ final class Mockup
     /** Contrôles rapides de qualité affichés après génération. */
     public static function inspect(string $html): array
     {
+        $corps = self::bodyOf($html);
         return [
             'size' => strlen($html),
             'responsive' => (bool) preg_match('/name=["\']viewport/i', $html),
-            'has_style' => (bool) preg_match('/<style/i', $html),
-            'has_media_query' => str_contains($html, '@media'),
-            'no_script' => !preg_match('/<script/i', $html),
-            'no_external' => !preg_match('~(src|href)=["\']https?://~i', preg_replace('~<a\b[^>]*>~i', '', $html) ?? $html),
+            'socle' => str_contains($html, 'socle.css'),
+            'palette' => (bool) preg_match('/--marque\s*:/', $html),
+            // Le corps ne doit porter ni CSS ni JavaScript : tout vient du socle.
+            'corps_propre' => !preg_match('/<(style|script)\b/i', $corps) && !preg_match('/\sstyle=/i', $corps),
             'nav_complete' => count(array_filter(
                 array_keys(self::PAGES),
                 static fn (string $page): bool => str_contains($html, $page . '.html')

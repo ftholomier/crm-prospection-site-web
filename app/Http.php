@@ -113,6 +113,75 @@ final class Http
         return $result;
     }
 
+    /**
+     * Récupère seulement le début d'un fichier distant.
+     *
+     * Sert à connaître le type et les dimensions réelles d'une image sans la
+     * télécharger entièrement : l'en-tête d'un JPEG, d'un PNG ou d'un WebP
+     * tient dans les premiers kilo-octets. Les serveurs qui ignorent l'en-tête
+     * Range renvoient tout : la coupure côté client limite quand même le coût.
+     *
+     * @return array{ok:bool,status:int,body:string,headers:array,partiel:bool,error:string}
+     */
+    public static function peek(string $url, int $bytes = 65536, int $timeout = 12): array
+    {
+        $result = ['ok' => false, 'status' => 0, 'body' => '', 'headers' => [], 'partiel' => false, 'error' => ''];
+        if (!function_exists('curl_init')) {
+            $full = self::get($url, $timeout);
+            $result['ok'] = $full['ok'];
+            $result['status'] = $full['status'];
+            $result['body'] = substr($full['body'], 0, $bytes);
+            $result['headers'] = $full['headers'];
+            $result['error'] = $full['error'];
+            return $result;
+        }
+
+        $headers = [];
+        $buffer = '';
+        $handle = curl_init();
+        curl_setopt_array($handle, [
+            CURLOPT_URL => $url,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_MAXREDIRS => 5,
+            CURLOPT_TIMEOUT => $timeout,
+            CURLOPT_CONNECTTIMEOUT => 8,
+            CURLOPT_USERAGENT => self::agent(0),
+            CURLOPT_SSL_VERIFYPEER => true,
+            CURLOPT_SSL_VERIFYHOST => 2,
+            CURLOPT_COOKIEFILE => '',
+            CURLOPT_RANGE => '0-' . max(1024, $bytes - 1),
+            CURLOPT_HTTPHEADER => self::browserHeaders($url),
+            CURLOPT_HEADERFUNCTION => static function ($ch, string $line) use (&$headers): int {
+                $parts = explode(':', $line, 2);
+                if (count($parts) === 2) {
+                    $headers[strtolower(trim($parts[0]))] = trim($parts[1]);
+                }
+                return strlen($line);
+            },
+            CURLOPT_WRITEFUNCTION => static function ($ch, string $chunk) use (&$buffer, $bytes): int {
+                $buffer .= $chunk;
+                // Rendre moins que reçu interrompt volontairement le transfert.
+                return strlen($buffer) >= $bytes ? -1 : strlen($chunk);
+            },
+        ]);
+        curl_exec($handle);
+        $erreur = curl_errno($handle);
+        $result['status'] = (int) curl_getinfo($handle, CURLINFO_RESPONSE_CODE);
+        curl_close($handle);
+
+        // L'arrêt volontaire remonte comme une erreur d'écriture : ce n'en est pas une.
+        $coupe = in_array($erreur, [CURLE_WRITE_ERROR, 23], true);
+        if ($erreur !== 0 && !$coupe) {
+            $result['error'] = 'Téléchargement interrompu (' . $erreur . ')';
+        }
+        $result['headers'] = $headers;
+        $result['body'] = substr($buffer, 0, $bytes);
+        $result['partiel'] = $coupe || $result['status'] === 206;
+        $result['ok'] = $result['body'] !== '' && ($result['status'] >= 200 && $result['status'] < 400);
+        return $result;
+    }
+
     /** Requête JSON (POST ou GET) vers une API tierce. */
     public static function json(string $url, ?array $payload = null, array $headers = [], int $timeout = 30): array
     {

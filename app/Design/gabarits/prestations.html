@@ -1,0 +1,350 @@
+<!doctype html>
+<!--
+  ============================================================================
+  MAQUETTE 3 / 3 — PAGE « PRESTATIONS »
+  ----------------------------------------------------------------------------
+  CONTENU DE DÉMONSTRATION, à substituer par ce qui a été extrait du site du
+  prospect. Voir CRM-MAQUETTES.md, § « Les trois pages ».
+
+  Différence de fond avec les deux autres : cette page est consultée par
+  quelqu'un qui sait déjà ce qu'il veut et vérifie que vous le faites. Elle
+  liste donc, et elle liste précisément — les matériaux sont nommés, les
+  gestes aussi. Les généralités y sont contre-productives.
+  ============================================================================
+-->
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nos prestations — Maison Rivage</title>
+<meta name="description" content="Conception de jardin, terrasses, dallages, murets, clôtures, plantations, entretien et élagage. Le détail de ce que nous réalisons.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%232b2724'/%3E%3Cpath d='M9 23c0-8 5-13 14-14-1 9-6 14-14 14z' fill='%23e8a68e'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@200;300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="socle.css">
+</head>
+<body>
+
+<a class="evitement" href="#contenu">Aller au contenu</a>
+
+<header class="entete">
+  <div class="entete__interieur">
+    <a class="entete__logo" href="accueil.html">
+      MAISON RIVAGE
+      <span>Paysagiste</span>
+    </a>
+    <nav class="navbar" aria-label="Navigation principale">
+      <a href="a-propos.html">À propos</a>
+      <a href="prestations.html" aria-current="page">Nos prestations</a>
+      <a href="accueil.html#realisations">Réalisations</a>
+      <a href="#contact">Contact</a>
+    </nav>
+    <div class="entete__droite">
+      <a class="entete__tel" href="tel:+33381000000">03 81 00 00 00</a>
+      <a class="btn btn--plein btn--petit" href="#contact">Demander un devis</a>
+    </div>
+  </div>
+  <span class="entete__faisceau" aria-hidden="true"><i class="entete__onde"></i></span>
+</header>
+
+<main id="contenu">
+
+<section class="heros heros--page">
+  <div class="heros__photo">
+    <img src="img/dallage-piscine-vue.jpg" alt="Dallage en grès cérame autour d'une piscine">
+  </div>
+  <div class="conteneur">
+    <div class="heros__contenu">
+      <p class="surtitre surtitre--clair">Nos prestations</p>
+      <h1 class="heros__titre">Du plan au premier printemps</h1>
+      <p class="heros__texte">
+        Quatre métiers qui se suivent. Vous pouvez n'en prendre qu'un — mais
+        c'est en les enchaînant qu'un jardin tient dans le temps.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ---------------------------------------------------------------------
+     1. LES QUATRE MÉTIERS — quatre cartes sur deux colonnes. Sur une page
+     dédiée on peut aller au-delà de trois : le visiteur est venu lire.
+     --------------------------------------------------------------------- -->
+<section class="section">
+  <div class="conteneur">
+    <div class="section__tete reveler">
+      <p class="surtitre">Ce que nous faisons</p>
+      <h2 class="titre-section">Quatre métiers, dans l'ordre</h2>
+      <p class="section__chapo">
+        Chaque prestation est menée par les mêmes équipes, du relevé de terrain
+        à la taille d'entretien.
+      </p>
+    </div>
+
+    <div class="cartes cartes--2">
+      <article class="carte reveler">
+        <div class="carte__media">
+          <div class="carte__cadre"><img src="img/allee-dallee-graminees.jpg" alt="Allée dallée bordée de graminées"></div>
+          <span class="carte__icone" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 4h16v16H4z"/><path d="M4 10h16M10 4v16"/></svg>
+          </span>
+        </div>
+        <div class="carte__corps">
+          <h3 class="carte__titre">Conception</h3>
+          <p class="carte__texte">
+            Relevé du terrain, étude d'exposition et de sol, plan à l'échelle,
+            palette de matériaux et liste d'essences. Le document que vous
+            recevez sert aussi de cahier des charges au chantier.
+          </p>
+          <p class="carte__pied"><a class="lien-fleche" href="#detail">Le détail</a></p>
+        </div>
+      </article>
+
+      <article class="carte reveler">
+        <div class="carte__media">
+          <div class="carte__cadre"><img src="img/cheminement-bois-itauba.jpg" alt="Cheminement en bois exotique"></div>
+          <span class="carte__icone" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 18h18M3 13h18M3 8h18"/></svg>
+          </span>
+        </div>
+        <div class="carte__corps">
+          <h3 class="carte__titre">Aménagement paysager</h3>
+          <p class="carte__texte">
+            Terrasses bois et grès cérame, dallages, pavages, enrobés, murets,
+            parements, clôtures, entourages de piscine, arrosage enterré et
+            éclairage extérieur.
+          </p>
+          <p class="carte__pied"><a class="lien-fleche" href="#detail">Le détail</a></p>
+        </div>
+      </article>
+
+      <article class="carte reveler">
+        <div class="carte__media">
+          <div class="carte__cadre"><img src="img/art-topiaire-bonsai.jpg" alt="Sujet taillé en art topiaire"></div>
+          <span class="carte__icone" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 21v-6m0 0c-4 0-6-2.5-6-5.5S8 4 12 4s6 2.5 6 5.5S16 15 12 15Z"/></svg>
+          </span>
+        </div>
+        <div class="carte__corps">
+          <h3 class="carte__titre">Entretien</h3>
+          <p class="carte__texte">
+            Tontes, tailles de haies, art topiaire, désherbage, scarification,
+            remise en état de terrain à l'abandon. Au passage ou au contrat
+            annuel, selon ce qui vous arrange.
+          </p>
+          <p class="carte__pied"><a class="lien-fleche" href="#detail">Le détail</a></p>
+        </div>
+      </article>
+
+      <article class="carte reveler">
+        <div class="carte__media">
+          <div class="carte__cadre"><img src="img/elagage-hauteur.jpg" alt="Élagage en hauteur sur cordes"></div>
+          <span class="carte__icone" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 22V9m0 0 5-5m-5 5L7 4m5 9 5 4m-5-4-5 4"/></svg>
+          </span>
+        </div>
+        <div class="carte__corps">
+          <h3 class="carte__titre">Élagage &amp; abattage</h3>
+          <p class="carte__texte">
+            Élagage sur cordes, abattage par démontage en site contraint,
+            rognage et arrachage de souches. Travaux assurés, évacuation
+            comprise.
+          </p>
+          <p class="carte__pied"><a class="lien-fleche" href="#detail">Le détail</a></p>
+        </div>
+      </article>
+    </div>
+  </div>
+</section>
+
+<!-- ---------------------------------------------------------------------
+     2. UNE PRESTATION EN DÉTAIL — le bloc image + texte sert ici à ouvrir
+     une prestation, avec ce qu'elle comprend en points numérotés. Dupliquer
+     ce bloc autant de fois qu'il y a de prestations à détailler, en
+     alternant le côté de la photo (.duo--inverse).
+     --------------------------------------------------------------------- -->
+<section class="section section--teinte" id="detail">
+  <div class="conteneur">
+    <div class="duo">
+      <div class="duo__media reveler">
+        <img src="img/cour-enrobe-massif.jpg" alt="Cour en enrobé bordée d'un massif planté">
+      </div>
+      <div class="duo__texte reveler">
+        <p class="surtitre">Aménagement paysager</p>
+        <h2 class="titre-section">Le gros œuvre du jardin</h2>
+        <p>
+          C'est la partie qu'on ne refait pas. Terrassement, drainage, fondations
+          de terrasse, réseaux d'arrosage et d'éclairage : tout ce qui se joue
+          sous la surface décide de ce qui tiendra dessus.
+        </p>
+
+        <div class="points">
+          <div class="point">
+            <span class="point__numero">01</span>
+            <div>
+              <p class="point__titre">Terrasses et dallages</p>
+              <p class="point__texte">
+                Grès cérame, pierre naturelle, bois exotique Itauba ou IPE,
+                bois composite. Pose sur plots ou sur chape selon le support.
+              </p>
+            </div>
+          </div>
+          <div class="point">
+            <span class="point__numero">02</span>
+            <div>
+              <p class="point__titre">Murets, parements et clôtures</p>
+              <p class="point__texte">
+                Pierre du Jura, gabions, acier corten, panneaux bois, clôtures
+                végétalisées. Fondations calculées selon la hauteur.
+              </p>
+            </div>
+          </div>
+          <div class="point">
+            <span class="point__numero">03</span>
+            <div>
+              <p class="point__titre">Arrosage et éclairage</p>
+              <p class="point__texte">
+                Réseaux enterrés posés avant le revêtement — jamais après, où
+                il faudrait tout rouvrir.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <a class="lien-fleche" href="#contact">Demander un devis pour ce poste</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ---------------------------------------------------------------------
+     3. LES MATÉRIAUX — une galerie légendée. Sur une page prestation, la
+     photo légendée fait plus que la description : elle prouve.
+     --------------------------------------------------------------------- -->
+<section class="section">
+  <div class="conteneur">
+    <div class="section__tete section__tete--centre reveler">
+      <p class="surtitre surtitre--centre">Matériaux</p>
+      <h2 class="titre-section">Ce que nous posons, en images</h2>
+      <p class="section__chapo">
+        Chaque matériau est nommé : c'est ce qu'un devis comparera, autant le
+        savoir avant.
+      </p>
+    </div>
+
+    <div class="galerie reveler">
+      <figure class="galerie__item"><img src="img/dallage-piscine-vue.jpg" alt="Dallage en grès cérame"><figcaption class="galerie__legende">Grès cérame 20 mm, pose sur plots</figcaption></figure>
+      <figure class="galerie__item"><img src="img/cheminement-bois-itauba.jpg" alt="Cheminement en bois Itauba"><figcaption class="galerie__legende">Bois exotique Itauba, lames rainurées</figcaption></figure>
+      <figure class="galerie__item"><img src="img/bimuros-gris-jura.jpg" alt="Muret en pierre du Jura"><figcaption class="galerie__legende">Pierre grise du Jura, appareil irrégulier</figcaption></figure>
+      <figure class="galerie__item"><img src="img/brise-vue-lumiere.jpg" alt="Brise-vue bois rétroéclairé"><figcaption class="galerie__legende">Brise-vue bois, éclairage intégré</figcaption></figure>
+      <figure class="galerie__item"><img src="img/cour-enrobe-massif.jpg" alt="Cour en enrobé"><figcaption class="galerie__legende">Enrobé noir, bordure acier corten</figcaption></figure>
+      <figure class="galerie__item"><img src="img/jardin-contemporain.jpg" alt="Massif de graminées"><figcaption class="galerie__legende">Graminées et vivaces sans arrosage</figcaption></figure>
+    </div>
+  </div>
+</section>
+
+<!-- ---------------------------------------------------------------------
+     4. QUESTIONS FRÉQUENTES — sur une page prestation, elles lèvent les
+     objections de prix et de délai avant qu'elles ne servent de prétexte à
+     quitter la page. <details> natif : aucun script.
+     --------------------------------------------------------------------- -->
+<section class="section section--teinte">
+  <div class="conteneur conteneur--etroit">
+    <div class="section__tete reveler">
+      <p class="surtitre">Questions fréquentes</p>
+      <h2 class="titre-section">Ce qu'on nous demande le plus</h2>
+    </div>
+
+    <div class="reveler">
+      <details style="border-top:1px solid var(--ligne);padding:1.4rem 0;">
+        <summary style="cursor:pointer;font-size:1.12rem;font-weight:500;color:var(--encre);">Sous quel délai intervenez-vous ?</summary>
+        <p style="margin-top:1rem;color:var(--texte-doux);">
+          Comptez deux à trois semaines pour la visite et le devis, puis six à
+          dix semaines de délai de chantier selon la saison. Les demandes
+          d'entretien sont traitées sous huit jours.
+        </p>
+      </details>
+      <details style="border-top:1px solid var(--ligne);padding:1.4rem 0;">
+        <summary style="cursor:pointer;font-size:1.12rem;font-weight:500;color:var(--encre);">Le devis et le déplacement sont-ils payants ?</summary>
+        <p style="margin-top:1rem;color:var(--texte-doux);">
+          Non. Le relevé de terrain, les conseils et le chiffrage sont gratuits
+          et sans engagement. Seule une étude de conception poussée, avec plans
+          et vues, fait l'objet d'un forfait — déduit du chantier s'il nous est
+          confié.
+        </p>
+      </details>
+      <details style="border-top:1px solid var(--ligne);border-bottom:1px solid var(--ligne);padding:1.4rem 0;">
+        <summary style="cursor:pointer;font-size:1.12rem;font-weight:500;color:var(--encre);">Faut-il une autorisation d'urbanisme ?</summary>
+        <p style="margin-top:1rem;color:var(--texte-doux);">
+          Pour une clôture, un muret de plus de deux mètres ou une terrasse
+          surélevée, souvent oui. Nous vous disons lesquelles dès la visite et
+          nous préparons les pièces du dossier.
+        </p>
+      </details>
+    </div>
+  </div>
+</section>
+
+<section class="bande-cta" id="contact">
+  <div class="conteneur">
+    <p class="surtitre surtitre--clair surtitre--centre">Parlons de votre projet</p>
+    <h2>Une étude et un devis, sans engagement</h2>
+    <p>
+      Décrivez-nous votre extérieur en quelques lignes, ou appelez-nous
+      directement. Nous venons relever les cotes sur place avant de chiffrer
+      quoi que ce soit.
+    </p>
+    <div class="bande-cta__actions">
+      <a class="btn btn--plein" href="#">Demander un devis</a>
+      <a class="btn btn--clair" href="tel:+33381000000">Appeler le 03 81 00 00 00</a>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer class="pied">
+  <div class="conteneur">
+    <div class="pied__haut">
+      <div>
+        <p class="entete__logo" style="color:#fff;margin-bottom:1.2rem;">MAISON RIVAGE<span>Paysagiste</span></p>
+        <p>Le déplacement et les conseils sont gratuits. Parlons de votre extérieur.</p>
+        <p style="font-size:1.3rem;font-weight:600;color:#fff;margin-top:1rem;">03 81 00 00 00</p>
+      </div>
+      <div>
+        <h2>Le site</h2>
+        <ul class="pied__liens">
+          <li><a href="a-propos.html">À propos</a></li>
+          <li><a href="prestations.html">Nos prestations</a></li>
+          <li><a href="accueil.html#realisations">Réalisations</a></li>
+          <li><a href="#contact">Contact</a></li>
+        </ul>
+      </div>
+      <div>
+        <h2>Nos prestations</h2>
+        <ul class="pied__liens">
+          <li><a href="prestations.html">Conception</a></li>
+          <li><a href="prestations.html">Aménagement</a></li>
+          <li><a href="prestations.html">Entretien</a></li>
+          <li><a href="prestations.html">Élagage &amp; taille</a></li>
+        </ul>
+      </div>
+      <div>
+        <h2>Nous trouver</h2>
+        <address style="font-style:normal;">
+          Maison Rivage<br>
+          12 rue des Vergers<br>
+          25000 Besançon
+        </address>
+      </div>
+    </div>
+    <div class="pied__bas">
+      <p>© 2026 Maison Rivage — Tous droits réservés</p>
+      <p>Mentions légales · Gestion des cookies</p>
+    </div>
+  </div>
+</footer>
+
+<script src="socle.js"></script>
+</body>
+</html>

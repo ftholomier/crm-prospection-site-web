@@ -1,0 +1,285 @@
+<!doctype html>
+<!--
+  ============================================================================
+  MAQUETTE 2 / 3 — PAGE « À PROPOS »
+  ----------------------------------------------------------------------------
+  CONTENU DE DÉMONSTRATION, à substituer par ce qui a été extrait du site du
+  prospect. Voir CRM-MAQUETTES.md, § « Les trois pages ».
+
+  Différence de fond avec l'accueil : cette page ne vend pas, elle rassure.
+  Elle répond à « à qui ai-je affaire », dans cet ordre — la personne, la
+  méthode, les preuves, l'équipe.
+  ============================================================================
+-->
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>À propos — Maison Rivage</title>
+<meta name="description" content="Vingt-cinq ans d'aménagement paysager, une équipe de terrain et une méthode en quatre temps. Faites connaissance avec Maison Rivage.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%232b2724'/%3E%3Cpath d='M9 23c0-8 5-13 14-14-1 9-6 14-14 14z' fill='%23e8a68e'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@200;300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="socle.css">
+</head>
+<body>
+
+<a class="evitement" href="#contenu">Aller au contenu</a>
+
+<header class="entete">
+  <div class="entete__interieur">
+    <a class="entete__logo" href="accueil.html">
+      MAISON RIVAGE
+      <span>Paysagiste</span>
+    </a>
+    <nav class="navbar" aria-label="Navigation principale">
+      <a href="a-propos.html" aria-current="page">À propos</a>
+      <a href="prestations.html">Nos prestations</a>
+      <a href="accueil.html#realisations">Réalisations</a>
+      <a href="#contact">Contact</a>
+    </nav>
+    <div class="entete__droite">
+      <a class="entete__tel" href="tel:+33381000000">03 81 00 00 00</a>
+      <a class="btn btn--plein btn--petit" href="#contact">Demander un devis</a>
+    </div>
+  </div>
+  <span class="entete__faisceau" aria-hidden="true"><i class="entete__onde"></i></span>
+</header>
+
+<main id="contenu">
+
+<!-- ---------------------------------------------------------------------
+     1. BANDEAU DE PAGE — plus court que celui de l'accueil (460 px contre
+     88 vh) : une page intérieure n'a pas à retenir, elle a à situer.
+     --------------------------------------------------------------------- -->
+<section class="heros heros--page">
+  <div class="heros__photo">
+    <img src="img/equipe-baron-mathay.jpg" alt="L'équipe de Maison Rivage devant l'atelier">
+  </div>
+  <div class="conteneur">
+    <div class="heros__contenu">
+      <p class="surtitre surtitre--clair">À propos</p>
+      <h1 class="heros__titre">Une équipe, un atelier, un territoire</h1>
+      <p class="heros__texte">
+        Nous intervenons dans un rayon de trente kilomètres. Assez près pour
+        revenir, assez loin pour avoir tout vu.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ---------------------------------------------------------------------
+     2. PORTRAIT — la première chose que cherche un visiteur sur une page
+     « à propos », c'est un visage. Cadre 4/5, calé à droite parce que la
+     photo est en paysage et que le sujet s'y tient.
+     --------------------------------------------------------------------- -->
+<section class="section">
+  <div class="conteneur">
+    <div class="duo">
+      <div class="duo__media reveler">
+        <img src="img/benjamin-baron.jpg" alt="Le fondateur de Maison Rivage"
+             style="aspect-ratio: 4 / 5; object-position: right 22%;">
+      </div>
+      <div class="duo__texte reveler">
+        <p class="surtitre">Le fondateur</p>
+        <h2 class="titre-section">Vingt-cinq ans sur le terrain</h2>
+        <p>
+          Formé à l'horticulture puis au paysage, il a monté l'entreprise après
+          quinze ans passés chez d'autres. La règle qu'il en a tirée tient en
+          une phrase : ne jamais promettre un délai qu'on ne tiendra pas, ni un
+          matériau qu'on ne poserait pas chez soi.
+        </p>
+        <blockquote style="margin:2rem 0;padding-left:1.6rem;border-left:2px solid var(--marque);font-size:1.18rem;font-weight:300;line-height:1.65;color:var(--texte-doux);">
+          « On ne vend pas un jardin, on accompagne quelqu'un qui va y vivre
+          vingt ans. Ça change tout dans la manière de le dessiner. »
+        </blockquote>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ---------------------------------------------------------------------
+     3. INDICATEURS — les mêmes chiffres qu'en accueil, à la même place dans
+     la lecture. Cette répétition est voulue : elle ancre.
+     --------------------------------------------------------------------- -->
+<section class="indicateurs" aria-label="L'entreprise en chiffres">
+  <div class="indicateur">
+    <p class="indicateur__chiffre">25</p>
+    <p class="indicateur__label">ans de métier</p>
+  </div>
+  <div class="indicateur">
+    <p class="indicateur__chiffre">12</p>
+    <p class="indicateur__label">personnes sur le terrain</p>
+  </div>
+  <div class="indicateur">
+    <p class="indicateur__chiffre">30 km</p>
+    <p class="indicateur__label">rayon d'intervention</p>
+  </div>
+  <div class="indicateur">
+    <p class="indicateur__chiffre">2 ateliers</p>
+    <p class="indicateur__label">Besançon et Pontarlier</p>
+  </div>
+</section>
+
+<!-- ---------------------------------------------------------------------
+     4. LA MÉTHODE — quatre étapes numérotées. Elles répondent à la question
+     qui retient la main sur le bouton : « et ensuite, il se passe quoi ? ».
+     Sur un écran large, quatre étapes tiennent en une ligne de trois plus
+     une : on préfère donc trois étapes, ou six.
+     --------------------------------------------------------------------- -->
+<section class="section section--teinte">
+  <div class="conteneur">
+    <div class="section__tete reveler">
+      <p class="surtitre">Notre méthode</p>
+      <h2 class="titre-section">Comment se déroule un chantier</h2>
+      <p class="section__chapo">
+        Trois rendez-vous, jamais plus, et vous savez à chaque instant où en
+        est votre projet.
+      </p>
+    </div>
+
+    <ol class="etapes">
+      <li class="etape reveler">
+        <p class="etape__numero">01</p>
+        <h3 class="etape__titre">La visite</h3>
+        <p class="etape__texte">
+          Nous venons relever les cotes, l'exposition, la nature du sol. Le
+          déplacement et les conseils sont gratuits, sans engagement.
+        </p>
+      </li>
+      <li class="etape reveler">
+        <p class="etape__numero">02</p>
+        <h3 class="etape__titre">Le plan et le devis</h3>
+        <p class="etape__texte">
+          Un plan à l'échelle, les matériaux nommés, les essences listées, et
+          un prix ferme. Vous voyez le jardin avant de décider.
+        </p>
+      </li>
+      <li class="etape reveler">
+        <p class="etape__numero">03</p>
+        <h3 class="etape__titre">Le chantier, puis l'entretien</h3>
+        <p class="etape__texte">
+          La même équipe exécute et revient. Ce qu'elle a planté, c'est elle
+          qui le taille — et elle en répond.
+        </p>
+      </li>
+    </ol>
+  </div>
+</section>
+
+<!-- ---------------------------------------------------------------------
+     5. LES ENGAGEMENTS — deux blocs larges plutôt que quatre étroits :
+     chaque engagement mérite une photo, sans quoi ce sont des slogans.
+     --------------------------------------------------------------------- -->
+<section class="section">
+  <div class="conteneur">
+    <div class="section__tete reveler">
+      <p class="surtitre">Nos engagements</p>
+      <h2 class="titre-section">Ce sur quoi nous ne transigeons pas</h2>
+    </div>
+
+    <div class="cartes cartes--2">
+      <article class="carte reveler">
+        <div class="carte__media">
+          <div class="carte__cadre"><img src="img/bimuros-gris-jura.jpg" alt="Muret en pierre grise du Jura"></div>
+        </div>
+        <div class="carte__corps">
+          <h3 class="carte__titre">Des matériaux régionaux dès que possible</h3>
+          <p class="carte__texte">
+            La pierre du Jura vient de moins de cent kilomètres. Elle vieillit
+            dans notre climat parce qu'elle en vient — et le transport ne
+            grève ni le devis ni le bilan.
+          </p>
+        </div>
+      </article>
+
+      <article class="carte reveler">
+        <div class="carte__media">
+          <div class="carte__cadre"><img src="img/allee-dallee-graminees.jpg" alt="Allée dallée entre des graminées"></div>
+        </div>
+        <div class="carte__corps">
+          <h3 class="carte__titre">Des plantations qui tiennent sans arrosage</h3>
+          <p class="carte__texte">
+            Graminées, vivaces, sujets adaptés au sol calcaire : un massif bien
+            choisi se passe de goutte-à-goutte dès la deuxième année.
+          </p>
+        </div>
+      </article>
+    </div>
+  </div>
+</section>
+
+<!-- ---------------------------------------------------------------------
+     6. CITATION — même respiration sombre que sur l'accueil, pour que les
+     deux pages se reconnaissent.
+     --------------------------------------------------------------------- -->
+<section class="citation">
+  <div class="conteneur">
+    <p class="citation__texte">« Nous plantons rarement ce que le client avait imaginé. Nous plantons ce qu'il voulait. »</p>
+    <p class="citation__auteur">Le fondateur</p>
+  </div>
+</section>
+
+<section class="bande-cta" id="contact">
+  <div class="conteneur">
+    <p class="surtitre surtitre--clair surtitre--centre">Faisons connaissance</p>
+    <h2>Venez nous voir, ou faites-nous venir</h2>
+    <p>
+      L'atelier est ouvert du lundi au vendredi. Et si vous préférez que nous
+      passions, le déplacement ne vous coûte rien.
+    </p>
+    <div class="bande-cta__actions">
+      <a class="btn btn--plein" href="#">Demander un devis</a>
+      <a class="btn btn--clair" href="tel:+33381000000">Appeler le 03 81 00 00 00</a>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer class="pied">
+  <div class="conteneur">
+    <div class="pied__haut">
+      <div>
+        <p class="entete__logo" style="color:#fff;margin-bottom:1.2rem;">MAISON RIVAGE<span>Paysagiste</span></p>
+        <p>Le déplacement et les conseils sont gratuits. Parlons de votre extérieur.</p>
+        <p style="font-size:1.3rem;font-weight:600;color:#fff;margin-top:1rem;">03 81 00 00 00</p>
+      </div>
+      <div>
+        <h2>Le site</h2>
+        <ul class="pied__liens">
+          <li><a href="a-propos.html">À propos</a></li>
+          <li><a href="prestations.html">Nos prestations</a></li>
+          <li><a href="accueil.html#realisations">Réalisations</a></li>
+          <li><a href="#contact">Contact</a></li>
+        </ul>
+      </div>
+      <div>
+        <h2>Nos prestations</h2>
+        <ul class="pied__liens">
+          <li><a href="prestations.html">Conception</a></li>
+          <li><a href="prestations.html">Aménagement</a></li>
+          <li><a href="prestations.html">Entretien</a></li>
+          <li><a href="prestations.html">Élagage &amp; taille</a></li>
+        </ul>
+      </div>
+      <div>
+        <h2>Nous trouver</h2>
+        <address style="font-style:normal;">
+          Maison Rivage<br>
+          12 rue des Vergers<br>
+          25000 Besançon
+        </address>
+      </div>
+    </div>
+    <div class="pied__bas">
+      <p>© 2026 Maison Rivage — Tous droits réservés</p>
+      <p>Mentions légales · Gestion des cookies</p>
+    </div>
+  </div>
+</footer>
+
+<script src="socle.js"></script>
+</body>
+</html>
