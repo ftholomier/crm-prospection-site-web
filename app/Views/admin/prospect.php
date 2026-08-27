@@ -113,24 +113,59 @@ $mailable = Prospect::isMailable($p);
             </div>
             <p class="small muted">
                 Certains sites refusent toute lecture automatique et répondent une erreur 403.
-                Dans ce cas, fournissez la page vous-même : ouvrez
-                <a href="<?= e((string) $p['url']) ?>" target="_blank" rel="noopener noreferrer">le site</a>,
+                Deux solutions, indépendantes et cumulables.
+            </p>
+
+            <div class="divider"></div>
+
+            <h3>1. Laisser l'IA lire le site</h3>
+            <p class="small muted">
+                La lecture part alors de l'infrastructure d'Anthropic, pas de votre serveur : le pare-feu
+                qui filtre l'adresse IP de votre hébergement ne s'y applique pas. Le modèle parcourt la page
+                d'accueil <strong>et les pages internes</strong> — contact, mentions légales, à propos,
+                prestations — et en rapporte le contenu. Consomme des crédits API, environ le tiers d'une maquette.
+            </p>
+            <button class="btn primary" type="button"
+                    data-analyze="<?= e(url('read_site_stream', ['id' => $id])) ?>"
+                    data-autorun="0">Lire le site avec l'IA</button>
+            <p class="tiny muted mt">
+                Le modèle rapporte ce qu'il lit, sans rien inventer. Il ne voit ni les couleurs, ni les
+                polices, ni le code technique : le score de vétusté reste calculé sur du HTML réel, donc
+                issu d'une lecture directe ou du collage ci-dessous.
+            </p>
+
+            <div class="divider"></div>
+
+            <h3>2. Coller le code source vous-même</h3>
+            <p class="small muted">
+                Ouvrez <a href="<?= e((string) $p['url']) ?>" target="_blank" rel="noopener noreferrer">le site</a>,
                 affichez le code source (<strong>Ctrl+U</strong>, ou <strong>⌥⌘U</strong> sur Mac),
-                sélectionnez tout (<strong>Ctrl+A</strong>), copiez et collez ci-dessous.
-                Le score, les coordonnées et la maquette sont produits exactement de la même façon.
+                sélectionnez tout (<strong>Ctrl+A</strong>) et collez. C'est la seule voie qui donne
+                le score de vétusté, puisqu'il se calcule sur le code lui-même.
             </p>
             <form method="post" action="<?= e(url('prospect_manual')) ?>">
                 <?= Csrf::field() ?>
                 <input type="hidden" name="id" value="<?= e($id) ?>">
                 <div class="field">
-                    <label for="html">Code source de la page d'accueil</label>
-                    <textarea class="code" name="html" id="html" rows="8"
+                    <label for="html_accueil">Page d'accueil <span class="muted">— indispensable</span></label>
+                    <textarea class="code" name="html_accueil" id="html_accueil" rows="6"
                               placeholder="&lt;!DOCTYPE html&gt;&#10;&lt;html lang=&quot;fr&quot;&gt;…"></textarea>
-                    <span class="hint muted tiny">Seule la page collée est analysée : les pages internes et les feuilles de style externes ne sont pas récupérées.</span>
                 </div>
+                <?php foreach ([
+                    'contact' => ['Page contact', 'Porte le plus souvent l\'email et le téléphone.'],
+                    'legal' => ['Mentions légales', 'Porte la raison sociale exacte et le SIREN.'],
+                    'services' => ['Page prestations', 'Alimente la page Prestations de la maquette.'],
+                ] as $role => [$titre, $aide]): ?>
+                    <div class="field">
+                        <label for="html_<?= e($role) ?>"><?= e($titre) ?> <span class="muted">— facultatif</span></label>
+                        <textarea class="code" name="html_<?= e($role) ?>" id="html_<?= e($role) ?>" rows="3"></textarea>
+                        <span class="hint muted tiny"><?= e($aide) ?></span>
+                    </div>
+                <?php endforeach; ?>
                 <button class="btn <?= $hasAnalysis ? '' : 'primary' ?>" type="submit">
-                    <?= $hasManualSource ? 'Remplacer le code source' : 'Analyser ce code source' ?>
+                    <?= $hasManualSource ? 'Remplacer les pages collées' : 'Analyser ces pages' ?>
                 </button>
+                <p class="tiny muted mt">Les feuilles de style externes restent hors de portée : les couleurs sont déduites du code collé.</p>
             </form>
         </div>
 

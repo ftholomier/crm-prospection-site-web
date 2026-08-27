@@ -278,6 +278,122 @@ final class Claude
         ];
     }
 
+    /**
+     * Appel avec outils serveur, exécutés chez Anthropic (recherche et lecture
+     * web). C'est ce mécanisme qui permet de lire un site que notre propre
+     * serveur ne peut pas atteindre : la requête part de leur infrastructure.
+     *
+     * La boucle d'outils tourne côté serveur et s'interrompt au bout de dix
+     * itérations avec stop_reason « pause_turn ». On relance alors la requête
+     * en réinjectant le tour assistant : le serveur reprend où il s'était
+     * arrêté, sans message supplémentaire de notre part.
+     *
+     * @return array{ok:bool,error:string,text:string,json:?array,usage:array,blocks:array}
+     */
+    public static function withServerTools(array $options, int $maxContinuations = 4): array
+    {
+        $messages = $options['messages'];
+        $usage = [];
+        $blocks = [];
+        $text = '';
+
+        for ($turn = 0; $turn <= $maxContinuations; $turn++) {
+            $payload = self::payload(['messages' => $messages] + $options);
+            $payload['tools'] = $options['tools'];
+            // Les sorties structurées ne se combinent pas avec les outils serveur :
+            // la consigne de format vit dans le prompt, et decodeJson extrait l'objet.
+            unset($payload['output_config']['format']);
+
+            $response = self::send($payload, (int) ($options['timeout'] ?? Config::get('claude.timeout', 600)));
+            if (!$response['ok']) {
+                return $response + ['blocks' => $blocks];
+            }
+
+            $data = $response['data'];
+            $content = $data['content'] ?? [];
+            $blocks = array_merge($blocks, $content);
+            $text .= self::extractText($data);
+            $usage = self::mergeUsage($usage, $data['usage'] ?? []);
+
+            if (($data['stop_reason'] ?? '') !== 'pause_turn') {
+                Models::recordUsage($usage);
+                return [
+                    'ok' => true,
+                    'error' => '',
+                    'text' => $text,
+                    'json' => self::decodeJson($text),
+                    'usage' => $usage,
+                    'blocks' => $blocks,
+                    'stop_reason' => $data['stop_reason'] ?? '',
+                ];
+            }
+
+            $messages = array_merge($messages, [['role' => 'assistant', 'content' => $content]]);
+        }
+
+        Models::recordUsage($usage);
+        return [
+            'ok' => false,
+            'error' => 'La lecture du site a dépassé le nombre d\'étapes autorisé.',
+            'text' => $text,
+            'json' => self::decodeJson($text),
+            'usage' => $usage,
+            'blocks' => $blocks,
+        ];
+    }
+
+    /** Envoi brut d'une charge utile déjà construite. */
+    private static function send(array $payload, int $timeout): array
+    {
+        if (!self::isConfigured()) {
+            return self::failure('Aucune clé API Claude n\'est renseignée dans les Réglages.');
+        }
+        if (!function_exists('curl_init')) {
+            return self::failure('L\'extension cURL de PHP est requise pour appeler l\'API.');
+        }
+
+        $handle = curl_init();
+        curl_setopt_array($handle, [
+            CURLOPT_URL => self::ENDPOINT,
+            CURLOPT_POST => true,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_HTTPHEADER => self::headers(),
+            CURLOPT_POSTFIELDS => json_encode($payload, JSON_UNESCAPED_UNICODE),
+            CURLOPT_TIMEOUT => $timeout,
+            CURLOPT_CONNECTTIMEOUT => 15,
+        ]);
+        $body = curl_exec($handle);
+        $status = (int) curl_getinfo($handle, CURLINFO_RESPONSE_CODE);
+        $curlError = curl_error($handle);
+        curl_close($handle);
+
+        if ($body === false) {
+            return self::failure('Connexion à l\'API impossible : ' . $curlError);
+        }
+        $data = json_decode((string) $body, true);
+        if (!is_array($data)) {
+            return self::failure('Réponse illisible de l\'API (HTTP ' . $status . ').');
+        }
+        if ($status < 200 || $status >= 300) {
+            return self::failure(self::describeError($status, $data));
+        }
+        if (($data['stop_reason'] ?? '') === 'refusal') {
+            return self::failure('La requête a été déclinée par le modèle.');
+        }
+        return ['ok' => true, 'error' => '', 'data' => $data, 'text' => '', 'json' => null, 'usage' => []];
+    }
+
+    /** Cumule les compteurs d'usage de plusieurs tours. */
+    private static function mergeUsage(array $total, array $add): array
+    {
+        foreach (['input_tokens', 'output_tokens', 'cache_creation_input_tokens', 'cache_read_input_tokens'] as $key) {
+            if (isset($add[$key])) {
+                $total[$key] = (int) ($total[$key] ?? 0) + (int) $add[$key];
+            }
+        }
+        return $total;
+    }
+
     /** Concatène les blocs texte de la réponse. */
     private static function extractText(array $data): string
     {

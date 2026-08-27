@@ -43,14 +43,15 @@ final class Analyzer
      * Analyse à partir d'un code source collé à la main, pour les sites qui
      * refusent toute lecture automatique.
      */
-    public static function runFromHtml(string $prospectId, string $html): array
+    public static function runFromHtml(string $prospectId, string|array $sources): array
     {
         $prospect = Prospect::find($prospectId);
         if ($prospect === null) {
             return ['ok' => false, 'error' => 'Prospect introuvable.', 'prospect' => null];
         }
 
-        $analysis = Scraper::analyzeHtml($html, (string) $prospect['url']);
+        $html = is_string($sources) ? $sources : (string) ($sources['accueil'] ?? '');
+        $analysis = Scraper::analyzeHtml($sources, (string) $prospect['url']);
         if (!$analysis['ok']) {
             return ['ok' => false, 'error' => $analysis['error'], 'prospect' => $prospect];
         }
@@ -61,6 +62,65 @@ final class Analyzer
 
         return self::finish($prospectId, $prospect, $analysis['data'], static function (): void {
         });
+    }
+
+    /**
+     * Lecture du site par l'IA, quand notre serveur est bloqué.
+     *
+     * Le contenu récupéré complète l'analyse existante sans l'écraser : le
+     * modèle lit le texte des pages, mais pas les couleurs, les polices ni le
+     * HTML technique, qui ne peuvent venir que d'une lecture directe ou d'un
+     * collage. L'audit déjà calculé est donc conservé tel quel.
+     */
+    public static function runFromAi(string $prospectId, ?callable $progress = null): array
+    {
+        $prospect = Prospect::find($prospectId);
+        if ($prospect === null) {
+            return ['ok' => false, 'error' => 'Prospect introuvable.', 'prospect' => null];
+        }
+
+        $read = SiteReader::read($prospect, $progress);
+        if (!$read['ok']) {
+            Events::log((string) $prospect['id'], 'error', ['step' => 'lecture_ia', 'message' => $read['error']]);
+            return ['ok' => false, 'error' => $read['error'], 'prospect' => $prospect];
+        }
+
+        $merged = self::mergeAnalysis($prospect['analysis'] ?? [], $read['data']);
+        return self::finish((string) $prospect['id'], $prospect, $merged, $progress ?? static function (): void {
+        }, keepAudit: ($prospect['audit'] ?? []) !== []);
+    }
+
+    /**
+     * Fusionne une lecture IA avec l'analyse existante.
+     * Les champs que le modèle ne peut pas percevoir sont préservés.
+     */
+    private static function mergeAnalysis(array $existing, array $fresh): array
+    {
+        if ($existing === []) {
+            return $fresh;
+        }
+
+        $merged = array_merge($existing, array_filter(
+            $fresh,
+            static fn ($value): bool => $value !== '' && $value !== [] && $value !== null
+        ));
+
+        foreach (['colors', 'fonts', 'logo', 'images', 'raw', 'generator', 'lang'] as $visual) {
+            if (!empty($existing[$visual])) {
+                $merged[$visual] = $existing[$visual];
+            }
+        }
+
+        // Les coordonnées se complètent champ par champ : le collage porte
+        // souvent le téléphone, la lecture IA l'email de la page contact.
+        $merged['contact'] = array_merge($existing['contact'] ?? [], array_filter(
+            $fresh['contact'] ?? [],
+            static fn ($value): bool => $value !== '' && $value !== []
+        ));
+
+        $merged['http'] = $existing['http'] ?? $fresh['http'];
+        $merged['source'] = trim((string) ($existing['source'] ?? '') . ' + ia', ' +');
+        return $merged;
     }
 
     public static function sourcePath(string $prospectId): string
@@ -83,14 +143,26 @@ final class Analyzer
     }
 
     /** Étapes communes aux deux modes : score, enrichissement, capture, sauvegarde. */
-    private static function finish(string $prospectId, array $prospect, array $data, callable $notify): array
-    {
+    private static function finish(
+        string $prospectId,
+        array $prospect,
+        array $data,
+        callable $notify,
+        bool $keepAudit = false
+    ): array {
         $prospectId = (string) $prospect['id'];
         $analysis = ['data' => $data];
 
-        $notify('Calcul du score de vétusté');
-        $audit = Audit::run($analysis['data']);
-        $notify('Score : ' . $audit['score'] . '/100 — ' . $audit['level'], 'done');
+        if ($keepAudit) {
+            // Une lecture IA ne fournit pas le HTML : recalculer l'audit sur
+            // rien effacerait un score déjà établi sur du code réel.
+            $audit = $prospect['audit'];
+            $notify('Score de vétusté conservé : ' . $audit['score'] . '/100', 'done');
+        } else {
+            $notify('Calcul du score de vétusté');
+            $audit = Audit::run($analysis['data']);
+            $notify('Score : ' . $audit['score'] . '/100 — ' . $audit['level'], 'done');
+        }
 
         $notify('Recherche des coordonnées');
         $prospect['analysis'] = $analysis['data'];
@@ -139,17 +211,9 @@ final class Analyzer
             return $prospect;
         }
 
-        // Le site reste fermé : on repart du code source collé à la main.
-        $path = self::sourcePath((string) $prospect['id']);
-        if (is_file($path)) {
-            $stored = @file_get_contents($path);
-            if (is_string($stored) && $stored !== '') {
-                $manual = Scraper::analyzeHtml($stored, (string) $prospect['url']);
-                if ($manual['ok']) {
-                    $prospect['analysis'] = $manual['data'];
-                }
-            }
-        }
+        // Le site reste fermé : l'analyse enregistrée fait foi. Elle contient
+        // déjà tout ce dont la génération a besoin, et la réécrire depuis le
+        // seul code collé effacerait un éventuel enrichissement par l'IA.
         return $prospect;
     }
 }

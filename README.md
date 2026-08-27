@@ -158,6 +158,7 @@ app/
 ├── Auth.php / Csrf.php      Mot de passe unique, session, jeton anti-CSRF
 ├── Prospect.php             Dépôt des fiches + index allégé
 ├── Scraper.php              Lecture du site cible et extraction
+├── SiteReader.php           Lecture par l'IA via l'outil serveur web_fetch
 ├── Audit.php                Score de vétusté et argumentaire
 ├── Enrich.php               Enrichissement en cascade (site → base entreprise)
 ├── Screenshot.php           Capture du site actuel (service externe ou import)
@@ -314,15 +315,33 @@ lecture automatique. L'application y répond à trois niveaux :
 2. **Elle réessaie autrement** : autre identité de navigateur, domaine avec ou
    sans `www`, connexion non sécurisée. Chaque tentative est visible dans le
    journal de progression.
-3. **Elle vous laisse fournir la page.** Si le refus persiste, la fiche prospect
-   propose un champ de saisie manuelle : ouvrez le site, affichez le code source
-   (`Ctrl+U`, ou `⌥⌘U` sur Mac), copiez tout et collez-le. Le score de vétusté,
-   les coordonnées et la maquette sont produits exactement de la même façon.
+3. **Elle fait lire le site par l'IA.** L'outil serveur `web_fetch` récupère les
+   pages **depuis l'infrastructure d'Anthropic**, pas depuis votre hébergement :
+   le pare-feu qui filtre l'adresse IP de votre serveur ne s'y applique pas.
+   Le modèle parcourt la page d'accueil et jusqu'à cinq pages internes — contact,
+   mentions légales, à propos, prestations — et en rapporte le contenu.
+4. **Elle vous laisse coller les pages.** La fiche prospect propose quatre
+   champs : accueil (indispensable), contact, mentions légales et prestations.
+   Ouvrez le site, affichez le code source (`Ctrl+U`, ou `⌥⌘U` sur Mac), copiez
+   tout et collez.
+
+Les deux derniers recours se cumulent, et se complètent :
+
+| | Lecture par l'IA | Collage du code source |
+|---|---|---|
+| Contourne le blocage | oui | oui |
+| Pages internes | oui, automatiquement | oui, si vous les collez |
+| Textes, prestations, coordonnées | oui | oui |
+| Couleurs, polices, logo | non | oui |
+| **Score de vétusté** | **non** | **oui** |
+| Coût | crédits API, environ un tiers d'une maquette | gratuit |
+
+Le score se calcule sur le code lui-même : il exige donc une lecture directe ou
+un collage. La lecture par l'IA enrichit le contenu **sans écraser** un audit
+déjà établi, et le modèle rapporte ce qu'il lit sans rien inventer.
 
 Le code collé est conservé sur disque : la génération de la maquette repart de
-lui sans vous demander de recommencer. Seule la page fournie est exploitée — les
-pages internes et les feuilles de style externes ne sont pas récupérées, donc
-l'email se trouve rarement dans ce mode et reste à saisir à la main.
+lui sans vous demander de recommencer.
 
 ## Import en masse
 

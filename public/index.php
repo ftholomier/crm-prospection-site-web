@@ -92,6 +92,7 @@ $routes = [
 
     // Traitements longs en flux
     'analyze_stream' => [Stream::analyze(...), true],
+    'read_site_stream' => [Stream::readSite(...), true],
     'generate_stream' => [Stream::generate(...), true],
 ];
 

@@ -218,19 +218,31 @@ final class Scraper
     }
 
     /**
-     * Analyse à partir d'un code source fourni à la main, quand le site refuse
-     * toute lecture automatique. Seule la page collée est exploitée : ni les
-     * pages internes, ni les feuilles de style externes ne sont récupérées.
+     * Analyse à partir de codes sources fournis à la main, quand le site refuse
+     * toute lecture automatique. Plusieurs pages peuvent être collées : les
+     * feuilles de style externes, elles, restent hors de portée.
      */
-    public static function analyzeHtml(string $html, string $url): array
+    public static function analyzeHtml(string|array $sources, string $url): array
     {
-        $html = trim($html);
-        if ($html === '' || !preg_match('/<\s*(html|body|div|p|h1|table)\b/i', $html)) {
-            return ['ok' => false, 'error' => 'Le contenu collé ne ressemble pas à du code HTML.', 'data' => []];
+        // Une seule page ou plusieurs : coller la page contact et les mentions
+        // légales en plus de l'accueil suffit à récupérer email, téléphone et
+        // SIREN, que la seule page d'accueil ne porte presque jamais.
+        $sources = is_string($sources) ? ['accueil' => $sources] : $sources;
+        $sources = array_filter(array_map('trim', $sources), static fn (string $v): bool => $v !== '');
+
+        $home = trim((string) ($sources['accueil'] ?? ''));
+        if ($home === '' || !preg_match('/<\s*(html|body|div|p|h1|table)\b/i', $home)) {
+            return ['ok' => false, 'error' => 'Le contenu collé pour la page d\'accueil ne ressemble pas à du code HTML.', 'data' => []];
         }
 
+        $html = $home;
         $doc = self::parse($html);
-        $pages = ['accueil' => ['url' => $url, 'html' => $html, 'title' => self::title($doc)]];
+        $pages = [];
+        foreach ($sources as $role => $source) {
+            $pageDoc = $role === 'accueil' ? $doc : self::parse($source);
+            $pages[$role] = ['url' => $url, 'html' => $source, 'title' => self::title($pageDoc)];
+        }
+        $allHtml = implode("\n", array_column($pages, 'html'));
 
         $data = [
             'url' => $url,
@@ -240,7 +252,7 @@ final class Scraper
             'http' => [
                 'status' => 200,
                 'elapsed' => 0.0,
-                'size' => strlen($html),
+                'size' => strlen($allHtml),
                 'https' => str_starts_with($url, 'https://'),
                 'server' => '',
             ],
@@ -256,9 +268,12 @@ final class Scraper
             'colors' => self::colors($html, []),
             'fonts' => self::fonts($html, []),
             'logo' => self::logo($doc, $url),
-            'contact' => self::contact($html, $pages),
+            'contact' => self::contact($allHtml, $pages),
             'social' => self::social($doc),
-            'pages_found' => [['url' => $url, 'title' => self::title($doc)]],
+            'pages_found' => array_map(
+                static fn (array $p): array => ['url' => $p['url'], 'title' => $p['title']],
+                $pages
+            ),
             'services' => self::services($pages),
             'css_size' => 0,
             'raw' => ['home_html' => $html, 'css' => []],

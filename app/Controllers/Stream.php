@@ -90,6 +90,43 @@ final class Stream
         ]);
     }
 
+    /**
+     * Lecture du site par l'IA, quand notre serveur est refusé.
+     * Le traitement enchaîne plusieurs récupérations de pages : il est long,
+     * d'où le flux plutôt qu'une requête classique.
+     */
+    public static function readSite(): void
+    {
+        Auth::requireLogin();
+        self::open();
+
+        $id = (string) ($_GET['id'] ?? '');
+        $prospect = Prospect::find($id);
+        if ($prospect === null) {
+            self::fail('Prospect introuvable.');
+        }
+        if (!\App\SiteReader::isAvailable()) {
+            self::fail('Renseignez la clé API Claude dans les Réglages : la lecture par l\'IA en dépend.');
+        }
+
+        $result = Analyzer::runFromAi($id, static function (string $message, string $state = 'running'): void {
+            self::emit('step', ['message' => $message, 'state' => $state]);
+        });
+
+        if (!$result['ok']) {
+            self::fail($result['error']);
+        }
+
+        $prospect = $result['prospect'];
+        $analysis = $prospect['analysis'] ?? [];
+        self::emit('done', [
+            'company' => $prospect['company'] ?? '',
+            'email' => $prospect['email'] ?? '',
+            'services' => count($analysis['services'] ?? []),
+            'pages' => count($analysis['pages_found'] ?? []),
+        ]);
+    }
+
     // ---------------------------------------------------------- Génération
 
     /**

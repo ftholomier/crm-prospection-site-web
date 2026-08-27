@@ -309,19 +309,26 @@ final class Admin
         Csrf::requireValid();
 
         $id = (string) ($_POST['id'] ?? '');
-        $html = (string) ($_POST['html'] ?? '');
 
-        if (trim($html) === '') {
-            Flash::error('Collez le code source de la page d\'accueil avant de valider.');
+        $sources = [];
+        foreach (['accueil', 'contact', 'legal', 'services'] as $role) {
+            $value = trim((string) ($_POST['html_' . $role] ?? ''));
+            if ($value !== '') {
+                $sources[$role] = $value;
+            }
+        }
+
+        if (!isset($sources['accueil'])) {
+            Flash::error('Collez au minimum le code source de la page d\'accueil.');
             Util::redirect(Router::url('prospect', ['id' => $id]));
         }
 
-        $result = Analyzer::runFromHtml($id, $html);
+        $result = Analyzer::runFromHtml($id, $sources);
         if (!$result['ok']) {
             Flash::error($result['error']);
         } else {
             $audit = $result['prospect']['audit'] ?? [];
-            Flash::success('Analyse effectuée depuis le code collé — score '
+            Flash::success(count($sources) . ' page(s) analysée(s) — score '
                 . ($audit['score'] ?? '?') . '/100. Vérifiez les coordonnées avant de générer.');
         }
         Util::redirect(Router::url('prospect', ['id' => $id]));
