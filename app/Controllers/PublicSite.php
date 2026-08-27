@@ -78,7 +78,7 @@ final class PublicSite
     public static function shot(array $params): void
     {
         $prospect = Prospect::findByToken((string) ($params['t'] ?? ''), 'public');
-        $path = $prospect === null ? null : Screenshot::path((string) $prospect['id']);
+        $path = $prospect === null ? null : Screenshot::usablePath((string) $prospect['id']);
         if ($path === null) {
             http_response_code(404);
             exit;

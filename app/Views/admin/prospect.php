@@ -420,6 +420,11 @@ $mailable = Prospect::isMailable($p);
             <div class="card-head"><h2>Site actuel</h2></div>
             <?php if ($hasShot): ?>
                 <img src="<?= e($shotUrl) ?>" alt="Capture du site actuel" style="width:100%;border-radius:8px;border:1px solid var(--line)">
+            <?php elseif ($brokenShot): ?>
+                <div class="flash error">
+                    Le fichier de capture enregistré n'est pas une image exploitable — le service a probablement
+                    renvoyé une page d'erreur. Il est ignoré partout, et sera remplacé à la prochaine capture.
+                </div>
             <?php else: ?>
                 <p class="muted small">Aucune capture. Elle sert au comparatif avant/après montré au prospect, et permet au modèle de voir réellement le site.</p>
             <?php endif; ?>

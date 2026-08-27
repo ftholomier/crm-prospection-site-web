@@ -226,6 +226,7 @@ final class Admin
             'schedule' => Sequence::preview(),
             'mockupUrl' => Router::mockupUrl($prospect),
             'hasShot' => Screenshot::exists($id),
+            'brokenShot' => Screenshot::hasBrokenFile($id),
             'hasManualSource' => Analyzer::hasStoredSource($id),
             'shotUrl' => Router::url('shot_admin', ['id' => $id, 'v' => time()]),
         ]);
@@ -376,6 +377,8 @@ final class Admin
             Util::redirect(Router::url('prospects'));
         }
 
+        Screenshot::purgeIfInvalid($id);
+
         if (!empty($_FILES['capture']['name'])) {
             $result = Screenshot::storeUpload($id, $_FILES['capture']);
             $result['ok'] ? Flash::success('Capture importée.') : Flash::error($result['error']);
@@ -390,7 +393,7 @@ final class Admin
     public static function shotAdmin(): void
     {
         Auth::requireLogin();
-        $path = Screenshot::path((string) ($_GET['id'] ?? ''));
+        $path = Screenshot::usablePath((string) ($_GET['id'] ?? ''));
         if ($path === null) {
             http_response_code(404);
             exit;

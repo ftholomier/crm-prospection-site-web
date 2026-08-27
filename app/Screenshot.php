@@ -16,6 +16,14 @@ final class Screenshot
     private const MAX_BYTES = 4194304; // 4 Mo, borne haute acceptée par l'API vision
     private const MAX_EDGE = 1568;     // au-delà, l'API réduit l'image de toute façon
 
+    /** Formats d'image acceptés, à l'affichage comme à l'envoi à l'API. */
+    private const ACCEPTED = [
+        IMAGETYPE_JPEG => ['image/jpeg', 'jpg'],
+        IMAGETYPE_PNG => ['image/png', 'png'],
+        IMAGETYPE_WEBP => ['image/webp', 'webp'],
+        IMAGETYPE_GIF => ['image/gif', 'gif'],
+    ];
+
     /** Fournisseurs proposés dans les réglages. {url} et {enc} sont substitués. */
     public const PROVIDERS = [
         'thumio' => [
@@ -65,9 +73,47 @@ final class Screenshot
         return null;
     }
 
+    /**
+     * Une capture réellement affichable est-elle disponible ?
+     *
+     * La seule présence du fichier ne suffit pas : un service de capture peut
+     * avoir renvoyé une page d'erreur, enregistrée telle quelle. Servir ces
+     * octets produit une image cassée sur la page vue par le prospect.
+     * Le contrôle ne lit que l'en-tête, il reste donc peu coûteux.
+     */
     public static function exists(string $prospectId): bool
     {
-        return self::path($prospectId) !== null;
+        return self::usablePath($prospectId) !== null;
+    }
+
+    /** Chemin de la capture, uniquement si les octets sont bien une image. */
+    public static function usablePath(string $prospectId): ?string
+    {
+        $path = self::path($prospectId);
+        if ($path === null) {
+            return null;
+        }
+        $info = @getimagesize($path);
+        return ($info !== false && isset(self::ACCEPTED[$info[2]])) ? $path : null;
+    }
+
+    /** Le prospect a-t-il un fichier de capture inexploitable ? */
+    public static function hasBrokenFile(string $prospectId): bool
+    {
+        return self::path($prospectId) !== null && self::usablePath($prospectId) === null;
+    }
+
+    /**
+     * Supprime un fichier de capture inexploitable.
+     * Appelé depuis l'administration : une page publique ne doit rien écrire.
+     */
+    public static function purgeIfInvalid(string $prospectId): bool
+    {
+        if (!self::hasBrokenFile($prospectId)) {
+            return false;
+        }
+        self::clear($prospectId);
+        return true;
     }
 
     public static function mediaType(string $path): string
@@ -180,14 +226,6 @@ final class Screenshot
             @unlink(self::dir($prospectId) . '/avant.' . $extension);
         }
     }
-
-    /** Formats d'image acceptés par l'API. */
-    private const ACCEPTED = [
-        IMAGETYPE_JPEG => ['image/jpeg', 'jpg'],
-        IMAGETYPE_PNG => ['image/png', 'png'],
-        IMAGETYPE_WEBP => ['image/webp', 'webp'],
-        IMAGETYPE_GIF => ['image/gif', 'gif'],
-    ];
 
     /**
      * Identifie réellement des octets d'image.
