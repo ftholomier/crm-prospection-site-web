@@ -98,11 +98,13 @@ $mailable = Prospect::isMailable($p);
                 <div class="empty">
                     <h3>Site pas encore analysé</h3>
                     <p>L'analyse lit la page d'accueil et les pages clés, calcule le score de vétusté et récupère les coordonnées.</p>
+                    <p class="small">Si le site refuse la lecture automatique, fournissez la page vous-même
+                        <a href="#saisie-manuelle">dans le champ juste en dessous</a> : le résultat est identique.</p>
                 </div>
             </div>
         <?php endif; ?>
 
-        <div class="card">
+        <div class="card" id="saisie-manuelle">
             <div class="card-head">
                 <h2>Le site bloque l'analyse ?</h2>
                 <?php if ($hasManualSource): ?>

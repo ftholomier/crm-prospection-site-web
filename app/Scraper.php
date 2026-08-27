@@ -156,14 +156,50 @@ final class Scraper
         ];
     }
 
+    /**
+     * Identifie la protection qui a renvoyé le refus, à partir des en-têtes.
+     * Savoir à quoi on a affaire évite de chercher un contournement qui
+     * n'existe pas : ces services filtrent l'adresse IP du serveur, pas
+     * seulement l'identité annoncée.
+     */
+    private static function protection(array $headers): string
+    {
+        $keys = array_map('strtolower', array_keys($headers));
+        $server = strtolower((string) ($headers['server'] ?? ''));
+
+        if (in_array('cf-ray', $keys, true) || str_contains($server, 'cloudflare')) {
+            return 'Cloudflare';
+        }
+        if (in_array('x-sucuri-id', $keys, true) || in_array('x-sucuri-cache', $keys, true)) {
+            return 'Sucuri';
+        }
+        if (in_array('x-iinfo', $keys, true) || str_contains($server, 'imperva')) {
+            return 'Imperva Incapsula';
+        }
+        if (in_array('x-akamai-transformed', $keys, true) || str_contains($server, 'akamai')) {
+            return 'Akamai';
+        }
+        if (str_contains($server, 'awselb') || in_array('x-amzn-waf-action', $keys, true)) {
+            return 'AWS WAF';
+        }
+        if (in_array('x-sitelock-id', $keys, true)) {
+            return 'SiteLock';
+        }
+        // Sans signature reconnue, on ne nomme rien : un simple en-tête « Server »
+        // désigne le serveur web, pas le dispositif qui a refusé la requête.
+        return 'un pare-feu applicatif';
+    }
+
     /** Message d'erreur qui explique la suite plutôt que de constater l'échec. */
     private static function blockedMessage(array $response): string
     {
         $status = (int) $response['status'];
         if ($status === 403 || $status === 401) {
-            return 'Le site refuse les lectures automatiques (' . $status . '). '
-                . 'Utilisez la saisie manuelle plus bas : ouvrez le site, affichez le code source de la page '
-                . '(Ctrl+U), copiez-le et collez-le dans le champ prévu.';
+            return 'Le site est protégé par ' . self::protection($response['headers'] ?? [])
+                . ', qui refuse les lectures automatiques (' . $status . '). '
+                . 'Ces protections filtrent l\'adresse IP du serveur : insister ne changerait rien. '
+                . 'Utilisez la saisie manuelle plus bas — ouvrez le site, affichez le code source '
+                . '(Ctrl+U), copiez tout et collez-le dans le champ prévu.';
         }
         if ($status === 429) {
             return 'Le site limite les requêtes (429). Patientez quelques minutes, ou utilisez la saisie manuelle.';
