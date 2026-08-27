@@ -40,6 +40,7 @@ $mailable = Prospect::isMailable($p);
     <div class="actions">
         <button class="btn" type="button"
                 data-analyze="<?= e(url('analyze_stream', ['id' => $id])) ?>"
+                data-busy="Analyse en cours…"
                 data-autorun="<?= $autorun ? '1' : '0' ?>">
             <?= $hasAnalysis ? 'Relancer l\'analyse' : 'Analyser le site' ?>
         </button>
@@ -127,6 +128,7 @@ $mailable = Prospect::isMailable($p);
             </p>
             <button class="btn primary" type="button"
                     data-analyze="<?= e(url('read_site_stream', ['id' => $id])) ?>"
+                    data-busy="Lecture du site en cours…"
                     data-autorun="0">Lire le site avec l'IA</button>
             <p class="tiny muted mt">
                 Le modèle rapporte ce qu'il lit, sans rien inventer. Il ne voit ni les couleurs, ni les

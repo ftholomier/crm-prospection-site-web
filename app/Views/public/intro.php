@@ -10,6 +10,13 @@ $included = (array) Config::get('offer.included', []);
 // Sans capture, le volet « aujourd'hui » présente le diagnostic du site :
 // il est toujours disponible, et il nomme les problèmes plutôt que de les
 // montrer, ce qui sert tout aussi bien l'argumentaire.
+$about = (array) Config::get('about', []);
+$showAbout = !empty($about['enabled']) && trim((string) ($about['name'] ?? '')) !== '';
+$bioParagraphs = array_values(array_filter(array_map(
+    'trim',
+    preg_split('/\n\s*\n/', (string) ($about['bio'] ?? '')) ?: []
+), static fn (string $p): bool => $p !== ''));
+
 $audit = $prospect['audit'] ?? [];
 $findings = array_slice($audit['findings'] ?? [], 0, 5);
 $score = isset($audit['score']) ? (int) $audit['score'] : null;
@@ -81,8 +88,25 @@ $score = isset($audit['score']) ? (int) $audit['score'] : null;
     .price-note { color:var(--muted); font-size:14px; margin:6px 0 0; }
     .closing { margin-top:26px; padding-top:24px; border-top:1px solid var(--line); }
     .closing p { max-width:680px; }
+    .about { margin-top:26px; background:#fff; border:1px solid var(--line); border-radius:14px; padding:30px; }
+    .about-head { display:flex; align-items:center; gap:18px; margin-bottom:20px; }
+    .avatar { width:76px; height:76px; flex:0 0 76px; border-radius:50%; object-fit:cover;
+        border:2px solid #fff; box-shadow:0 2px 10px rgba(15,23,42,.14); }
+    .avatar.initials { display:grid; place-items:center; background:var(--brand); color:#fff;
+        font-weight:700; font-size:26px; letter-spacing:.02em; }
+    .about-label { display:block; font-size:12px; font-weight:700; text-transform:uppercase;
+        letter-spacing:.07em; color:var(--brand); }
+    .about h2 { margin:4px 0 2px; font-size:22px; }
+    .about-role { margin:0; color:var(--muted); font-size:15px; }
+    .about-bio { max-width:760px; color:#334155; }
+    .about-points { list-style:none; margin:20px 0 0; padding:0; display:grid;
+        grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:10px; }
+    .about-points li { padding-left:26px; position:relative; color:#334155; font-size:15px; }
+    .about-points li::before { content:"✓"; position:absolute; left:0; color:#059669; font-weight:700; }
+    .about-site { margin:20px 0 0; font-size:15px; }
     .note { text-align:center; color:var(--muted); font-size:14px; margin-top:30px; }
     @media (max-width:820px) {
+        .about-head { flex-direction:column; align-items:flex-start; gap:12px; }
         .price-block { grid-template-columns:1fr; }
         .compare { grid-template-columns:1fr; }
         .viewport { height:300px; }
@@ -206,6 +230,46 @@ $score = isset($audit['score']) ? (int) $audit['score'] : null;
             <a class="btn" href="<?= e($interestUrl) ?>">Discutons de mon site complet</a>
         </div>
     </div>
+
+    <?php if ($showAbout): ?>
+        <section class="about">
+            <div class="about-head">
+                <?php if (App\Portrait::exists()): ?>
+                    <img class="avatar" src="<?= e(App\Router::publicUrl('portrait')) ?>" alt="<?= e((string) $about['name']) ?>">
+                <?php else: ?>
+                    <span class="avatar initials"><?= e(App\Portrait::initials((string) $about['name'])) ?></span>
+                <?php endif; ?>
+                <div>
+                    <span class="about-label"><?= e((string) ($about['title'] ?? 'Qui suis-je')) ?></span>
+                    <h2><?= e((string) $about['name']) ?></h2>
+                    <?php if (trim((string) ($about['role'] ?? '')) !== ''): ?>
+                        <p class="about-role"><?= e((string) $about['role']) ?></p>
+                    <?php endif; ?>
+                </div>
+            </div>
+
+            <?php foreach ($bioParagraphs as $paragraph): ?>
+                <p class="about-bio"><?= nl2br(e($paragraph)) ?></p>
+            <?php endforeach; ?>
+
+            <?php $points = array_values(array_filter((array) ($about['points'] ?? []))); ?>
+            <?php if ($points !== []): ?>
+                <ul class="about-points">
+                    <?php foreach ($points as $point): ?>
+                        <li><?= e((string) $point) ?></li>
+                    <?php endforeach; ?>
+                </ul>
+            <?php endif; ?>
+
+            <?php if (trim((string) ($about['site_url'] ?? '')) !== ''): ?>
+                <p class="about-site">
+                    <a href="<?= e((string) $about['site_url']) ?>" target="_blank" rel="noopener noreferrer">
+                        <?= e(trim((string) ($about['site_label'] ?? '')) !== '' ? (string) $about['site_label'] : (string) $about['site_url']) ?>
+                    </a>
+                </p>
+            <?php endif; ?>
+        </section>
+    <?php endif; ?>
 
     <p class="note">Cette page est privée, elle ne vous engage à rien, et personne d'autre n'y a accès.</p>
 </div>

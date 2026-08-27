@@ -28,7 +28,7 @@ $secretPlaceholder = static fn (string $value): string => $value !== '' ? 'Valeu
     </div>
 </div>
 
-<form method="post" action="<?= e(url('settings_save')) ?>">
+<form method="post" action="<?= e(url('settings_save')) ?>" enctype="multipart/form-data">
     <?= Csrf::field() ?>
 
     <div class="card" id="general">
@@ -391,6 +391,81 @@ $secretPlaceholder = static fn (string $value): string => $value !== '' ? 'Valeu
             <input type="checkbox" name="shot_to_model" value="1" <?= !empty($config['screenshot']['send_to_model']) ? 'checked' : '' ?>>
             <span>Envoyer la capture au modèle <span class="hint">Il voit alors réellement le site avant de le refondre, au lieu de deviner à partir du code.</span></span>
         </label>
+    </div>
+
+    <div class="card" id="about">
+        <div class="card-head">
+            <h2>Qui suis-je</h2>
+            <div class="actions">
+                <?php if (empty($config['about']['enabled'])): ?><span class="badge warn">Masquée</span><?php endif; ?>
+            </div>
+        </div>
+        <p class="small muted">
+            Cette section s'affiche sur la page de proposition, sous l'offre. Sur un message de
+            prospection à froid, c'est la seule preuve qu'il y a quelqu'un derrière la maquette.
+        </p>
+
+        <label class="check">
+            <input type="checkbox" name="about_enabled" value="1" <?= !empty($config['about']['enabled']) ? 'checked' : '' ?>>
+            <span>Afficher cette section aux prospects</span>
+        </label>
+
+        <div class="field-row">
+            <div class="field">
+                <label for="about_name">Nom affiché</label>
+                <input type="text" name="about_name" id="about_name" value="<?= e((string) $config['about']['name']) ?>">
+            </div>
+            <div class="field">
+                <label for="about_role">Sous-titre</label>
+                <input type="text" name="about_role" id="about_role" value="<?= e((string) $config['about']['role']) ?>">
+            </div>
+        </div>
+
+        <div class="field">
+            <label for="about_title">Titre de la section</label>
+            <input type="text" name="about_title" id="about_title" value="<?= e((string) $config['about']['title']) ?>">
+        </div>
+
+        <div class="field">
+            <label for="about_bio">Présentation <span class="muted">— une ligne vide sépare deux paragraphes</span></label>
+            <textarea name="about_bio" id="about_bio" rows="7"><?= e((string) $config['about']['bio']) ?></textarea>
+            <span class="hint muted tiny">Écrit à la première personne. Ce texte est lu par vos prospects : relisez-le, il vous engage.</span>
+        </div>
+
+        <div class="field">
+            <label for="about_points">Points de réassurance <span class="muted">— un par ligne</span></label>
+            <textarea name="about_points" id="about_points" rows="4"><?= e(implode("\n", (array) $config['about']['points'])) ?></textarea>
+            <span class="hint muted tiny">Trois lignes courtes suffisent. Vérifiez que chacune est exacte : elles sont affichées comme des engagements.</span>
+        </div>
+
+        <div class="field-row">
+            <div class="field">
+                <label for="about_site_url">Adresse de votre site</label>
+                <input type="url" name="about_site_url" id="about_site_url" value="<?= e((string) $config['about']['site_url']) ?>" placeholder="https://mondomaine.fr">
+            </div>
+            <div class="field">
+                <label for="about_site_label">Libellé du lien</label>
+                <input type="text" name="about_site_label" id="about_site_label" value="<?= e((string) $config['about']['site_label']) ?>" placeholder="mondomaine.fr">
+            </div>
+        </div>
+
+        <div class="field">
+            <label for="portrait">Photo</label>
+            <div class="row">
+                <?php if ($hasPortrait): ?>
+                    <img src="<?= e($portraitUrl) ?>" alt="Portrait actuel"
+                         style="width:72px;height:72px;border-radius:50%;object-fit:cover;border:1px solid var(--line)">
+                <?php endif; ?>
+                <input type="file" name="portrait" id="portrait" accept="image/png,image/jpeg,image/webp" style="width:auto;flex:1;min-width:200px">
+            </div>
+            <span class="hint muted tiny">Facultative. Réduite automatiquement à 800 pixels. Sans photo, vos initiales sont affichées.</span>
+            <?php if ($hasPortrait): ?>
+                <label class="check mt">
+                    <input type="checkbox" name="remove_portrait" value="1">
+                    <span>Retirer la photo actuelle</span>
+                </label>
+            <?php endif; ?>
+        </div>
     </div>
 
     <div class="card" id="alerts">

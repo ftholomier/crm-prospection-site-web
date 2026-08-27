@@ -34,6 +34,7 @@ $routes = [
     // Pages publiques vues par le prospect
     'mockup' => [static fn () => PublicSite::mockup($params), false],
     'shot' => [static fn () => PublicSite::shot($params), false],
+    'portrait' => [PublicSite::portrait(...), false],
     'track_open' => [static fn () => PublicSite::trackOpen($params), false],
     'track_click' => [static fn () => PublicSite::trackClick($params), false],
     'unsubscribe' => [static fn () => PublicSite::unsubscribe($params), false],
@@ -61,6 +62,7 @@ $routes = [
     'prospect_manual' => [Admin::prospectManual(...), true],
     'screenshot' => [Admin::screenshot(...), true],
     'shot_admin' => [Admin::shotAdmin(...), true],
+    'portrait_admin' => [Admin::portraitAdmin(...), true],
 
     // Maquette
     'mockup_preview' => [Admin::mockupPreview(...), true],
@@ -111,7 +113,7 @@ if (!isset($routes[$route])) {
 
 // Les écrans d'accès ne demandent pas de session mais restent des pages
 // d'administration : ils reçoivent les mêmes en-têtes de sécurité.
-$prospectFacing = ['mockup', 'shot', 'track_open', 'track_click', 'unsubscribe', 'interest', 'cron'];
+$prospectFacing = ['mockup', 'shot', 'portrait', 'track_open', 'track_click', 'unsubscribe', 'interest', 'cron'];
 if (!in_array($route, $prospectFacing, true)) {
     $sendAdminHeaders();
 }

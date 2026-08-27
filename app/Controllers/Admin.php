@@ -15,6 +15,7 @@ use App\Mail\Smtp;
 use App\Mailer;
 use App\Models;
 use App\Mockup;
+use App\Portrait;
 use App\Prospect;
 use App\Router;
 use App\Screenshot;
@@ -396,6 +397,20 @@ final class Admin
         Util::redirect(Router::url('prospect', ['id' => $id]));
     }
 
+    /** Sert le portrait dans l'interface. */
+    public static function portraitAdmin(): void
+    {
+        Auth::requireLogin();
+        $path = Portrait::path();
+        if ($path === null) {
+            http_response_code(404);
+            exit;
+        }
+        header('Content-Type: ' . Portrait::mediaType($path));
+        header('Content-Length: ' . (string) filesize($path));
+        readfile($path);
+    }
+
     /** Sert la capture dans l'interface (elle est stockée hors racine web). */
     public static function shotAdmin(): void
     {
@@ -724,6 +739,8 @@ final class Admin
             'providers' => Screenshot::PROVIDERS,
             'health' => self::health(),
             'cronUrl' => Config::baseUrl() . '/index.php?r=cron&key=' . rawurlencode((string) Config::get('app.cron_key', '')),
+            'hasPortrait' => Portrait::exists(),
+            'portraitUrl' => Router::url('portrait_admin', ['v' => time()]),
         ]);
     }
 
@@ -793,6 +810,19 @@ final class Admin
                 'auto' => !empty($post['shot_auto']),
                 'send_to_model' => !empty($post['shot_to_model']),
             ],
+            'about' => [
+                'enabled' => !empty($post['about_enabled']),
+                'title' => trim((string) ($post['about_title'] ?? 'Qui suis-je')),
+                'name' => trim((string) ($post['about_name'] ?? '')),
+                'role' => trim((string) ($post['about_role'] ?? '')),
+                'bio' => trim((string) ($post['about_bio'] ?? '')),
+                'points' => array_values(array_filter(array_map(
+                    'trim',
+                    preg_split('/\r\n|\r|\n/', (string) ($post['about_points'] ?? '')) ?: []
+                ), static fn (string $line): bool => $line !== '')),
+                'site_url' => trim((string) ($post['about_site_url'] ?? '')),
+                'site_label' => trim((string) ($post['about_site_label'] ?? '')),
+            ],
             'alerts' => [
                 'email' => trim((string) ($post['alert_email'] ?? '')),
                 'on_interest' => !empty($post['alert_interest']),
@@ -825,6 +855,15 @@ final class Admin
         }
 
         Config::merge($patch);
+
+        if (!empty($_FILES['portrait']['name'])) {
+            $upload = Portrait::store($_FILES['portrait']);
+            $upload['ok'] ? Flash::success('Portrait enregistré.') : Flash::error('Portrait : ' . $upload['error']);
+        }
+        if (!empty($post['remove_portrait'])) {
+            Portrait::clear();
+            Flash::info('Portrait retiré.');
+        }
 
         if ((string) Config::get('app.cron_key', '') === '') {
             Config::set('app.cron_key', Util::token(16));

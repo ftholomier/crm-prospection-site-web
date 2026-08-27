@@ -16,13 +16,7 @@ final class Screenshot
     private const MAX_BYTES = 4194304; // 4 Mo, borne haute acceptée par l'API vision
     private const MAX_EDGE = 1568;     // au-delà, l'API réduit l'image de toute façon
 
-    /** Formats d'image acceptés, à l'affichage comme à l'envoi à l'API. */
-    private const ACCEPTED = [
-        IMAGETYPE_JPEG => ['image/jpeg', 'jpg'],
-        IMAGETYPE_PNG => ['image/png', 'png'],
-        IMAGETYPE_WEBP => ['image/webp', 'webp'],
-        IMAGETYPE_GIF => ['image/gif', 'gif'],
-    ];
+
 
     /** Fournisseurs proposés dans les réglages. {url} et {enc} sont substitués. */
     public const PROVIDERS = [
@@ -93,8 +87,7 @@ final class Screenshot
         if ($path === null) {
             return null;
         }
-        $info = @getimagesize($path);
-        return ($info !== false && isset(self::ACCEPTED[$info[2]])) ? $path : null;
+        return Image::probeFile($path) !== null ? $path : null;
     }
 
     /** Le prospect a-t-il un fichier de capture inexploitable ? */
@@ -203,14 +196,9 @@ final class Screenshot
         if ($info === false) {
             return ['ok' => false, 'error' => 'Ce fichier n\'est pas une image valide.'];
         }
-        $extension = match ($info[2]) {
-            IMAGETYPE_PNG => 'png',
-            IMAGETYPE_WEBP => 'webp',
-            IMAGETYPE_JPEG => 'jpg',
-            default => null,
-        };
+        $extension = Image::ACCEPTED[$info[2]][1] ?? null;
         if ($extension === null) {
-            return ['ok' => false, 'error' => 'Formats acceptés : JPEG, PNG, WebP.'];
+            return ['ok' => false, 'error' => 'Formats acceptés : JPEG, PNG, WebP et GIF.'];
         }
         self::clear($prospectId);
         $path = self::dir($prospectId) . '/avant.' . $extension;
@@ -227,42 +215,10 @@ final class Screenshot
         }
     }
 
-    /**
-     * Identifie réellement des octets d'image.
-     * @return array{media_type:string,extension:string,width:int,height:int}|null
-     */
+    /** Identifie et valide des octets d'image. */
     private static function probe(string $binary): ?array
     {
-        if ($binary === '' || !function_exists('getimagesizefromstring')) {
-            return null;
-        }
-        $info = @getimagesizefromstring($binary);
-        if ($info === false || !isset(self::ACCEPTED[$info[2]])) {
-            return null;
-        }
-
-        // L'en-tête seul ne suffit pas : un fichier tronqué l'annonce
-        // correctement mais n'a plus de pixels, et l'API le refuse. On décode
-        // donc réellement l'image quand GD est disponible.
-        if (function_exists('imagecreatefromstring')) {
-            $decoded = @imagecreatefromstring($binary);
-            if ($decoded === false) {
-                return null;
-            }
-            $complete = imagesx($decoded) === (int) $info[0] && imagesy($decoded) === (int) $info[1];
-            imagedestroy($decoded);
-            if (!$complete) {
-                return null;
-            }
-        }
-
-        [$mediaType, $extension] = self::ACCEPTED[$info[2]];
-        return [
-            'media_type' => $mediaType,
-            'extension' => $extension,
-            'width' => (int) $info[0],
-            'height' => (int) $info[1],
-        ];
+        return Image::probe($binary);
     }
 
     /**
@@ -290,7 +246,7 @@ final class Screenshot
 
         $longEdge = max($probe['width'], $probe['height']);
         if ($longEdge > self::MAX_EDGE) {
-            $reduced = self::downscale($binary, $probe);
+            $reduced = Image::downscale($binary, $probe, self::MAX_EDGE);
             if ($reduced === null) {
                 return null;
             }
@@ -311,30 +267,5 @@ final class Screenshot
                 'data' => base64_encode($binary),
             ],
         ];
-    }
-
-    /** Réduit une image trop grande, si GD est disponible. */
-    private static function downscale(string $binary, array $probe): ?string
-    {
-        if (!function_exists('imagecreatefromstring') || !function_exists('imagescale')) {
-            return null;
-        }
-        $image = @imagecreatefromstring($binary);
-        if ($image === false) {
-            return null;
-        }
-        $ratio = self::MAX_EDGE / max($probe['width'], $probe['height']);
-        $scaled = @imagescale($image, (int) round($probe['width'] * $ratio), (int) round($probe['height'] * $ratio));
-        imagedestroy($image);
-        if ($scaled === false) {
-            return null;
-        }
-
-        ob_start();
-        $ok = @imagejpeg($scaled, null, 82);
-        $output = (string) ob_get_clean();
-        imagedestroy($scaled);
-
-        return $ok && $output !== '' ? $output : null;
     }
 }

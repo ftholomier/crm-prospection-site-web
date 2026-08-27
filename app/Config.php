@@ -180,6 +180,23 @@ final class Config
                 'auto' => true,
                 'send_to_model' => true,
             ],
+            'about' => [
+                'enabled' => true,
+                'title' => 'Qui suis-je',
+                'name' => 'Frédéric Tholomier',
+                'role' => 'Expert du digital depuis 27 ans',
+                'bio' => "Je m'appelle Frédéric Tholomier et je travaille dans le digital depuis 27 ans.\n\n"
+                    . "Les pages que vous venez de voir, c'est moi qui les ai faites, à partir de votre "
+                    . "activité et de vos prestations. Pas un modèle acheté, pas une agence à qui je "
+                    . "sous-traite : vous parlez à la personne qui conçoit et qui entretient votre site.",
+                'points' => [
+                    '27 ans de métier dans le digital',
+                    'Un interlocuteur unique, du premier échange à la mise en ligne',
+                    'Sans engagement de durée : je mise sur la durée, pas sur un contrat',
+                ],
+                'site_url' => 'https://le-digital.com',
+                'site_label' => 'le-digital.com',
+            ],
             'alerts' => [
                 'email' => '',
                 'on_interest' => true,

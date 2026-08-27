@@ -71,32 +71,55 @@
         });
     }
 
-    /** Analyse d'un site, déclenchée depuis la fiche prospect. */
+    /**
+     * Traitements en flux déclenchés depuis la fiche prospect : analyse directe
+     * et lecture par l'IA. Chaque bouton porteur de data-analyze est câblé —
+     * querySelector n'en renverrait qu'un seul et laisserait les autres inertes.
+     */
     function bindAnalyze() {
-        var button = document.querySelector('[data-analyze]');
-        if (!button) return;
+        Array.prototype.forEach.call(document.querySelectorAll('[data-analyze]'), function (button) {
+            var repos = button.textContent.trim();
+            var occupe = button.dataset.busy || 'Traitement en cours…';
 
-        function start() {
-            var box = document.getElementById('console');
-            var panel = document.getElementById('run-panel');
-            if (panel) panel.hidden = false;
-            if (box) box.innerHTML = '';
-            button.disabled = true;
-            button.textContent = 'Analyse en cours…';
+            function start() {
+                var box = document.getElementById('console');
+                var panel = document.getElementById('run-panel');
+                if (panel) panel.hidden = false;
+                if (box) box.innerHTML = '';
 
-            runStep(button.dataset.analyze, box, {})
-                .then(function (data) {
-                    logLine(box, 'Analyse terminée — score ' + data.score + '/100 (' + data.level + ')', 'done');
-                    setTimeout(function () { window.location.reload(); }, 900);
-                })
-                .catch(function () {
-                    button.disabled = false;
-                    button.textContent = 'Relancer l\'analyse';
+                // Les autres déclencheurs sont neutralisés le temps du traitement.
+                Array.prototype.forEach.call(document.querySelectorAll('[data-analyze]'), function (other) {
+                    other.disabled = true;
                 });
-        }
+                button.textContent = occupe;
 
-        button.addEventListener('click', start);
-        if (button.dataset.autorun === '1') start();
+                runStep(button.dataset.analyze, box, {})
+                    .then(function (data) {
+                        logLine(box, resume(data), 'done');
+                        setTimeout(function () { window.location.reload(); }, 900);
+                    })
+                    .catch(function () {
+                        Array.prototype.forEach.call(document.querySelectorAll('[data-analyze]'), function (other) {
+                            other.disabled = false;
+                        });
+                        button.textContent = repos;
+                    });
+            }
+
+            button.addEventListener('click', start);
+            if (button.dataset.autorun === '1') start();
+        });
+    }
+
+    /** Ligne de conclusion, selon ce que l'étape a renvoyé. */
+    function resume(data) {
+        if (data && typeof data.score !== 'undefined') {
+            return 'Analyse terminée — score ' + data.score + '/100 (' + data.level + ')';
+        }
+        if (data && typeof data.pages !== 'undefined') {
+            return 'Lecture terminée — ' + data.pages + ' page(s), ' + data.services + ' prestation(s) relevée(s)';
+        }
+        return 'Terminé';
     }
 
     /** Génération et retouche des maquettes, étape par étape. */

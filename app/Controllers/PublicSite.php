@@ -7,6 +7,7 @@ use App\Config;
 use App\Events;
 use App\Mailer;
 use App\Mockup;
+use App\Portrait;
 use App\Prospect;
 use App\Router;
 use App\Screenshot;
@@ -89,6 +90,20 @@ final class PublicSite
         header('Content-Type: ' . Screenshot::mediaType($path));
         header('Content-Length: ' . (string) filesize($path));
         header('Cache-Control: private, max-age=3600');
+        readfile($path);
+    }
+
+    /** Portrait affiché dans la section « Qui suis-je ». */
+    public static function portrait(): void
+    {
+        $path = Portrait::path();
+        if ($path === null) {
+            http_response_code(404);
+            exit;
+        }
+        header('Content-Type: ' . Portrait::mediaType($path));
+        header('Content-Length: ' . (string) filesize($path));
+        header('Cache-Control: public, max-age=86400');
         readfile($path);
     }
 

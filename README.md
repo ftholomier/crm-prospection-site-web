@@ -114,6 +114,10 @@ Dans **Réglages** :
   « Tester » valide la connexion, et envoie un vrai message si vous renseignez
   une adresse de test.
 - **Offre** — tarif mensuel par défaut et liste de ce qui est inclus.
+- **Qui suis-je** — nom, présentation, points de réassurance, lien vers votre
+  site et photo. Cette section s'affiche au prospect sous l'offre : sur un
+  message à froid, c'est la seule preuve qu'il y a quelqu'un derrière la
+  maquette. **Relisez-la avant le premier envoi**, elle vous engage.
 
 ### 5. Tâche planifiée
 
@@ -162,6 +166,8 @@ app/
 ├── Audit.php                Score de vétusté et argumentaire
 ├── Enrich.php               Enrichissement en cascade (site → base entreprise)
 ├── Screenshot.php           Capture du site actuel (service externe ou import)
+├── Image.php                Contrôles d'image partagés (type réel, décodage, réduction)
+├── Portrait.php             Photo affichée dans la section « Qui suis-je »
 ├── Claude.php               Client Messages API en HTTP brut (classique + flux)
 ├── Models.php               Catalogue des modèles, capacités, tarifs et coûts
 ├── Generator.php            Brief de direction artistique puis pages
@@ -196,6 +202,7 @@ bin/                         cron.php, serve.php et reset-password.php
 | `data/suppression.json` | Désinscriptions |
 | `data/auth.json` | Tentatives de connexion et jeton de réinitialisation (haché) |
 | `data/models.json` | Cache du catalogue des modèles et de leurs capacités |
+| `data/brand/portrait.*` | Photo de la section « Qui suis-je » |
 | `data/usage.json` | Tokens consommés, pour affiner l'estimation des coûts |
 
 Les écritures passent par un fichier temporaire suivi d'un `rename`, et les

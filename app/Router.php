@@ -21,6 +21,7 @@ final class Router
         'unsubscribe' => ['pretty' => 'u/{t}', 'key' => 'u', 'params' => ['t']],
         'interest' => ['pretty' => 'i/{t}', 'key' => 'i', 'params' => ['t']],
         'shot' => ['pretty' => 's/{t}.jpg', 'key' => 's', 'params' => ['t']],
+        'portrait' => ['pretty' => 'p/portrait.jpg', 'key' => 'p', 'params' => []],
     ];
 
     /** URL relative utilisable dans les pages de l'administration. */
