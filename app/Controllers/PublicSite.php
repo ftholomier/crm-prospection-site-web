@@ -39,12 +39,15 @@ final class PublicSite
         self::recordView($prospect, $page);
 
         if ($page === 'intro' || $page === '') {
-            if (!Screenshot::exists((string) $prospect['id'])) {
-                Util::redirect(Router::mockupUrl($prospect, 'accueil'));
-            }
+            // La comparaison reste affichée même sans capture : c'est elle qui
+            // porte l'argumentaire. À défaut d'image, le volet « aujourd'hui »
+            // présente le diagnostic du site, qui est toujours disponible.
+            $hasShot = Screenshot::exists((string) $prospect['id']);
             echo render('public/intro', [
                 'prospect' => $prospect,
-                'shotUrl' => Router::publicUrl('shot', ['t' => $prospect['tokens']['public']]),
+                'shotUrl' => $hasShot
+                    ? Router::publicUrl('shot', ['t' => $prospect['tokens']['public']])
+                    : null,
                 'mockupUrl' => Router::mockupUrl($prospect, 'accueil'),
                 'interestUrl' => Router::publicUrl('interest', ['t' => $prospect['tokens']['public']]),
             ]);
@@ -65,7 +68,7 @@ final class PublicSite
         $bar = render('public/bar', [
             'prospect' => $prospect,
             'interestUrl' => Router::publicUrl('interest', ['t' => $prospect['tokens']['public']]),
-            'introUrl' => Screenshot::exists((string) $prospect['id']) ? Router::mockupUrl($prospect, 'intro') : '',
+            'introUrl' => Router::mockupUrl($prospect, 'intro'),
             'currentSiteUrl' => (string) $prospect['url'],
         ]);
 

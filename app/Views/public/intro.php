@@ -6,6 +6,13 @@ use App\Prospect;
 $company = Prospect::displayName($prospect);
 $price = price((float) ($prospect['monthly_price'] ?? Config::get('offer.monthly_price', 79)));
 $included = (array) Config::get('offer.included', []);
+
+// Sans capture, le volet « aujourd'hui » présente le diagnostic du site :
+// il est toujours disponible, et il nomme les problèmes plutôt que de les
+// montrer, ce qui sert tout aussi bien l'argumentaire.
+$audit = $prospect['audit'] ?? [];
+$findings = array_slice($audit['findings'] ?? [], 0, 5);
+$score = isset($audit['score']) ? (int) $audit['score'] : null;
 ?>
 <!DOCTYPE html>
 <html lang="fr">
@@ -36,6 +43,19 @@ $included = (array) Config::get('offer.included', []);
     .viewport img { width:100%; display:block; }
     .viewport iframe { width:1280px; height:1610px; border:0; transform:scale(.36); transform-origin:top left; }
     .veil { position:absolute; inset:0; }
+    .viewport.diagnostic { height:auto; min-height:460px; padding:26px; overflow-y:auto; background:#fff; }
+    .score-line { display:flex; align-items:center; gap:14px; padding-bottom:18px; border-bottom:1px solid var(--line); }
+    .score-dial { width:52px; height:52px; flex:0 0 52px; border-radius:50%; background:#dc2626; color:#fff;
+        display:grid; place-items:center; font-weight:700; font-size:18px; }
+    .score-line strong { display:block; font-size:16px; }
+    .score-line span { color:var(--muted); font-size:14px; }
+    .findings { list-style:none; margin:18px 0 0; padding:0; }
+    .findings li { padding:0 0 14px 26px; position:relative; }
+    .findings li::before { content:"✕"; position:absolute; left:0; top:1px; color:#dc2626; font-weight:700; }
+    .findings strong { display:block; font-size:15px; }
+    .findings span { color:var(--muted); font-size:13.5px; line-height:1.5; }
+    .empty-note { color:var(--muted); }
+    .see-current { display:inline-block; margin-top:6px; color:var(--brand); font-size:14px; }
     .cta { text-align:center; margin-top:40px; }
     .btn { display:inline-block; background:var(--brand); color:#fff; text-decoration:none; font-weight:600;
         font-size:17px; padding:16px 34px; border-radius:10px; box-shadow:0 6px 18px rgba(37,99,235,.28); }
@@ -63,15 +83,52 @@ $included = (array) Config::get('offer.included', []);
     <header>
         <span class="eyebrow">Proposition préparée pour <?= e($company) ?></span>
         <h1>Voici à quoi pourrait ressembler votre site.</h1>
-        <p class="lede">À gauche, votre site tel qu'il est aujourd'hui. À droite, une maquette réelle, entièrement conçue à partir de votre activité, de vos prestations et de votre univers.</p>
+        <p class="lede">
+            <?php if ($shotUrl !== null): ?>
+                À gauche, votre site tel qu'il est aujourd'hui. À droite, une maquette réelle,
+                entièrement conçue à partir de votre activité, de vos prestations et de votre univers.
+            <?php else: ?>
+                À gauche, ce que révèle l'analyse de votre site actuel. À droite, une maquette réelle,
+                entièrement conçue à partir de votre activité, de vos prestations et de votre univers.
+            <?php endif; ?>
+        </p>
     </header>
 
     <div class="compare">
         <div class="pane before">
             <div class="tag">Aujourd'hui</div>
-            <div class="viewport">
-                <img src="<?= e($shotUrl) ?>" alt="Capture du site actuel de <?= e($company) ?>">
-            </div>
+            <?php if ($shotUrl !== null): ?>
+                <div class="viewport">
+                    <img src="<?= e($shotUrl) ?>" alt="Capture du site actuel de <?= e($company) ?>">
+                </div>
+            <?php else: ?>
+                <div class="viewport diagnostic">
+                    <?php if ($score !== null): ?>
+                        <div class="score-line">
+                            <span class="score-dial"><?= $score ?></span>
+                            <div>
+                                <strong><?= e((string) ($audit['level'] ?? '')) ?></strong>
+                                <span>Diagnostic de <?= e($prospect['domain']) ?></span>
+                            </div>
+                        </div>
+                    <?php endif; ?>
+                    <?php if ($findings !== []): ?>
+                        <ul class="findings">
+                            <?php foreach ($findings as $finding): ?>
+                                <li>
+                                    <strong><?= e((string) $finding['label']) ?></strong>
+                                    <span><?= e((string) $finding['detail']) ?></span>
+                                </li>
+                            <?php endforeach; ?>
+                        </ul>
+                    <?php else: ?>
+                        <p class="empty-note">Votre site actuel est en ligne à l'adresse <?= e($prospect['domain']) ?>.</p>
+                    <?php endif; ?>
+                    <a class="see-current" href="<?= e((string) $prospect['url']) ?>" target="_blank" rel="noopener noreferrer">
+                        Voir mon site actuel
+                    </a>
+                </div>
+            <?php endif; ?>
         </div>
         <div class="pane after">
             <div class="tag">La proposition</div>
