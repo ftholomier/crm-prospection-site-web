@@ -1,0 +1,29 @@
+# Redirection de secours, utile UNIQUEMENT si votre hébergeur impose que le
+# domaine pointe sur la racine du projet au lieu de public/.
+#
+# Ce fichier redirige alors tout le trafic vers public/ sans exposer app/,
+# data/ ni bin/. Si votre domaine pointe déjà sur public/, ce fichier n'est
+# jamais lu : vous pouvez le laisser en place sans effet.
+#
+# ATTENTION : dans cette configuration, renseignez impérativement l'URL
+# publique dans Réglages. Sans elle, l'application la devine depuis la requête
+# et y ajoute « /public », ce qui casse les liens envoyés aux prospects.
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteBase /
+
+    # Déjà sous public/ : ne rien faire, sinon la réécriture boucle.
+    RewriteRule ^public/ - [L]
+
+    # Fichier réellement présent dans public/ (CSS, JS) : le servir tel quel.
+    RewriteCond %{DOCUMENT_ROOT}/public/$1 -f
+    RewriteRule ^(.*)$ public/$1 [L]
+
+    # Tout le reste passe par le point d'entrée. Les dossiers app/, data/ et
+    # bin/ ne correspondent à aucun fichier de public/ : ils aboutissent donc
+    # à une page 404 au lieu d'être servis.
+    RewriteRule ^ public/index.php [QSA,L]
+</IfModule>
+
+Options -Indexes

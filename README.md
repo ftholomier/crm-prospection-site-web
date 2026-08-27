@@ -52,22 +52,30 @@ dans `/public`.
 
 ## Installation
 
-### 1. Déposer les fichiers
+### 1. Déposer les fichiers et faire pointer le domaine
 
-Deux configurations possibles.
-
-**Racine web pointant sur `public/`** — c'est la configuration recommandée :
-le code et les données sont alors hors d'atteinte depuis le web.
+**Faites pointer le domaine sur `public/`.** C'est la seule configuration qui
+met `data/config.json` — donc votre clé API, votre mot de passe SMTP et le hash
+de votre mot de passe d'accès — physiquement hors de l'arborescence web. Un
+`.htaccess` mal pris en compte ne peut alors rien exposer.
 
 ```
-/home/monsite/prospection/     ← dépôt complet
-/home/monsite/prospection/public/   ← racine web du sous-domaine
+/home/monsite/prospection/          ← dépôt complet, hors du web
+/home/monsite/prospection/public/   ← racine web du domaine ou sous-domaine
 ```
 
-**Racine web imposée à la racine du dépôt** — fréquent en mutualisé. Le
-dossier `data/` embarque un `.htaccess` qui bloque son accès, et `public/`
-contient également ses propres protections. Vérifiez malgré tout que
-`https://votredomaine/data/config.json` renvoie bien une erreur 403.
+Où le régler : chez OVH mutualisé, Multisite → « Dossier racine » ;
+chez o2switch et les hébergements cPanel, Domaines → Document Root. Les deux
+l'autorisent, y compris pour un sous-domaine.
+
+**Si votre hébergeur impose la racine du projet**, le fichier `.htaccess` placé
+à la racine du dépôt prend le relais : il redirige tout vers `public/` sans
+exposer `app/`, `data/` ni `bin/`. Dans ce cas, **renseignez impérativement
+l'URL publique dans les Réglages** — sans elle, l'application la devine depuis
+la requête et y ajoute `/public`, ce qui casse les liens envoyés aux prospects.
+
+Dans les deux cas, vérifiez après installation que
+`https://votredomaine/data/config.json` renvoie bien une erreur et non du JSON.
 
 ### 2. Droits d'écriture
 
