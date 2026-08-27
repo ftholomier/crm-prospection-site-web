@@ -1,0 +1,11 @@
+# Données d'exécution : prospects, maquettes, journaux, configuration et secrets.
+/data/*
+!/data/.gitkeep
+
+# Fichiers système et outils
+.DS_Store
+Thumbs.db
+*.log
+*.tmp
+.idea/
+.vscode/
