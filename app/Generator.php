@@ -203,21 +203,48 @@ final class Generator
 
         $content[] = ['type' => 'text', 'text' => $task];
 
-        $result = Claude::message([
-            'system' => self::systemPrompt($prospect),
-            'messages' => [['role' => 'user', 'content' => $content]],
-            'schema' => self::briefSchema(),
-            'max_tokens' => 16000,
-        ]);
+        $send = static function (array $blocks) use ($prospect): array {
+            return Claude::message([
+                'system' => self::systemPrompt($prospect),
+                'messages' => [['role' => 'user', 'content' => $blocks]],
+                'schema' => self::briefSchema(),
+                'max_tokens' => 16000,
+            ]);
+        };
+
+        $result = $send($content);
+        $notice = '';
+
+        // La capture n'est qu'un appui : si elle fait rejeter la requête, on
+        // repart sans elle plutôt que d'abandonner la génération.
+        if (!$result['ok'] && $shot !== null && self::isImageError($result['error'])) {
+            $notice = 'La capture du site a été refusée par l\'API : le brief est établi sans elle.';
+            $result = $send(array_values(array_filter(
+                $content,
+                static fn (array $block): bool => ($block['type'] ?? '') !== 'image'
+            )));
+        }
 
         if (!$result['ok']) {
-            return ['ok' => false, 'error' => $result['error'], 'brief' => [], 'usage' => []];
+            return ['ok' => false, 'error' => $result['error'], 'brief' => [], 'usage' => [], 'notice' => $notice];
         }
         $brief = $result['json'];
         if (!is_array($brief) || empty($brief['entreprise'])) {
-            return ['ok' => false, 'error' => 'Le brief renvoyé est inexploitable.', 'brief' => [], 'usage' => $result['usage']];
+            return ['ok' => false, 'error' => 'Le brief renvoyé est inexploitable.', 'brief' => [], 'usage' => $result['usage'], 'notice' => $notice];
         }
-        return ['ok' => true, 'error' => '', 'brief' => $brief, 'usage' => $result['usage']];
+        return ['ok' => true, 'error' => '', 'brief' => $brief, 'usage' => $result['usage'], 'notice' => $notice];
+    }
+
+    /** L'échec vient-il de l'image jointe plutôt que du prompt lui-même ? */
+    private static function isImageError(string $error): bool
+    {
+        $error = mb_strtolower($error);
+        foreach (['image', 'media_type', 'could not process'] as $needle) {
+            if (str_contains($error, $needle)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

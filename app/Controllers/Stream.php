@@ -168,6 +168,10 @@ final class Stream
             self::fail($result['error']);
         }
 
+        if (($result['notice'] ?? '') !== '') {
+            self::emit('step', ['message' => $result['notice'], 'state' => 'warn']);
+        }
+
         Store::write(Mockup::dir($id, $version) . '/brief.json', $result['brief']);
         $palette = $result['brief']['palette'] ?? [];
 

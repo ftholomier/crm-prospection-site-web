@@ -14,6 +14,7 @@ namespace App;
 final class Screenshot
 {
     private const MAX_BYTES = 4194304; // 4 Mo, borne haute acceptée par l'API vision
+    private const MAX_EDGE = 1568;     // au-delà, l'API réduit l'image de toute façon
 
     /** Fournisseurs proposés dans les réglages. {url} et {enc} sont substitués. */
     public const PROVIDERS = [
@@ -122,16 +123,18 @@ final class Screenshot
             return ['ok' => false, 'error' => 'Capture trop volumineuse (' . Scraper::humanSize($response['size']) . ').', 'path' => null];
         }
 
-        $type = strtolower($response['headers']['content-type'] ?? '');
-        $extension = match (true) {
-            str_contains($type, 'png') => 'png',
-            str_contains($type, 'webp') => 'webp',
-            str_contains($type, 'jpeg'), str_contains($type, 'jpg') => 'jpg',
-            default => null,
-        };
-        if ($extension === null) {
-            return ['ok' => false, 'error' => 'Le service n\'a pas renvoyé une image (' . ($type ?: 'type inconnu') . ').', 'path' => null];
+        // L'en-tête Content-Type ne prouve rien : certains services renvoient une
+        // page d'erreur annoncée comme image. Seuls les octets font foi.
+        $probe = self::probe($response['body']);
+        if ($probe === null) {
+            $type = strtolower($response['headers']['content-type'] ?? '');
+            return [
+                'ok' => false,
+                'error' => 'Le service n\'a pas renvoyé une image exploitable (' . ($type ?: 'type inconnu') . ').',
+                'path' => null,
+            ];
         }
+        $extension = $probe['extension'];
 
         self::clear($prospectId);
         $path = self::dir($prospectId) . '/avant.' . $extension;
@@ -178,7 +181,59 @@ final class Screenshot
         }
     }
 
-    /** Bloc image encodé en base64, prêt à être joint à une requête Messages API. */
+    /** Formats d'image acceptés par l'API. */
+    private const ACCEPTED = [
+        IMAGETYPE_JPEG => ['image/jpeg', 'jpg'],
+        IMAGETYPE_PNG => ['image/png', 'png'],
+        IMAGETYPE_WEBP => ['image/webp', 'webp'],
+        IMAGETYPE_GIF => ['image/gif', 'gif'],
+    ];
+
+    /**
+     * Identifie réellement des octets d'image.
+     * @return array{media_type:string,extension:string,width:int,height:int}|null
+     */
+    private static function probe(string $binary): ?array
+    {
+        if ($binary === '' || !function_exists('getimagesizefromstring')) {
+            return null;
+        }
+        $info = @getimagesizefromstring($binary);
+        if ($info === false || !isset(self::ACCEPTED[$info[2]])) {
+            return null;
+        }
+
+        // L'en-tête seul ne suffit pas : un fichier tronqué l'annonce
+        // correctement mais n'a plus de pixels, et l'API le refuse. On décode
+        // donc réellement l'image quand GD est disponible.
+        if (function_exists('imagecreatefromstring')) {
+            $decoded = @imagecreatefromstring($binary);
+            if ($decoded === false) {
+                return null;
+            }
+            $complete = imagesx($decoded) === (int) $info[0] && imagesy($decoded) === (int) $info[1];
+            imagedestroy($decoded);
+            if (!$complete) {
+                return null;
+            }
+        }
+
+        [$mediaType, $extension] = self::ACCEPTED[$info[2]];
+        return [
+            'media_type' => $mediaType,
+            'extension' => $extension,
+            'width' => (int) $info[0],
+            'height' => (int) $info[1],
+        ];
+    }
+
+    /**
+     * Bloc image prêt à être joint à une requête Messages API.
+     *
+     * Le type déclaré est déduit des octets, jamais de l'extension du fichier :
+     * une incohérence entre les deux fait rejeter toute la requête. Les images
+     * trop grandes sont réduites, l'API les redimensionnant de toute façon.
+     */
     public static function toImageBlock(string $prospectId): ?array
     {
         $path = self::path($prospectId);
@@ -186,16 +241,62 @@ final class Screenshot
             return null;
         }
         $binary = @file_get_contents($path);
-        if ($binary === false || strlen($binary) > self::MAX_BYTES) {
+        if ($binary === false) {
             return null;
         }
+
+        $probe = self::probe($binary);
+        if ($probe === null) {
+            return null;
+        }
+
+        $longEdge = max($probe['width'], $probe['height']);
+        if ($longEdge > self::MAX_EDGE) {
+            $reduced = self::downscale($binary, $probe);
+            if ($reduced === null) {
+                return null;
+            }
+            $binary = $reduced;
+            $probe = self::probe($binary) ?? $probe;
+        }
+
+        // La limite porte sur la charge encodée, qui pèse un tiers de plus.
+        if ((int) (strlen($binary) * 4 / 3) > self::MAX_BYTES) {
+            return null;
+        }
+
         return [
             'type' => 'image',
             'source' => [
                 'type' => 'base64',
-                'media_type' => self::mediaType($path),
+                'media_type' => $probe['media_type'],
                 'data' => base64_encode($binary),
             ],
         ];
+    }
+
+    /** Réduit une image trop grande, si GD est disponible. */
+    private static function downscale(string $binary, array $probe): ?string
+    {
+        if (!function_exists('imagecreatefromstring') || !function_exists('imagescale')) {
+            return null;
+        }
+        $image = @imagecreatefromstring($binary);
+        if ($image === false) {
+            return null;
+        }
+        $ratio = self::MAX_EDGE / max($probe['width'], $probe['height']);
+        $scaled = @imagescale($image, (int) round($probe['width'] * $ratio), (int) round($probe['height'] * $ratio));
+        imagedestroy($image);
+        if ($scaled === false) {
+            return null;
+        }
+
+        ob_start();
+        $ok = @imagejpeg($scaled, null, 82);
+        $output = (string) ob_get_clean();
+        imagedestroy($scaled);
+
+        return $ok && $output !== '' ? $output : null;
     }
 }
