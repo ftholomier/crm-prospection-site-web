@@ -36,6 +36,58 @@ final class Analyzer
             return ['ok' => false, 'error' => $analysis['error'], 'prospect' => $prospect];
         }
 
+        return self::finish($prospectId, $prospect, $analysis['data'], $notify);
+    }
+
+    /**
+     * Analyse à partir d'un code source collé à la main, pour les sites qui
+     * refusent toute lecture automatique.
+     */
+    public static function runFromHtml(string $prospectId, string $html): array
+    {
+        $prospect = Prospect::find($prospectId);
+        if ($prospect === null) {
+            return ['ok' => false, 'error' => 'Prospect introuvable.', 'prospect' => null];
+        }
+
+        $analysis = Scraper::analyzeHtml($html, (string) $prospect['url']);
+        if (!$analysis['ok']) {
+            return ['ok' => false, 'error' => $analysis['error'], 'prospect' => $prospect];
+        }
+
+        // Le code source est conservé sur disque : sans lui, la génération
+        // redemanderait un collage à chaque fois puisque le site reste fermé.
+        self::storeSource((string) $prospect['id'], $html);
+
+        return self::finish($prospectId, $prospect, $analysis['data'], static function (): void {
+        });
+    }
+
+    public static function sourcePath(string $prospectId): string
+    {
+        return Mockup::dir($prospectId) . '/source.html';
+    }
+
+    public static function hasStoredSource(string $prospectId): bool
+    {
+        return is_file(self::sourcePath($prospectId));
+    }
+
+    private static function storeSource(string $prospectId, string $html): void
+    {
+        $dir = Mockup::dir($prospectId);
+        if (!is_dir($dir)) {
+            @mkdir($dir, 0775, true);
+        }
+        @file_put_contents(self::sourcePath($prospectId), $html);
+    }
+
+    /** Étapes communes aux deux modes : score, enrichissement, capture, sauvegarde. */
+    private static function finish(string $prospectId, array $prospect, array $data, callable $notify): array
+    {
+        $prospectId = (string) $prospect['id'];
+        $analysis = ['data' => $data];
+
         $notify('Calcul du score de vétusté');
         $audit = Audit::run($analysis['data']);
         $notify('Score : ' . $audit['score'] . '/100 — ' . $audit['level'], 'done');
@@ -84,6 +136,19 @@ final class Analyzer
         $fresh = Scraper::analyze((string) $prospect['url']);
         if ($fresh['ok']) {
             $prospect['analysis'] = $fresh['data'];
+            return $prospect;
+        }
+
+        // Le site reste fermé : on repart du code source collé à la main.
+        $path = self::sourcePath((string) $prospect['id']);
+        if (is_file($path)) {
+            $stored = @file_get_contents($path);
+            if (is_string($stored) && $stored !== '') {
+                $manual = Scraper::analyzeHtml($stored, (string) $prospect['url']);
+                if ($manual['ok']) {
+                    $prospect['analysis'] = $manual['data'];
+                }
+            }
         }
         return $prospect;
     }

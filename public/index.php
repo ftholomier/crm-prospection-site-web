@@ -58,6 +58,7 @@ $routes = [
     'prospect_save' => [Admin::prospectSave(...), true],
     'prospect_delete' => [Admin::prospectDelete(...), true],
     'prospect_enrich' => [Admin::prospectEnrich(...), true],
+    'prospect_manual' => [Admin::prospectManual(...), true],
     'screenshot' => [Admin::screenshot(...), true],
     'shot_admin' => [Admin::shotAdmin(...), true],
 

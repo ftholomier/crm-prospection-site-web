@@ -303,6 +303,27 @@ automatiquement à chaque message.
 
 ---
 
+## Quand un site refuse l'analyse
+
+Certains sites, derrière un pare-feu applicatif, répondent **403** à toute
+lecture automatique. L'application y répond à trois niveaux :
+
+1. **Elle se présente comme un navigateur.** Un agent qui s'annonce comme robot
+   est refusé d'emblée par une bonne partie des pare-feux, même sur une page
+   d'accueil publique. L'identité annoncée est modifiable dans les Réglages.
+2. **Elle réessaie autrement** : autre identité de navigateur, domaine avec ou
+   sans `www`, connexion non sécurisée. Chaque tentative est visible dans le
+   journal de progression.
+3. **Elle vous laisse fournir la page.** Si le refus persiste, la fiche prospect
+   propose un champ de saisie manuelle : ouvrez le site, affichez le code source
+   (`Ctrl+U`, ou `⌥⌘U` sur Mac), copiez tout et collez-le. Le score de vétusté,
+   les coordonnées et la maquette sont produits exactement de la même façon.
+
+Le code collé est conservé sur disque : la génération de la maquette repart de
+lui sans vous demander de recommencer. Seule la page fournie est exploitée — les
+pages internes et les feuilles de style externes ne sont pas récupérées, donc
+l'email se trouve rarement dans ce mode et reste à saisir à la main.
+
 ## Import en masse
 
 **Import en masse** accepte des lignes collées ou un fichier CSV. Seule la
@@ -327,7 +348,7 @@ l'activez, réservez-la au cron en ligne de commande.
 | Erreur 404 sur `/m/jeton/accueil` | `mod_rewrite` absent — décochez « URLs propres » |
 | « Extension cURL indisponible » | Activez l'extension `curl` chez votre hébergeur |
 | Génération interrompue | Augmentez « Tokens maximum », ou relancez : les pages déjà produites sont conservées |
-| Le site cible renvoie 403 | Site protégé contre les robots : saisissez les informations à la main et importez une capture |
+| Le site cible renvoie 403 | Site protégé contre les robots. Trois variantes sont retentées automatiquement ; si le refus persiste, utilisez la saisie manuelle décrite ci-dessous |
 | Emails en indésirables | SPF, DKIM et DMARC non publiés sur le domaine expéditeur |
 | Séquence bloquée | Vérifiez le cron, la fenêtre horaire, les jours d'envoi et le plafond quotidien |
 | « Trop de tentatives » | Blocage de 15 minutes ; pour le lever tout de suite, supprimez `data/auth.json` |

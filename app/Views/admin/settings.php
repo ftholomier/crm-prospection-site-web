@@ -349,6 +349,20 @@ $secretPlaceholder = static fn (string $value): string => $value !== '' ? 'Valeu
 
         <div class="divider"></div>
 
+        <div class="field">
+            <label for="user_agent">Identité annoncée lors de la lecture des sites</label>
+            <input type="text" name="user_agent" id="user_agent" value="<?= e((string) ($config['scraper']['user_agent'] ?? '')) ?>"
+                   placeholder="<?= e(App\Http::AGENTS[0]) ?>">
+            <span class="hint muted tiny">Laissez vide pour l'identité de navigateur par défaut. Un agent qui s'annonce comme robot est refusé par une bonne partie des pare-feux, même sur une page d'accueil publique.</span>
+        </div>
+        <label class="check">
+            <input type="checkbox" name="retry_blocked" value="1" <?= !empty($config['scraper']['retry_blocked']) ? 'checked' : '' ?>>
+            <span>Réessayer autrement quand un site refuse la lecture
+                <span class="hint">Trois variantes sont tentées : autre identité de navigateur, domaine avec ou sans www, connexion non sécurisée.</span></span>
+        </label>
+
+        <div class="divider"></div>
+
         <div class="field-row">
             <div class="field">
                 <label for="shot_provider">Service de capture d'écran</label>

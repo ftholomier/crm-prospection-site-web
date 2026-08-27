@@ -33,12 +33,12 @@ final class Scraper
             }
         };
 
-        $notify('Connexion à ' . Util::domain($url));
-        $home = Http::get($url, 25);
+        $home = self::fetchHome($url, $notify);
         if (!$home['ok'] || trim($home['body']) === '') {
             return [
                 'ok' => false,
-                'error' => $home['error'] !== '' ? $home['error'] : ('Le site a répondu ' . $home['status'] . ' — page inexploitable.'),
+                'error' => self::blockedMessage($home),
+                'status' => $home['status'],
                 'data' => [],
             ];
         }
@@ -96,6 +96,136 @@ final class Scraper
             'services' => self::services($pages),
             'css_size' => array_sum(array_map('strlen', $css)),
             'raw' => ['home_html' => $home['body'], 'css' => $css],
+        ];
+
+        return ['ok' => true, 'error' => '', 'data' => $data];
+    }
+
+    /**
+     * Récupère la page d'accueil, en réessayant autrement lorsque le site
+     * refuse la première tentative.
+     *
+     * Les refus tiennent le plus souvent à l'identité du client, au préfixe www
+     * ou au schéma : trois variantes suffisent à passer dans la grande majorité
+     * des cas, sans insister davantage.
+     */
+    private static function fetchHome(string $url, callable $notify): array
+    {
+        $notify('Connexion à ' . Util::domain($url));
+        $response = Http::get($url, 25);
+
+        if ($response['ok'] && trim($response['body']) !== '') {
+            return $response;
+        }
+        if (!Config::get('scraper.retry_blocked', true) || !self::looksBlocked($response)) {
+            return $response;
+        }
+
+        foreach (self::variants($url) as $label => $attempt) {
+            $notify('Refus du site (' . $response['status'] . ') — nouvelle tentative : ' . $label);
+            $retry = Http::get($attempt['url'], 25, $attempt['agent']);
+            if ($retry['ok'] && trim($retry['body']) !== '') {
+                $notify('Accès obtenu (' . $label . ')', 'done');
+                return $retry;
+            }
+            $response = $retry['status'] > 0 ? $retry : $response;
+        }
+        return $response;
+    }
+
+    /** Le refus vient-il du site plutôt que d'une page réellement absente ? */
+    private static function looksBlocked(array $response): bool
+    {
+        return in_array($response['status'], [0, 401, 403, 405, 406, 409, 429, 500, 503], true);
+    }
+
+    /** Variantes tentées après un refus, dans l'ordre. */
+    private static function variants(string $url): array
+    {
+        $parts = parse_url($url) ?: [];
+        $host = (string) ($parts['host'] ?? '');
+        $path = (string) ($parts['path'] ?? '/');
+        $scheme = (string) ($parts['scheme'] ?? 'https');
+
+        $swapped = str_starts_with($host, 'www.') ? substr($host, 4) : 'www.' . $host;
+
+        return [
+            'autre identité de navigateur' => ['url' => $url, 'agent' => 1],
+            'domaine ' . $swapped => ['url' => $scheme . '://' . $swapped . $path, 'agent' => 0],
+            'connexion non sécurisée' => ['url' => 'http://' . $host . $path, 'agent' => 1],
+        ];
+    }
+
+    /** Message d'erreur qui explique la suite plutôt que de constater l'échec. */
+    private static function blockedMessage(array $response): string
+    {
+        $status = (int) $response['status'];
+        if ($status === 403 || $status === 401) {
+            return 'Le site refuse les lectures automatiques (' . $status . '). '
+                . 'Utilisez la saisie manuelle plus bas : ouvrez le site, affichez le code source de la page '
+                . '(Ctrl+U), copiez-le et collez-le dans le champ prévu.';
+        }
+        if ($status === 429) {
+            return 'Le site limite les requêtes (429). Patientez quelques minutes, ou utilisez la saisie manuelle.';
+        }
+        if ($status >= 500) {
+            return 'Le site est en erreur (' . $status . '). Réessayez plus tard, ou utilisez la saisie manuelle.';
+        }
+        if ($status === 404) {
+            return 'Page introuvable (404). Vérifiez l\'adresse saisie.';
+        }
+        if ($status === 0) {
+            return 'Site injoignable' . ($response['error'] !== '' ? ' : ' . $response['error'] : '')
+                . '. Vérifiez l\'adresse, ou utilisez la saisie manuelle.';
+        }
+        return 'Le site a répondu ' . $status . ' — page inexploitable. Utilisez la saisie manuelle plus bas.';
+    }
+
+    /**
+     * Analyse à partir d'un code source fourni à la main, quand le site refuse
+     * toute lecture automatique. Seule la page collée est exploitée : ni les
+     * pages internes, ni les feuilles de style externes ne sont récupérées.
+     */
+    public static function analyzeHtml(string $html, string $url): array
+    {
+        $html = trim($html);
+        if ($html === '' || !preg_match('/<\s*(html|body|div|p|h1|table)\b/i', $html)) {
+            return ['ok' => false, 'error' => 'Le contenu collé ne ressemble pas à du code HTML.', 'data' => []];
+        }
+
+        $doc = self::parse($html);
+        $pages = ['accueil' => ['url' => $url, 'html' => $html, 'title' => self::title($doc)]];
+
+        $data = [
+            'url' => $url,
+            'domain' => Util::domain($url),
+            'fetched_at' => time(),
+            'source' => 'manuelle',
+            'http' => [
+                'status' => 200,
+                'elapsed' => 0.0,
+                'size' => strlen($html),
+                'https' => str_starts_with($url, 'https://'),
+                'server' => '',
+            ],
+            'title' => self::title($doc),
+            'description' => self::meta($doc, 'description'),
+            'lang' => self::attr($doc, 'html', 'lang'),
+            'generator' => self::meta($doc, 'generator'),
+            'company' => self::guessCompany($doc, $pages, $url),
+            'headings' => self::headings($doc),
+            'navigation' => self::navigation($doc),
+            'texts' => self::texts($pages),
+            'images' => self::images($doc, $url),
+            'colors' => self::colors($html, []),
+            'fonts' => self::fonts($html, []),
+            'logo' => self::logo($doc, $url),
+            'contact' => self::contact($html, $pages),
+            'social' => self::social($doc),
+            'pages_found' => [['url' => $url, 'title' => self::title($doc)]],
+            'services' => self::services($pages),
+            'css_size' => 0,
+            'raw' => ['home_html' => $html, 'css' => []],
         ];
 
         return ['ok' => true, 'error' => '', 'data' => $data];

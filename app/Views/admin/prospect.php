@@ -102,6 +102,36 @@ $mailable = Prospect::isMailable($p);
             </div>
         <?php endif; ?>
 
+        <div class="card">
+            <div class="card-head">
+                <h2>Le site bloque l'analyse ?</h2>
+                <?php if ($hasManualSource): ?>
+                    <div class="actions"><span class="badge ok">Code source enregistré</span></div>
+                <?php endif; ?>
+            </div>
+            <p class="small muted">
+                Certains sites refusent toute lecture automatique et répondent une erreur 403.
+                Dans ce cas, fournissez la page vous-même : ouvrez
+                <a href="<?= e((string) $p['url']) ?>" target="_blank" rel="noopener noreferrer">le site</a>,
+                affichez le code source (<strong>Ctrl+U</strong>, ou <strong>⌥⌘U</strong> sur Mac),
+                sélectionnez tout (<strong>Ctrl+A</strong>), copiez et collez ci-dessous.
+                Le score, les coordonnées et la maquette sont produits exactement de la même façon.
+            </p>
+            <form method="post" action="<?= e(url('prospect_manual')) ?>">
+                <?= Csrf::field() ?>
+                <input type="hidden" name="id" value="<?= e($id) ?>">
+                <div class="field">
+                    <label for="html">Code source de la page d'accueil</label>
+                    <textarea class="code" name="html" id="html" rows="8"
+                              placeholder="&lt;!DOCTYPE html&gt;&#10;&lt;html lang=&quot;fr&quot;&gt;…"></textarea>
+                    <span class="hint muted tiny">Seule la page collée est analysée : les pages internes et les feuilles de style externes ne sont pas récupérées.</span>
+                </div>
+                <button class="btn <?= $hasAnalysis ? '' : 'primary' ?>" type="submit">
+                    <?= $hasManualSource ? 'Remplacer le code source' : 'Analyser ce code source' ?>
+                </button>
+            </form>
+        </div>
+
         <?php if ($hasMockup): ?>
             <div class="card">
                 <div class="card-head">

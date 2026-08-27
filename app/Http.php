@@ -9,14 +9,52 @@ namespace App;
  */
 final class Http
 {
-    private const UA = 'Mozilla/5.0 (compatible; ProspectStudio/1.0; +https://example.com/bot)';
     private const MAX_BYTES = 3145728; // 3 Mo : suffisant pour une page, borne la mémoire
+
+    /**
+     * Identités de navigateur utilisées pour la lecture des sites.
+     *
+     * Un agent qui s'annonce comme robot est refusé d'emblée par une bonne
+     * partie des pare-feux applicatifs, y compris pour une simple page
+     * d'accueil publique. On se présente donc comme un navigateur courant, et
+     * la seconde identité sert de nouvelle tentative quand la première est
+     * rejetée.
+     */
+    public const AGENTS = [
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36',
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.3 Safari/605.1.15',
+    ];
+
+    /** Agent configuré, ou identité de navigateur par défaut. */
+    public static function agent(int $variant = 0): string
+    {
+        $configured = trim((string) Config::get('scraper.user_agent', ''));
+        if ($configured !== '' && $variant === 0) {
+            return $configured;
+        }
+        return self::AGENTS[$variant] ?? self::AGENTS[0];
+    }
+
+    /** En-têtes d'un navigateur réel : leur absence suffit à déclencher un refus. */
+    private static function browserHeaders(string $url): array
+    {
+        return [
+            'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+            'Accept-Language: fr-FR,fr;q=0.9,en-US;q=0.8,en;q=0.7',
+            'Upgrade-Insecure-Requests: 1',
+            'Sec-Fetch-Dest: document',
+            'Sec-Fetch-Mode: navigate',
+            'Sec-Fetch-Site: none',
+            'Sec-Fetch-User: ?1',
+            'Cache-Control: max-age=0',
+        ];
+    }
 
     /**
      * Récupère une URL.
      * @return array{ok:bool,status:int,body:string,url:string,error:string,headers:array,elapsed:float,size:int}
      */
-    public static function get(string $url, int $timeout = 20): array
+    public static function get(string $url, int $timeout = 20, int $agentVariant = 0): array
     {
         $result = [
             'ok' => false, 'status' => 0, 'body' => '', 'url' => $url,
@@ -25,7 +63,7 @@ final class Http
         $started = microtime(true);
 
         if (!function_exists('curl_init')) {
-            return self::getWithStreams($url, $timeout, $result, $started);
+            return self::getWithStreams($url, $timeout, $result, $started, $agentVariant);
         }
 
         $handle = curl_init();
@@ -37,11 +75,14 @@ final class Http
             CURLOPT_MAXREDIRS => 5,
             CURLOPT_TIMEOUT => $timeout,
             CURLOPT_CONNECTTIMEOUT => 10,
-            CURLOPT_USERAGENT => self::UA,
+            CURLOPT_USERAGENT => self::agent($agentVariant),
             CURLOPT_ENCODING => '',
             CURLOPT_SSL_VERIFYPEER => true,
             CURLOPT_SSL_VERIFYHOST => 2,
-            CURLOPT_HTTPHEADER => ['Accept: text/html,application/xhtml+xml,*/*;q=0.8', 'Accept-Language: fr-FR,fr;q=0.9'],
+            // Certains pare-feux posent un cookie puis redirigent : sans moteur
+            // de cookies, la redirection boucle et finit en refus.
+            CURLOPT_COOKIEFILE => '',
+            CURLOPT_HTTPHEADER => self::browserHeaders($url),
             CURLOPT_HEADERFUNCTION => static function ($ch, string $line) use (&$headers): int {
                 $parts = explode(':', $line, 2);
                 if (count($parts) === 2) {
@@ -84,7 +125,7 @@ final class Http
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_TIMEOUT => $timeout,
             CURLOPT_CONNECTTIMEOUT => 10,
-            CURLOPT_USERAGENT => self::UA,
+            CURLOPT_USERAGENT => self::agent(),
             CURLOPT_HTTPHEADER => array_merge(['Accept: application/json'], $headers),
         ];
         if ($payload !== null) {
@@ -127,7 +168,7 @@ final class Http
     }
 
     /** Repli sans cURL, pour les hébergements qui ne l'exposent pas. */
-    private static function getWithStreams(string $url, int $timeout, array $result, float $started): array
+    private static function getWithStreams(string $url, int $timeout, array $result, float $started, int $agentVariant = 0): array
     {
         $context = stream_context_create([
             'http' => [
@@ -135,7 +176,8 @@ final class Http
                 'timeout' => $timeout,
                 'follow_location' => 1,
                 'max_redirects' => 5,
-                'header' => "User-Agent: " . self::UA . "\r\nAccept-Language: fr-FR,fr;q=0.9\r\n",
+                'header' => 'User-Agent: ' . self::agent($agentVariant) . "\r\n"
+                    . implode("\r\n", self::browserHeaders($url)) . "\r\n",
                 'ignore_errors' => true,
             ],
             'ssl' => ['verify_peer' => true, 'verify_peer_name' => true],

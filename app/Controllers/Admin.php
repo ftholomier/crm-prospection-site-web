@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Controllers;
 
+use App\Analyzer;
 use App\Auth;
 use App\Claude;
 use App\Config;
@@ -225,6 +226,7 @@ final class Admin
             'schedule' => Sequence::preview(),
             'mockupUrl' => Router::mockupUrl($prospect),
             'hasShot' => Screenshot::exists($id),
+            'hasManualSource' => Analyzer::hasStoredSource($id),
             'shotUrl' => Router::url('shot_admin', ['id' => $id, 'v' => time()]),
         ]);
     }
@@ -294,6 +296,34 @@ final class Admin
         Prospect::delete($id);
         Flash::success('Prospect supprimé, maquettes comprises.');
         Util::redirect(Router::url('prospects'));
+    }
+
+    /**
+     * Analyse à partir du code source collé à la main, pour les sites qui
+     * refusent toute lecture automatique.
+     */
+    public static function prospectManual(): void
+    {
+        Auth::requireLogin();
+        Csrf::requireValid();
+
+        $id = (string) ($_POST['id'] ?? '');
+        $html = (string) ($_POST['html'] ?? '');
+
+        if (trim($html) === '') {
+            Flash::error('Collez le code source de la page d\'accueil avant de valider.');
+            Util::redirect(Router::url('prospect', ['id' => $id]));
+        }
+
+        $result = Analyzer::runFromHtml($id, $html);
+        if (!$result['ok']) {
+            Flash::error($result['error']);
+        } else {
+            $audit = $result['prospect']['audit'] ?? [];
+            Flash::success('Analyse effectuée depuis le code collé — score '
+                . ($audit['score'] ?? '?') . '/100. Vérifiez les coordonnées avant de générer.');
+        }
+        Util::redirect(Router::url('prospect', ['id' => $id]));
     }
 
     /** Relance l'enrichissement seul, sans refaire l'analyse complète. */
@@ -757,6 +787,10 @@ final class Admin
                 'email' => trim((string) ($post['alert_email'] ?? '')),
                 'on_interest' => !empty($post['alert_interest']),
                 'on_view' => !empty($post['alert_view']),
+            ],
+            'scraper' => [
+                'user_agent' => trim((string) ($post['user_agent'] ?? '')),
+                'retry_blocked' => !empty($post['retry_blocked']),
             ],
             'batch' => [
                 'auto_analyze' => !empty($post['auto_analyze']),

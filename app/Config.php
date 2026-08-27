@@ -188,6 +188,10 @@ final class Config
             'audit' => [
                 'min_score_to_prospect' => 40,
             ],
+            'scraper' => [
+                'user_agent' => '',
+                'retry_blocked' => true,
+            ],
             'batch' => [
                 'auto_analyze' => true,
                 'auto_generate' => false,
