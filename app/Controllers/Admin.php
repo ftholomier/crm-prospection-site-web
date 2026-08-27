@@ -38,16 +38,23 @@ final class Admin
         }
 
         $error = '';
+        $identifier = trim((string) ($_POST['identifier'] ?? ''));
+
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (Auth::isLocked()) {
                 $error = 'Trop de tentatives. Réessayez dans ' . ceil(Auth::lockedFor() / 60) . ' minutes.';
-            } elseif (Auth::attempt((string) ($_POST['password'] ?? ''))) {
+            } elseif (Auth::attempt($identifier, (string) ($_POST['password'] ?? ''))) {
                 Util::redirect(Router::url('dashboard'));
             } else {
-                $error = 'Mot de passe incorrect.';
+                $error = 'Identifiant ou mot de passe incorrect.';
             }
         }
-        echo render('admin/login', ['error' => $error, 'mode' => 'login']);
+
+        echo render('admin/login', [
+            'mode' => 'login',
+            'error' => $error,
+            'identifier' => $identifier,
+        ]);
     }
 
     public static function install(): void
@@ -55,21 +62,88 @@ final class Admin
         if (Config::isInstalled()) {
             Util::redirect(Router::url('login'));
         }
+
         $error = '';
+        $identifier = trim((string) ($_POST['identifier'] ?? ''));
+
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $password = (string) ($_POST['password'] ?? '');
-            if (strlen($password) < 8) {
+            if (!Util::isEmail($identifier)) {
+                $error = 'Saisissez une adresse email valide : elle servira d\'identifiant et recevra les liens de récupération.';
+            } elseif (strlen($password) < 8) {
                 $error = 'Choisissez un mot de passe d\'au moins 8 caractères.';
             } elseif ($password !== (string) ($_POST['password_confirm'] ?? '')) {
                 $error = 'Les deux mots de passe ne correspondent pas.';
-            } elseif (Auth::install($password)) {
-                Flash::success('Mot de passe enregistré. Complétez les réglages pour commencer.');
+            } elseif (Auth::install($identifier, $password)) {
+                Flash::success('Compte créé. Complétez les réglages pour commencer.');
                 Util::redirect(Router::url('settings'));
             } else {
                 $error = 'Installation impossible.';
             }
         }
-        echo render('admin/login', ['error' => $error, 'mode' => 'install']);
+
+        echo render('admin/login', [
+            'mode' => 'install',
+            'error' => $error,
+            'identifier' => $identifier,
+        ]);
+    }
+
+    /** Demande d'un lien de réinitialisation. */
+    public static function forgot(): void
+    {
+        if (Auth::check()) {
+            Util::redirect(Router::url('settings') . '#password');
+        }
+        if (!Config::isInstalled()) {
+            Util::redirect(Router::url('install'));
+        }
+
+        $notice = '';
+        $identifier = trim((string) ($_POST['identifier'] ?? ''));
+
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            $result = Auth::requestReset($identifier);
+            $notice = $result['message'];
+        }
+
+        echo render('admin/login', [
+            'mode' => 'forgot',
+            'error' => '',
+            'notice' => $notice,
+            'identifier' => $identifier,
+            'canSend' => Auth::canSendReset(),
+        ]);
+    }
+
+    /** Choix d'un nouveau mot de passe depuis le lien reçu par email. */
+    public static function reset(): void
+    {
+        $token = (string) ($_GET['t'] ?? ($_POST['t'] ?? ''));
+        $valid = Auth::resetTokenIsValid($token);
+        $error = '';
+
+        if ($valid && $_SERVER['REQUEST_METHOD'] === 'POST') {
+            $password = (string) ($_POST['password'] ?? '');
+            if (strlen($password) < 8) {
+                $error = 'Choisissez un mot de passe d\'au moins 8 caractères.';
+            } elseif ($password !== (string) ($_POST['password_confirm'] ?? '')) {
+                $error = 'Les deux mots de passe ne correspondent pas.';
+            } elseif (Auth::completeReset($token, $password)) {
+                Flash::success('Mot de passe modifié. Vous êtes connecté.');
+                Util::redirect(Router::url('dashboard'));
+            } else {
+                $error = 'Ce lien n\'est plus valide.';
+                $valid = false;
+            }
+        }
+
+        echo render('admin/login', [
+            'mode' => 'reset',
+            'error' => $error,
+            'token' => $token,
+            'valid' => $valid,
+        ]);
     }
 
     public static function logout(): void
@@ -698,6 +772,16 @@ final class Admin
             Config::set('app.cron_key', Util::token(16));
         }
 
+        $newIdentifier = strtolower(trim((string) ($post['login_email'] ?? '')));
+        if ($newIdentifier !== '' && $newIdentifier !== Auth::identifier()) {
+            if (Util::isEmail($newIdentifier)) {
+                Config::set('app.email', $newIdentifier);
+                Flash::success('Identifiant de connexion mis à jour : ' . $newIdentifier);
+            } else {
+                Flash::error('Identifiant non modifié : adresse email invalide.');
+            }
+        }
+
         $newPassword = (string) ($post['new_password'] ?? '');
         if ($newPassword !== '') {
             if (Auth::changePassword((string) ($post['current_password'] ?? ''), $newPassword)) {
@@ -795,6 +879,11 @@ final class Admin
     public static function health(): array
     {
         $checks = [];
+        $checks[] = [
+            'label' => 'Identifiant de connexion',
+            'ok' => Auth::identifier() !== '',
+            'hint' => 'Sans adresse email, la récupération du mot de passe est impossible.',
+        ];
         $checks[] = [
             'label' => 'Clé API Claude',
             'ok' => Claude::isConfigured(),

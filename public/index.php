@@ -44,6 +44,8 @@ $routes = [
     'login' => [Admin::login(...), false],
     'install' => [Admin::install(...), false],
     'logout' => [Admin::logout(...), false],
+    'forgot' => [Admin::forgot(...), false],
+    'reset' => [Admin::reset(...), false],
 
     // Tableaux
     'dashboard' => [Admin::dashboard(...), true],
@@ -104,8 +106,14 @@ if (!isset($routes[$route])) {
 
 [$handler, $requiresAuth] = $routes[$route];
 
-if ($requiresAuth) {
+// Les écrans d'accès ne demandent pas de session mais restent des pages
+// d'administration : ils reçoivent les mêmes en-têtes de sécurité.
+$prospectFacing = ['mockup', 'shot', 'track_open', 'track_click', 'unsubscribe', 'interest', 'cron'];
+if (!in_array($route, $prospectFacing, true)) {
     $sendAdminHeaders();
+}
+
+if ($requiresAuth) {
     if (!Config::isInstalled()) {
         Util::redirect(Router::url('install'));
     }

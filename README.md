@@ -85,10 +85,17 @@ chmod -R 775 data
 
 ### 3. Premier lancement
 
-Ouvrez l'application dans un navigateur. L'écran d'installation demande un mot
-de passe (8 caractères minimum). **Il n'existe aucune procédure de
-récupération** : notez-le. Pour le réinitialiser, videz la clé
-`app.password_hash` dans `data/config.json`.
+Ouvrez l'application dans un navigateur. L'écran d'installation demande une
+**adresse email** — elle sert d'identifiant de connexion et reçoit les liens de
+récupération — et un **mot de passe** de 8 caractères minimum.
+
+Choisissez une adresse que vous consultez réellement : c'est par elle que passe
+la procédure « mot de passe oublié ». Elle est indépendante de l'adresse
+d'expédition des emails de prospection, que vous réglerez ensuite.
+
+Vous pourrez modifier l'identifiant et le mot de passe dans **Réglages → Accès
+au back-office**. Un changement de mot de passe ferme les sessions ouvertes sur
+vos autres appareils.
 
 ### 4. Réglages indispensables
 
@@ -181,6 +188,7 @@ bin/                         cron.php et serve.php
 | `data/events.jsonl` | Journal d'activité append-only |
 | `data/sends.json` | Envois, ouvertures et clics |
 | `data/suppression.json` | Désinscriptions |
+| `data/auth.json` | Tentatives de connexion et jeton de réinitialisation (haché) |
 
 Les écritures passent par un fichier temporaire suivi d'un `rename`, et les
 cycles lecture-modification-écriture sont protégés par un verrou : le cron et
@@ -233,8 +241,16 @@ automatiquement à chaque message.
 
 ## Sécurité et conformité
 
-- Administration protégée par mot de passe haché, session PHP, jeton CSRF sur
-  chaque formulaire, blocage après huit tentatives.
+- Connexion par identifiant (adresse email) et mot de passe haché, session PHP,
+  jeton CSRF sur chaque formulaire.
+- Blocage de 15 minutes après huit tentatives échouées, compté **côté serveur
+  par adresse IP** : supprimer ses cookies ne remet pas le compteur à zéro.
+- Récupération de mot de passe par email : jeton de 32 octets **stocké haché**,
+  valable une heure, à usage unique, limité à cinq demandes par heure. La
+  réponse affichée est la même que l'adresse existe ou non, pour qu'aucune
+  tentative extérieure ne puisse confirmer votre identifiant.
+- Un changement de mot de passe invalide immédiatement les sessions ouvertes
+  ailleurs.
 - Les liens envoyés au prospect reposent sur des jetons aléatoires de 18 et
   12 octets, impossibles à deviner ou à énumérer.
 - Le lien de suivi des clics **ne prend aucune URL en paramètre** : la
@@ -275,3 +291,6 @@ l'activez, réservez-la au cron en ligne de commande.
 | Le site cible renvoie 403 | Site protégé contre les robots : saisissez les informations à la main et importez une capture |
 | Emails en indésirables | SPF, DKIM et DMARC non publiés sur le domaine expéditeur |
 | Séquence bloquée | Vérifiez le cron, la fenêtre horaire, les jours d'envoi et le plafond quotidien |
+| « Trop de tentatives » | Blocage de 15 minutes ; pour le lever tout de suite, supprimez `data/auth.json` |
+| Mot de passe perdu et SMTP non configuré | Videz la valeur `app.password_hash` dans `data/config.json` : l'application repasse par l'écran d'installation |
+| Le lien de réinitialisation n'arrive pas | Vérifiez le SMTP dans les Réglages, puis `data/logs/auth.jsonl` qui journalise les échecs d'envoi |

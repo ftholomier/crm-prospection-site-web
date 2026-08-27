@@ -310,7 +310,12 @@ $secretPlaceholder = static fn (string $value): string => $value !== '' ? 'Valeu
     </div>
 
     <div class="card" id="password">
-        <div class="card-head"><h2>Changer le mot de passe</h2></div>
+        <div class="card-head"><h2>Accès au back-office</h2></div>
+        <div class="field">
+            <label for="login_email">Identifiant de connexion</label>
+            <input type="email" name="login_email" id="login_email" value="<?= e(App\Auth::identifier()) ?>" autocomplete="username">
+            <span class="hint muted tiny">C'est cette adresse qui vous connecte, et celle qui reçoit les liens de réinitialisation. Elle est indépendante de l'adresse d'expédition des emails de prospection.</span>
+        </div>
         <div class="field-row">
             <div class="field">
                 <label for="current_password">Mot de passe actuel</label>
@@ -322,6 +327,7 @@ $secretPlaceholder = static fn (string $value): string => $value !== '' ? 'Valeu
                 <span class="hint muted tiny">8 caractères minimum. Laissez vide pour ne rien changer.</span>
             </div>
         </div>
+        <p class="tiny muted">Changer le mot de passe ferme toutes les sessions ouvertes sur vos autres appareils.</p>
     </div>
 
     <div class="card">
