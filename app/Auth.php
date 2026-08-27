@@ -140,6 +140,15 @@ final class Auth
             'password_hash' => password_hash($password, PASSWORD_DEFAULT),
             'password_changed_at' => time(),
         ]]);
+
+        // Relecture depuis le disque : sans droits d'écriture sur data/, la
+        // configuration ne serait jamais persistée et l'écran d'installation
+        // reviendrait indéfiniment sans expliquer pourquoi.
+        Config::load(true);
+        if (!password_verify($password, (string) Config::get('app.password_hash', ''))) {
+            return false;
+        }
+
         self::start();
         self::openSession();
         return true;
@@ -223,12 +232,29 @@ final class Auth
 
     // ------------------------------------------------- Mot de passe perdu
 
-    /** La récupération par email est-elle possible ? */
+    /**
+     * La récupération par email est-elle possible ?
+     *
+     * C'est un état du système, sans rapport avec l'adresse saisie : on peut
+     * donc le dire franchement à l'utilisateur sans rien révéler sur le compte.
+     */
     public static function canSendReset(): bool
     {
         return trim((string) Config::get('smtp.host', '')) !== ''
             && trim((string) Config::get('smtp.from_email', '')) !== ''
             && self::identifier() !== '';
+    }
+
+    /** Raison précise pour laquelle l'envoi est impossible, ou null. */
+    public static function resetBlocker(): ?string
+    {
+        if (self::identifier() === '') {
+            return "Aucune adresse email n'est enregistrée pour ce compte : la récupération par email est impossible.";
+        }
+        if (trim((string) Config::get('smtp.host', '')) === '' || trim((string) Config::get('smtp.from_email', '')) === '') {
+            return "Le serveur SMTP n'est pas configuré : l'application ne peut envoyer aucun email.";
+        }
+        return null;
     }
 
     /**
@@ -240,9 +266,19 @@ final class Auth
      */
     public static function requestReset(string $identifier): array
     {
+        // Annoncer un envoi qui ne peut pas avoir lieu laisse l'utilisateur
+        // attendre un email qui n'arrivera jamais : on le dit franchement.
+        $blocker = self::resetBlocker();
+        if ($blocker !== null) {
+            return ['ok' => false, 'message' => $blocker];
+        }
+
         $neutral = [
             'ok' => true,
-            'message' => "Si cette adresse est bien celle du compte, un lien de réinitialisation vient d'être envoyé. Vérifiez votre boîte, y compris les indésirables.",
+            'message' => "Si cette adresse est bien celle du compte, un lien de réinitialisation vient d'être envoyé."
+                . " Vérifiez votre boîte, y compris les indésirables."
+                . " Si rien n'arrive d'ici quelques minutes, l'envoi SMTP a échoué : consultez data/logs/auth.jsonl,"
+                . " ou reprenez la main en ligne de commande avec bin/reset-password.php.",
         ];
 
         $given = strtolower(trim($identifier));

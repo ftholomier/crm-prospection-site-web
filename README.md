@@ -85,6 +85,9 @@ chmod -R 775 data
 
 ### 3. Premier lancement
 
+> Si le dossier `data/` n'est pas accessible en écriture, l'écran
+> d'installation le signale immédiatement : rien ne pourrait être enregistré.
+
 Ouvrez l'application dans un navigateur. L'écran d'installation demande une
 **adresse email** — elle sert d'identifiant de connexion et reçoit les liens de
 récupération — et un **mot de passe** de 8 caractères minimum.
@@ -175,7 +178,7 @@ app/
 
 public/                      Racine web : point d'entrée, CSS, JS
 data/                        Données JSON (jamais versionnées)
-bin/                         cron.php et serve.php
+bin/                         cron.php, serve.php et reset-password.php
 ```
 
 ### Stockage
@@ -284,6 +287,9 @@ automatiquement à chaque message.
   tentative extérieure ne puisse confirmer votre identifiant.
 - Un changement de mot de passe invalide immédiatement les sessions ouvertes
   ailleurs.
+- Quand l'envoi est impossible — SMTP non configuré, ou compte sans adresse —
+  l'écran le dit franchement et indique la reprise en main, au lieu d'annoncer
+  un email qui ne partira jamais.
 - Les liens envoyés au prospect reposent sur des jetons aléatoires de 18 et
   12 octets, impossibles à deviner ou à énumérer.
 - Le lien de suivi des clics **ne prend aucune URL en paramètre** : la
@@ -325,5 +331,5 @@ l'activez, réservez-la au cron en ligne de commande.
 | Emails en indésirables | SPF, DKIM et DMARC non publiés sur le domaine expéditeur |
 | Séquence bloquée | Vérifiez le cron, la fenêtre horaire, les jours d'envoi et le plafond quotidien |
 | « Trop de tentatives » | Blocage de 15 minutes ; pour le lever tout de suite, supprimez `data/auth.json` |
-| Mot de passe perdu et SMTP non configuré | Videz la valeur `app.password_hash` dans `data/config.json` : l'application repasse par l'écran d'installation |
+| Mot de passe perdu, ou plus d'accès du tout | `php bin/reset-password.php vous@votredomaine.fr votreNouveauMotDePasse` — redéfinit l'identifiant et le mot de passe, lève le blocage et annule les liens en circulation. Sans SSH : videz `app.password_hash` dans `data/config.json`, l'application repasse par l'écran d'installation |
 | Le lien de réinitialisation n'arrive pas | Vérifiez le SMTP dans les Réglages, puis `data/logs/auth.jsonl` qui journalise les échecs d'envoi |

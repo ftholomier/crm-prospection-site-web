@@ -54,11 +54,17 @@ $pageTitle = $mode === 'login' ? 'Connexion' : $titles[$mode];
             <div class="flash success"><?= e($notice) ?></div>
         <?php endif; ?>
 
-        <?php if ($mode === 'forgot' && !$canSend && $notice === ''): ?>
+        <?php if (($blocker ?? null) !== null && $mode === 'install'): ?>
+            <div class="flash error"><?= e($blocker) ?></div>
+        <?php endif; ?>
+
+        <?php if ($mode === 'forgot' && ($blocker ?? null) !== null): ?>
             <div class="flash info">
-                L'envoi par email est indisponible : le serveur SMTP n'est pas encore configuré.
-                Pour reprendre la main, videz la valeur <code>app.password_hash</code> dans
-                <code>data/config.json</code> — l'application repassera par l'écran d'installation.
+                <strong>Reprendre la main sans email</strong><br>
+                En ligne de commande, depuis la racine du projet :<br>
+                <code>php bin/reset-password.php vous@votredomaine.fr votreNouveauMotDePasse</code><br>
+                Sans accès SSH, videz la valeur <code>app.password_hash</code> dans
+                <code>data/config.json</code> : l'application repassera par l'écran d'installation.
             </div>
         <?php endif; ?>
 

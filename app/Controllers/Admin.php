@@ -79,7 +79,9 @@ final class Admin
                 Flash::success('Compte créé. Complétez les réglages pour commencer.');
                 Util::redirect(Router::url('settings'));
             } else {
-                $error = 'Installation impossible.';
+                $error = is_writable(DATA_DIR)
+                    ? 'Installation impossible : la configuration n\'a pas pu être enregistrée.'
+                    : 'Le dossier data/ n\'est pas accessible en écriture : rien ne peut être enregistré. Appliquez chmod -R 775 data puis rechargez.';
             }
         }
 
@@ -87,6 +89,9 @@ final class Admin
             'mode' => 'install',
             'error' => $error,
             'identifier' => $identifier,
+            'blocker' => is_writable(DATA_DIR)
+                ? null
+                : 'Le dossier data/ n\'est pas accessible en écriture. Appliquez chmod -R 775 data avant de continuer, sinon rien ne sera enregistré.',
         ]);
     }
 
@@ -101,19 +106,21 @@ final class Admin
         }
 
         $notice = '';
+        $error = '';
         $identifier = trim((string) ($_POST['identifier'] ?? ''));
 
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $result = Auth::requestReset($identifier);
-            $notice = $result['message'];
+            $result['ok'] ? ($notice = $result['message']) : ($error = $result['message']);
         }
 
         echo render('admin/login', [
             'mode' => 'forgot',
-            'error' => '',
+            'error' => $error,
             'notice' => $notice,
             'identifier' => $identifier,
             'canSend' => Auth::canSendReset(),
+            'blocker' => Auth::resetBlocker(),
         ]);
     }
 
