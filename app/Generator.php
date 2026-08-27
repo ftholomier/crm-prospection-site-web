@@ -435,6 +435,109 @@ final class Generator
     }
 
     /**
+     * Vocabulaire du socle : toutes les classes que sa feuille de style
+     * déclare. Lue à la source plutôt que recopiée, pour qu'une évolution du
+     * socle ne rende pas la vérification fausse en silence.
+     */
+    public static function vocabulaire(): array
+    {
+        static $classes = null;
+        if ($classes !== null) {
+            return $classes;
+        }
+        $css = @file_get_contents(dirname(__DIR__) . '/public/assets/maquette/socle.css');
+        $classes = [];
+        if ($css !== false && preg_match_all('/\.([a-zA-Z][\w-]*)/', $css, $m)) {
+            $classes = array_fill_keys($m[1], true);
+        }
+        return $classes;
+    }
+
+    /**
+     * Contrôle d'une page avant qu'elle ne parte au prospect.
+     *
+     * Le contraste n'est pas vérifié ici : il ne peut plus dévier, puisque les
+     * couleurs viennent du bloc calculé en PHP et que le corps n'a pas le droit
+     * d'en écrire. Ce qui se vérifie, c'est justement cette interdiction — plus
+     * les inventions qui la contournent : une classe qui n'existe pas ne
+     * s'affichera pas, une photo qui n'est pas dans le catalogue ne s'affichera
+     * pas davantage.
+     *
+     * @return array{ok:bool,ecarts:string[]}
+     */
+    public static function verifier(string $html, array $actifs): array
+    {
+        $corps = Mockup::bodyOf($html);
+        $ecarts = [];
+
+        if (preg_match('/<style\b/i', $corps)) {
+            $ecarts[] = 'Une balise <style> a été écrite dans la page : tout le style vient du socle.';
+        }
+        if (preg_match('/\sstyle\s*=/i', $corps)) {
+            $ecarts[] = 'Un attribut style= a été posé sur un élément : aucun style en ligne n\'est admis.';
+        }
+        if (preg_match('/<script\b/i', $corps)) {
+            $ecarts[] = 'Un script a été écrit dans la page : le socle gère seul les animations.';
+        }
+        if (preg_match('/#[0-9a-f]{3,6}\b|rgba?\s*\(/i', $corps)) {
+            $ecarts[] = 'Une couleur est écrite en dur : les teintes viennent uniquement des jetons du socle.';
+        }
+
+        $connues = self::vocabulaire();
+        $inconnues = [];
+        if (preg_match_all('/class\s*=\s*"([^"]*)"/i', $corps, $m)) {
+            foreach ($m[1] as $liste) {
+                foreach (preg_split('/\s+/', trim($liste)) ?: [] as $classe) {
+                    if ($classe !== '' && !isset($connues[$classe])) {
+                        $inconnues[$classe] = true;
+                    }
+                }
+            }
+        }
+        if ($inconnues !== []) {
+            $ecarts[] = 'Classes inexistantes dans le socle, donc sans aucun style : '
+                . implode(', ', array_slice(array_keys($inconnues), 0, 12)) . '.';
+        }
+
+        $autorisees = [];
+        foreach ($actifs['photos'] ?? [] as $photo) {
+            $autorisees[(string) $photo['src']] = true;
+        }
+        foreach (['logo', 'favicon'] as $cle) {
+            if (isset($actifs[$cle]['src'])) {
+                $autorisees[(string) $actifs[$cle]['src']] = true;
+            }
+        }
+        $inventees = [];
+        if (preg_match_all('/<img\b[^>]*\bsrc\s*=\s*"([^"]*)"/i', $corps, $m)) {
+            foreach ($m[1] as $src) {
+                if ($src === '' || str_starts_with($src, 'data:')) {
+                    continue;
+                }
+                if (!isset($autorisees[$src])) {
+                    $inventees[$src] = true;
+                }
+            }
+        }
+        if ($inventees !== []) {
+            $ecarts[] = 'Photos qui n\'existent pas et resteront cassées : '
+                . implode(', ', array_slice(array_keys($inventees), 0, 8))
+                . '. Supprime les blocs illustrés faute de photo, ne devine pas une adresse.';
+        }
+
+        $manquants = array_values(array_filter(
+            array_keys(Mockup::PAGES),
+            static fn (string $page): bool => !str_contains($corps, $page . '.html')
+        ));
+        if (count($manquants) > 1) {
+            $ecarts[] = 'La navigation ne mène pas aux trois pages : '
+                . implode(', ', array_map(static fn (string $p): string => $p . '.html', $manquants)) . ' manquent.';
+        }
+
+        return ['ok' => $ecarts === [], 'ecarts' => $ecarts];
+    }
+
+    /**
      * Palette du prospect : celle calculée à l'analyse, recalculée à la volée
      * pour les fiches analysées avant la mise en place du socle.
      */

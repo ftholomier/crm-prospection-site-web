@@ -543,6 +543,40 @@ p:last-child { margin-bottom: 0; }
 .pied__liens { display: grid; gap: .6rem; list-style: none; padding: 0; margin: 0; }
 .pied__liens a { color: rgba(255, 255, 255, .78); transition: color var(--transition), padding-left var(--transition); }
 .pied__liens a:hover { color: #fff; padding-left: .3rem; }
+/* Ce qui suit était écrit en style en ligne dans les pages de référence.
+   Le socle porte tout le style, sans exception : une page qui a le droit
+   d'écrire du CSS en ligne a le droit d'écrire une couleur, et le contrôle de
+   contraste ne veut alors plus rien dire. */
+.pied__marque { color: #fff; margin-bottom: 1.2rem; }
+.pied__tel { font-size: 1.3rem; font-weight: 600; color: #fff; margin-top: 1rem; }
+.pied__adresse { font-style: normal; }
+
+/* --------------------------------------------------------------------------
+   15. CITATION EN COURS DE TEXTE
+   -------------------------------------------------------------------------- */
+.citation-libre {
+  margin: 2rem 0; padding-left: 1.6rem;
+  border-left: 2px solid var(--marque);
+  font-size: 1.18rem; font-weight: 300; line-height: 1.65;
+  color: var(--texte-doux);
+}
+
+/* --------------------------------------------------------------------------
+   16. QUESTIONS FRÉQUENTES
+   Un <details> natif : pliage sans une ligne de script, et lisible même si le
+   JavaScript ne se charge pas.
+   -------------------------------------------------------------------------- */
+.faq { border-bottom: 1px solid var(--ligne); }
+.faq__item { border-top: 1px solid var(--ligne); padding: 1.4rem 0; }
+.faq__question { cursor: pointer; font-size: 1.12rem; font-weight: 500; color: var(--encre); }
+.faq__reponse { margin-top: 1rem; color: var(--texte-doux); }
+
+/* Variantes de cadrage. La photo d'une personne est plus souvent en portrait
+   que le reste : le cadre s'y adapte au lieu de la couper. */
+.duo__media--portrait img { aspect-ratio: 4 / 5; object-position: right 22%; }
+.duo__media--droite img { object-position: right 30%; }
+.heros__photo--droite img { object-position: right 30%; }
+
 .pied__bas {
   margin-top: clamp(2.5rem, 5vw, 3.5rem);
   padding: 1.4rem 0;

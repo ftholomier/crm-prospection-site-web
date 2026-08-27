@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace App\Controllers;
 
 use App\Analyzer;
+use App\Assets;
 use App\Auth;
 use App\Claude;
 use App\Config;
@@ -338,13 +339,52 @@ final class Stream
         if (!$result['ok']) {
             self::fail($result['error']);
         }
+
+        // Une page qui ne respecte pas le socle ne part pas au prospect : elle
+        // repart au modèle avec la liste des écarts. Une seule reprise — si
+        // elle ne suffit pas, mieux vaut livrer et le dire que boucler.
+        $actifs = Assets::forPrompt($id);
+        $controle = Generator::verifier($result['html'], $actifs);
+        if (!$controle['ok']) {
+            self::emit('step', [
+                'message' => 'Écarts au socle relevés sur « ' . $label . ' » : ' . count($controle['ecarts'])
+                    . ' — la page repart au modèle',
+                'state' => 'warn',
+            ]);
+            foreach ($controle['ecarts'] as $ecart) {
+                self::emit('step', ['message' => $ecart, 'state' => 'warn']);
+            }
+
+            $reprise = Generator::page(
+                $prospect,
+                $brief,
+                $page,
+                null,
+                $result['html'],
+                "Cette page ne respecte pas le socle. Corrige exactement ces points, sans rien changer d'autre :\n- "
+                    . implode("\n- ", $controle['ecarts'])
+            );
+            if ($reprise['ok']) {
+                $apres = Generator::verifier($reprise['html'], $actifs);
+                $result = $reprise;
+                self::emit('step', [
+                    'message' => $apres['ok']
+                        ? 'Écarts corrigés'
+                        : 'Il reste ' . count($apres['ecarts']) . ' écart(s) après reprise : la page est enregistrée telle quelle',
+                    'state' => $apres['ok'] ? 'done' : 'warn',
+                ]);
+                $controle = $apres;
+            }
+        }
+
         if (!Mockup::writePage($id, $version, $page, $result['html'])) {
             self::fail('Écriture impossible dans data/mockups. Vérifiez les droits du dossier.');
         }
 
-        $checks = Mockup::inspect($result['html']);
+        $checks = Mockup::inspect($result['html']) + ['ecarts' => $controle['ecarts']];
         self::emit('step', [
-            'message' => 'Page ' . $label . ' générée (' . number_format($checks['size'] / 1024, 1, ',', ' ') . ' Ko)',
+            'message' => 'Page ' . $label . ' générée (' . number_format($checks['size'] / 1024, 1, ',', ' ') . ' Ko'
+                . ($controle['ok'] ? ', conforme au socle' : '') . ')',
             'state' => 'done',
         ]);
 
