@@ -38,6 +38,8 @@ h2 { font-size: 18px; }
 h3 { font-size: 15px; }
 p { margin: 0 0 1em; }
 code, pre, .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 13px; }
+code, .mono, .break { overflow-wrap: anywhere; }
+td, th { overflow-wrap: anywhere; }
 
 /* ------------------------------------------------------------ Structure */
 
@@ -263,8 +265,10 @@ td.right, th.right { text-align: right; }
 .timeline li:last-child { border-bottom: 0; }
 .timeline .when { color: var(--faint); font-size: 12px; margin-left: auto; white-space: nowrap; }
 
-.pipeline { display: flex; gap: 14px; overflow-x: auto; padding-bottom: 12px; }
-.pipeline .col { flex: 0 0 260px; background: #eef0f3; border-radius: var(--radius); padding: 12px; }
+/* Grille qui se replie : dix colonnes côte à côte imposeraient 2 700 px de
+   large, donc un défilement latéral permanent, y compris sur grand écran. */
+.pipeline { display: grid; grid-template-columns: repeat(auto-fill, minmax(228px, 1fr)); gap: 14px; align-items: start; }
+.pipeline .col { background: #eef0f3; border-radius: var(--radius); padding: 12px; min-width: 0; }
 .pipeline .col h3 { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); display: flex; }
 .pipeline .col h3 span { margin-left: auto; }
 .pipeline .item { background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; margin-bottom: 9px; display: block; text-decoration: none; color: inherit; }
@@ -290,6 +294,10 @@ td.right, th.right { text-align: right; }
     line-height: 1.65;
     max-height: 260px;
     overflow-y: auto;
+    /* Les commandes et les messages d'erreur sont longs : ils se replient
+       plutôt que d'imposer un défilement horizontal. */
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
 }
 .console .line.done { color: #6ee7b7; }
 .console .line.warn { color: #fcd34d; }
@@ -315,16 +323,45 @@ td.right, th.right { text-align: right; }
 .empty { text-align: center; padding: 44px 20px; color: var(--muted); }
 .empty h3 { color: var(--ink); }
 
+/* Sous 1150px, on resserre les cellules plutôt que de laisser le tableau
+   dépasser de quelques dizaines de pixels. */
+@media (max-width: 1150px) {
+    th, td { padding: 9px 8px; }
+    .table-wrap .nowrap { white-space: normal; }
+}
+
+/* Sous 780px, chaque ligne devient une fiche : un tableau à sept colonnes ne
+   tient pas sur un téléphone, quelle que soit la compression. */
+@media (max-width: 780px) {
+    .table-wrap table, .table-wrap tbody, .table-wrap tr, .table-wrap td { display: block; width: 100%; }
+    .table-wrap thead { display: none; }
+    .table-wrap tr { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; margin-bottom: 10px; }
+    .table-wrap tr:hover { background: #fafbfc; }
+    .table-wrap td { border: 0; padding: 5px 0; text-align: left; }
+    .table-wrap td[data-label]::before {
+        content: attr(data-label);
+        display: block;
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: .04em;
+        color: var(--muted);
+        font-weight: 600;
+        margin-bottom: 2px;
+    }
+    .table-wrap td:empty { display: none; }
+}
+
 @media (max-width: 1080px) {
     .grid.cols-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .grid.side { grid-template-columns: minmax(0, 1fr); }
 }
 @media (max-width: 860px) {
     .shell { flex-direction: column; }
-    .sidebar { width: auto; flex: none; flex-direction: row; align-items: center; overflow-x: auto; padding: 10px; gap: 6px; }
+    .sidebar { width: auto; flex: none; flex-direction: row; align-items: center; flex-wrap: wrap; padding: 10px; gap: 6px; }
     .sidebar .brand { padding: 0 12px 0 6px; }
     .sidebar .brand small { display: none; }
-    .sidebar nav { display: flex; gap: 4px; }
+    .sidebar nav { display: flex; gap: 4px; flex-wrap: wrap; }
+    .sidebar nav a { padding: 7px 10px; font-size: 13.5px; }
     /* Le pied disparaît en mobile, mais jamais la déconnexion : elle rejoint
        la barre de navigation horizontale. */
     .sidebar .spacer, .sidebar .foot { display: none; }

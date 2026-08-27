@@ -33,9 +33,9 @@ require __DIR__ . '/../partials/header.php';
                 <tbody>
                 <?php foreach ($rows as $row): ?>
                     <tr>
-                        <td class="mono"><?= e((string) $row['email']) ?></td>
-                        <td class="small muted"><?= e((string) $row['reason']) ?></td>
-                        <td class="small muted"><?= e(dt((int) $row['at'])) ?></td>
+                        <td class="mono" data-label="Adresse"><?= e((string) $row['email']) ?></td>
+                        <td class="small muted" data-label="Motif"><?= e((string) $row['reason']) ?></td>
+                        <td class="small muted" data-label="Date"><?= e(dt((int) $row['at'])) ?></td>
                         <td class="right">
                             <form method="post" data-confirm="Retirer cette adresse de la liste ? Elle pourra de nouveau être contactée.">
                                 <?= Csrf::field() ?>

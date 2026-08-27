@@ -71,12 +71,12 @@ require __DIR__ . '/../partials/header.php';
                 <?php foreach ($rows as $row): ?>
                     <?php $stats = $row['stats'] ?? []; ?>
                     <tr>
-                        <td>
+                        <td data-label="Entreprise">
                             <a href="<?= e(url('prospect', ['id' => $row['id']])) ?>" class="strong"><?= e(Prospect::displayName($row)) ?></a>
                             <div class="tiny muted"><?= e((string) $row['domain']) ?><?= ($row['city'] ?? '') !== '' ? ' · ' . e((string) $row['city']) : '' ?></div>
                         </td>
-                        <td><?php $score = $row['score']; require __DIR__ . '/../partials/score.php'; ?></td>
-                        <td>
+                        <td data-label="Score"><?php $score = $row['score']; require __DIR__ . '/../partials/score.php'; ?></td>
+                        <td data-label="Contact">
                             <?php $contact = Prospect::contactName($row); ?>
                             <?php if ($contact !== ''): ?><div class="small"><?= e($contact) ?></div><?php endif; ?>
                             <?php if (($row['email'] ?? '') !== ''): ?>
@@ -85,8 +85,8 @@ require __DIR__ . '/../partials/header.php';
                                 <span class="badge warn">Email manquant</span>
                             <?php endif; ?>
                         </td>
-                        <td><?php $status = (string) $row['status']; require __DIR__ . '/../partials/status.php'; ?></td>
-                        <td class="small">
+                        <td data-label="Statut"><?php $status = (string) $row['status']; require __DIR__ . '/../partials/status.php'; ?></td>
+                        <td class="small" data-label="Séquence">
                             <?php if (!empty($row['sequence']['active'])): ?>
                                 <span class="badge brand">Email <?= (int) $row['sequence']['step'] + 1 ?> le <?= e(dt((int) $row['sequence']['next_at'], 'd/m')) ?></span>
                             <?php elseif ((int) ($row['sequence']['step'] ?? 0) > 0): ?>
@@ -95,8 +95,8 @@ require __DIR__ . '/../partials/header.php';
                                 <span class="faint">—</span>
                             <?php endif; ?>
                         </td>
-                        <td class="right nowrap"><?= e(price((float) ($row['monthly_price'] ?? 0))) ?></td>
-                        <td class="right nowrap tiny muted">
+                        <td class="right nowrap" data-label="Tarif"><?= e(price((float) ($row['monthly_price'] ?? 0))) ?></td>
+                        <td class="right nowrap tiny muted" data-label="Suivi">
                             <?= (int) ($stats['opens'] ?? 0) ?> ouv. · <?= (int) ($stats['views'] ?? 0) ?> vues
                         </td>
                     </tr>

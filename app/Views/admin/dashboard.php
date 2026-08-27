@@ -112,11 +112,11 @@ $failing = array_filter($health, static fn (array $check): bool => !$check['ok']
                     <?php foreach (App\Templates::STEPS as $step => $label): ?>
                         <?php $row = $sends['by_step'][$step] ?? []; ?>
                         <tr>
-                            <td><?= e($label) ?></td>
-                            <td class="right"><?= (int) ($row['sent'] ?? 0) ?></td>
-                            <td class="right"><?= (int) ($row['opened'] ?? 0) ?></td>
-                            <td class="right"><?= (int) ($row['clicked'] ?? 0) ?></td>
-                            <td class="right"><?= number_format(App\Stats::rate((int) ($row['clicked'] ?? 0), (int) ($row['sent'] ?? 0)), 1, ',', ' ') ?> %</td>
+                            <td data-label="Étape"><?= e($label) ?></td>
+                            <td class="right" data-label="Envoyés"><?= (int) ($row['sent'] ?? 0) ?></td>
+                            <td class="right" data-label="Ouverts"><?= (int) ($row['opened'] ?? 0) ?></td>
+                            <td class="right" data-label="Cliqués"><?= (int) ($row['clicked'] ?? 0) ?></td>
+                            <td class="right" data-label="Taux de clic"><?= number_format(App\Stats::rate((int) ($row['clicked'] ?? 0), (int) ($row['sent'] ?? 0)), 1, ',', ' ') ?> %</td>
                         </tr>
                     <?php endforeach; ?>
                     </tbody>

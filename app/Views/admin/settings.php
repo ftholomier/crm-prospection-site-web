@@ -116,15 +116,15 @@ $secretPlaceholder = static fn (string $value): string => $value !== '' ? 'Valeu
                 <tbody>
                 <?php foreach ($models as $model): ?>
                     <tr<?= $currentModel === $model['id'] ? ' style="background:var(--brand-soft)"' : '' ?>>
-                        <td>
+                        <td data-label="Modèle">
                             <strong><?= e($model['name']) ?></strong>
                             <?php if ($currentModel === $model['id']): ?><span class="badge brand">Actif</span><?php endif; ?>
                             <div class="tiny muted mono"><?= e($model['id']) ?></div>
                         </td>
-                        <td class="right nowrap"><?= $model['input'] === null ? '<span class="faint">—</span>' : e(number_format((float) $model['input'], 2, ',', ' ')) . ' $' ?></td>
-                        <td class="right nowrap"><?= $model['output'] === null ? '<span class="faint">—</span>' : e(number_format((float) $model['output'], 2, ',', ' ')) . ' $' ?></td>
-                        <td class="right nowrap strong"><?= e(App\Models::formatCost($model['cost'])) ?></td>
-                        <td class="tiny muted">
+                        <td class="right nowrap" data-label="Entrée"><?= $model['input'] === null ? '<span class="faint">—</span>' : e(number_format((float) $model['input'], 2, ',', ' ')) . ' $' ?></td>
+                        <td class="right nowrap" data-label="Sortie"><?= $model['output'] === null ? '<span class="faint">—</span>' : e(number_format((float) $model['output'], 2, ',', ' ')) . ' $' ?></td>
+                        <td class="right nowrap strong" data-label="Coût / maquette"><?= e(App\Models::formatCost($model['cost'])) ?></td>
+                        <td class="tiny muted" data-label="Capacités">
                             <?= !empty($model['adaptive']) ? 'réflexion adaptative' : 'sans réflexion adaptative' ?><?php
                             ?><?= $model['efforts'] === [] ? ', sans niveau d\'effort' : ', effort ' . e(implode('/', $model['efforts'])) ?><?php
                             ?><?= empty($model['structured']) ? ', sans sortie structurée' : '' ?>

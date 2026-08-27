@@ -301,7 +301,7 @@ $mailable = Prospect::isMailable($p);
                             $last = $sent[0] ?? null;
                             ?>
                             <tr>
-                                <td>
+                                <td data-label="Étape">
                                     <strong><?= e($label) ?></strong>
                                     <?php if ($last === null && !empty($sequence['active']) && (int) $sequence['step'] + 1 === $step): ?>
                                         <div class="tiny muted">Programmé le <?= e(dt((int) $sequence['next_at'], 'd/m à H:i')) ?></div>
@@ -309,7 +309,7 @@ $mailable = Prospect::isMailable($p);
                                         <div class="tiny faint">Prévu <?= e(dt((int) ($schedule[$step] ?? 0), 'd/m')) ?> si lancée aujourd'hui</div>
                                     <?php endif; ?>
                                 </td>
-                                <td class="small">
+                                <td class="small" data-label="État">
                                     <?php if ($last === null): ?>
                                         <span class="faint">Pas encore envoyé</span>
                                     <?php else: ?>
@@ -318,7 +318,7 @@ $mailable = Prospect::isMailable($p);
                                         <?php if (!empty($last['clicked_at'])): ?><span class="badge ok">Cliqué</span><?php endif; ?>
                                     <?php endif; ?>
                                 </td>
-                                <td class="right nowrap">
+                                <td class="right nowrap" data-label="Actions">
                                     <a class="btn small ghost" href="<?= e(url('email_preview', ['id' => $id, 'step' => $step])) ?>" target="_blank" rel="noopener">Aperçu</a>
                                     <form method="post" action="<?= e(url('send_now')) ?>" style="display:inline"
                                           data-confirm="Envoyer maintenant l'email <?= (int) $step ?> à <?= e((string) $p['email']) ?> ?">
