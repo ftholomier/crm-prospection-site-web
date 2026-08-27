@@ -51,10 +51,8 @@ foreach (Prospect::index() as $indexRow) {
             <?php endforeach; ?>
         </nav>
         <div class="spacer"></div>
-        <div class="foot">
-            Version <?= e(APP_VERSION) ?><br>
-            <a href="<?= e(url('logout')) ?>">Se déconnecter</a>
-        </div>
+        <a class="logout" href="<?= e(url('logout')) ?>">Se déconnecter</a>
+        <div class="foot">Version <?= e(APP_VERSION) ?></div>
     </aside>
     <main class="main">
         <?php foreach (Flash::pull() as $flash): ?>

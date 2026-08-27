@@ -77,8 +77,18 @@ code, pre, .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, m
 .sidebar nav a.active { background: var(--brand); color: #fff; font-weight: 600; }
 .sidebar nav a .count { margin-left: auto; font-size: 11px; opacity: .75; }
 .sidebar .spacer { flex: 1; }
-.sidebar .foot { font-size: 11px; color: #64748b; padding: 10px; border-top: 1px solid rgba(255,255,255,.08); }
-.sidebar .foot a { color: #94a3b8; }
+.sidebar .logout {
+    display: block;
+    padding: 9px 10px;
+    border-radius: 8px;
+    color: #94a3b8;
+    text-decoration: none;
+    font-size: 13px;
+    border: 1px solid rgba(255, 255, 255, .12);
+    text-align: center;
+}
+.sidebar .logout:hover { background: rgba(255, 255, 255, .07); color: #fff; }
+.sidebar .foot { font-size: 11px; color: #64748b; padding: 10px 10px 0; text-align: center; }
 
 .main { flex: 1; min-width: 0; padding: 26px 30px 60px; }
 .page-head { display: flex; align-items: flex-start; gap: 16px; flex-wrap: wrap; margin-bottom: 22px; }
@@ -315,7 +325,10 @@ td.right, th.right { text-align: right; }
     .sidebar .brand { padding: 0 12px 0 6px; }
     .sidebar .brand small { display: none; }
     .sidebar nav { display: flex; gap: 4px; }
+    /* Le pied disparaît en mobile, mais jamais la déconnexion : elle rejoint
+       la barre de navigation horizontale. */
     .sidebar .spacer, .sidebar .foot { display: none; }
+    .sidebar .logout { margin-left: auto; flex: 0 0 auto; white-space: nowrap; padding: 9px 12px; }
     .main { padding: 18px 16px 50px; }
     .grid.cols-2, .grid.cols-3, .grid.cols-4 { grid-template-columns: minmax(0, 1fr); }
     .field-row, .field-row.three { grid-template-columns: minmax(0, 1fr); }
