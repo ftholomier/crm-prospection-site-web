@@ -429,7 +429,7 @@ final class Generator
             . "<link rel=\"stylesheet\" href=\"socle.css\">\n"
             . "<style>\n" . $root . "\n</style>\n"
             . "</head>\n<body>\n"
-            . trim($corps) . "\n"
+            . trim(self::alterner($corps)) . "\n"
             . "<script src=\"socle.js\"></script>\n"
             . "</body>\n</html>\n";
     }
@@ -454,6 +454,106 @@ final class Generator
     }
 
     /**
+     * Sections foncées du socle. Elles commandent l'alternance des fonds :
+     * deux sections claires qui se suivent sans les distinguer se lisent comme
+     * une seule, très longue.
+     */
+    private const SECTIONS_SOMBRES = ['heros', 'indicateurs', 'citation', 'bande-cta', 'section--sombre'];
+
+    /**
+     * Squelette d'une page : la suite ordonnée de ses sections de premier
+     * niveau, réduite à leurs classes. C'est ce qui fait qu'une maquette
+     * ressemble à la référence, bien plus que le détail de son contenu.
+     *
+     * @return string[] p. ex. ['heros', 'indicateurs', 'section', 'section section--teinte']
+     */
+    public static function squelette(string $html): array
+    {
+        $doc = Scraper::parse('<!doctype html><html><body>' . Mockup::bodyOf($html) . '</body></html>');
+        $mains = $doc->getElementsByTagName('main');
+        $racine = $mains->length > 0 ? $mains->item(0) : null;
+        if ($racine === null) {
+            return [];
+        }
+
+        $suite = [];
+        foreach ($racine->childNodes as $noeud) {
+            if (!$noeud instanceof \DOMElement) {
+                continue;
+            }
+            $classes = array_values(array_filter(
+                preg_split('/\s+/', trim($noeud->getAttribute('class'))) ?: [],
+                // « reveler » ne décrit pas la section, seulement son apparition.
+                static fn (string $c): bool => $c !== '' && $c !== 'reveler'
+            ));
+            $suite[] = $classes === [] ? strtolower($noeud->nodeName) : implode(' ', $classes);
+        }
+        return $suite;
+    }
+
+    /**
+     * La suite produite est-elle celle du gabarit, éventuellement amputée ?
+     *
+     * Retirer une section est autorisé — c'est même la règle quand la matière
+     * manque. En ajouter une, en déplacer une ou en inventer une ne l'est pas :
+     * l'ergonomie de la référence tient à cet ordre.
+     *
+     * @return string[] les sections en trop ou déplacées
+     */
+    private static function ecartsDeSquelette(array $produit, array $reference): array
+    {
+        $restant = $reference;
+        $intrus = [];
+        foreach ($produit as $section) {
+            $position = array_search($section, $restant, true);
+            if ($position === false) {
+                $intrus[] = $section;
+                continue;
+            }
+            // Tout ce qui précède la section retenue est définitivement passé :
+            // une section réapparue plus loin est donc un déplacement.
+            $restant = array_slice($restant, $position + 1);
+        }
+        return $intrus;
+    }
+
+    /**
+     * Rétablit l'alternance des fonds entre sections claires.
+     *
+     * Une section supprimée laisse parfois deux fonds identiques côte à côte.
+     * Plutôt que de l'interdire au modèle — ce qui le pousserait à garder une
+     * section vide — on remet l'alternance ici, après coup.
+     */
+    public static function alterner(string $corps): string
+    {
+        $clair = 0;
+        return preg_replace_callback(
+            '~<section\s+class="([^"]*)"~i',
+            static function (array $m) use (&$clair): string {
+                $classes = preg_split('/\s+/', trim($m[1])) ?: [];
+                foreach (self::SECTIONS_SOMBRES as $sombre) {
+                    if (in_array($sombre, $classes, true)) {
+                        // Une bande foncée ne relance pas le compte : les trois
+                        // gabarits alternent d'un bout à l'autre de la page,
+                        // sans repartir de zéro après un aplat sombre.
+                        return $m[0];
+                    }
+                }
+                if (!in_array('section', $classes, true)) {
+                    return $m[0];
+                }
+                $classes = array_values(array_diff($classes, ['section--teinte']));
+                if ($clair % 2 === 1) {
+                    array_splice($classes, 1, 0, 'section--teinte');
+                }
+                $clair++;
+                return '<section class="' . implode(' ', $classes) . '"';
+            },
+            $corps
+        ) ?? $corps;
+    }
+
+    /**
      * Contrôle d'une page avant qu'elle ne parte au prospect.
      *
      * Le contraste n'est pas vérifié ici : il ne peut plus dévier, puisque les
@@ -465,8 +565,9 @@ final class Generator
      *
      * @return array{ok:bool,ecarts:string[]}
      */
-    public static function verifier(string $html, array $actifs): array
+    public static function verifier(string $html, array $actifs, string $page): array
     {
+        $page = Mockup::safePage($page);
         $corps = Mockup::bodyOf($html);
         $ecarts = [];
 
@@ -523,6 +624,13 @@ final class Generator
             $ecarts[] = 'Photos qui n\'existent pas et resteront cassées : '
                 . implode(', ', array_slice(array_keys($inventees), 0, 8))
                 . '. Supprime les blocs illustrés faute de photo, ne devine pas une adresse.';
+        }
+
+        $intrus = self::ecartsDeSquelette(self::squelette($html), self::squelette(self::gabarit($page)));
+        if ($intrus !== []) {
+            $ecarts[] = 'Sections ajoutées ou déplacées par rapport au gabarit : '
+                . implode(' / ', array_slice($intrus, 0, 6))
+                . '. L\'ordre des sections est celui du gabarit ; on peut en retirer, jamais en ajouter ni en intervertir.';
         }
 
         $manquants = array_values(array_filter(

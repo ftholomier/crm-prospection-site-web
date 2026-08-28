@@ -344,7 +344,7 @@ final class Stream
         // repart au modèle avec la liste des écarts. Une seule reprise — si
         // elle ne suffit pas, mieux vaut livrer et le dire que boucler.
         $actifs = Assets::forPrompt($id);
-        $controle = Generator::verifier($result['html'], $actifs);
+        $controle = Generator::verifier($result['html'], $actifs, $page);
         if (!$controle['ok']) {
             self::emit('step', [
                 'message' => 'Écarts au socle relevés sur « ' . $label . ' » : ' . count($controle['ecarts'])
@@ -365,7 +365,7 @@ final class Stream
                     . implode("\n- ", $controle['ecarts'])
             );
             if ($reprise['ok']) {
-                $apres = Generator::verifier($reprise['html'], $actifs);
+                $apres = Generator::verifier($reprise['html'], $actifs, $page);
                 $result = $reprise;
                 self::emit('step', [
                     'message' => $apres['ok']

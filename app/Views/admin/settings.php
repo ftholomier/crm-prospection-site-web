@@ -174,9 +174,14 @@ $secretPlaceholder = static fn (string $value): string => $value !== '' ? 'Valeu
             </div>
         </div>
         <div class="field">
-            <label for="design_prompt">Prompt global de design</label>
+            <label for="design_prompt">Prompt global — rédaction et contenu</label>
             <textarea class="code" name="design_prompt" id="design_prompt" rows="18"><?= e((string) $config['design']['global_prompt']) ?></textarea>
-            <span class="hint muted tiny">Ces consignes s'appliquent à toutes les maquettes. Chaque fiche prospect peut y ajouter des consignes spécifiques.</span>
+            <span class="hint muted tiny">
+                La partie graphique n'est plus négociable : la mise en page vient des gabarits, les couleurs
+                du calcul de palette, et une page qui écrirait son propre style est refusée avant l'envoi.
+                Ce prompt commande ce qui reste — le ton, les mots, les sections à garder ou à retirer, ce
+                qu'on s'interdit d'inventer. Chaque fiche prospect peut y ajouter ses propres consignes.
+            </span>
         </div>
         <label class="check">
             <input type="checkbox" name="allow_google_fonts" value="1" <?= !empty($config['design']['allow_google_fonts']) ? 'checked' : '' ?>>
