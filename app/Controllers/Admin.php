@@ -16,6 +16,7 @@ use App\Mail\Smtp;
 use App\Mailer;
 use App\Models;
 use App\Mockup;
+use App\Palette;
 use App\Portrait;
 use App\Prospect;
 use App\Router;
@@ -493,6 +494,108 @@ final class Admin
         echo Mockup::forPublic($html, $links, '', $ressources);
     }
 
+    /**
+     * Enregistre les trois couleurs réglables de la fiche.
+     *
+     * Elles sont conservées à part de la palette calculée : une nouvelle
+     * analyse recalcule tout le reste, mais ne défait pas une correction faite
+     * à la main.
+     */
+    public static function prospectPalette(): void
+    {
+        Auth::requireLogin();
+        Csrf::requireValid();
+
+        $id = (string) ($_POST['id'] ?? '');
+        $prospect = Prospect::find($id);
+        if ($prospect === null) {
+            Flash::error('Prospect introuvable.');
+            Util::redirect(Router::url('prospects'));
+        }
+
+        if (($_POST['action'] ?? '') === 'reset') {
+            $updated = Prospect::update($id, static function (array $p): array {
+                unset($p['palette_manuelle']);
+                $p['palette'] = Palette::forAnalysis($p['analysis'] ?? []);
+                return $p;
+            });
+            Flash::success('Couleurs remises sur ce qui a été relevé du site.');
+            Util::redirect(Router::url('prospect', ['id' => (string) ($updated['id'] ?? $id)]));
+        }
+
+        $manuelle = [];
+        $refusees = [];
+        foreach (['marque', 'titres', 'corps'] as $cle) {
+            $saisie = trim((string) ($_POST['couleur_' . $cle] ?? ''));
+            if ($saisie === '') {
+                continue;
+            }
+            $normalisee = Palette::normalize($saisie);
+            if ($normalisee === null) {
+                $refusees[] = $saisie;
+                continue;
+            }
+            $manuelle[$cle] = $normalisee;
+        }
+
+        if ($refusees !== []) {
+            Flash::error('Couleur non reconnue : ' . implode(', ', $refusees) . '. Attendu : #a1b2c3.');
+            Util::redirect(Router::url('prospect', ['id' => $id]));
+        }
+
+        $updated = Prospect::update($id, static function (array $p) use ($manuelle): array {
+            $p['palette_manuelle'] = $manuelle;
+            $p['palette'] = Palette::forAnalysis($p['analysis'] ?? [], $manuelle);
+            return $p;
+        });
+
+        $palette = $updated['palette'] ?? [];
+        $fragiles = [];
+        foreach (Palette::reglages($palette) as $reglage) {
+            if (!Palette::lisible($reglage['ratio'])) {
+                $fragiles[] = mb_strtolower($reglage['label']) . ' (' . number_format((float) $reglage['ratio'], 2, ',', ' ') . ':1)';
+            }
+        }
+
+        if ($fragiles !== []) {
+            Flash::error('Couleurs enregistrées, mais sous le seuil de lisibilité : '
+                . implode(', ', $fragiles) . '. Il en faut 4,5:1 sur les deux fonds du socle.');
+        } else {
+            Flash::success('Couleurs enregistrées. Elles seront reprises à la prochaine génération.');
+        }
+        Util::redirect(Router::url('prospect', ['id' => $id]));
+    }
+
+    /** Dépôt manuel du logo, quand la lecture du site ne l'a pas trouvé. */
+    public static function prospectLogo(): void
+    {
+        Auth::requireLogin();
+        Csrf::requireValid();
+
+        $id = (string) ($_POST['id'] ?? '');
+        $prospect = Prospect::find($id);
+        if ($prospect === null) {
+            Flash::error('Prospect introuvable.');
+            Util::redirect(Router::url('prospects'));
+        }
+        $id = (string) $prospect['id'];
+
+        if (($_POST['action'] ?? '') === 'delete') {
+            Assets::forgetLogo($id);
+            Flash::success('Logo retiré.');
+            Util::redirect(Router::url('prospect', ['id' => $id]));
+        }
+
+        $result = Assets::replaceLogo($id, $_FILES['logo'] ?? []);
+        if ($result['ok']) {
+            Events::log($id, 'assets', ['message' => 'Logo déposé à la main']);
+            Flash::success('Logo enregistré. Il sera repris dans les maquettes générées ensuite.');
+        } else {
+            Flash::error($result['error']);
+        }
+        Util::redirect(Router::url('prospect', ['id' => $id]));
+    }
+
     /** Sert un actif de maquette dans la prévisualisation de l'administration. */
     public static function mockupAsset(): void
     {
@@ -502,6 +605,11 @@ final class Admin
             http_response_code(404);
             exit;
         }
+        // Un SVG est un document : servi depuis notre domaine, il pourrait
+        // exécuter du script. Il est déjà nettoyé au dépôt ; cet en-tête ferme
+        // ce qui aurait pu passer au travers.
+        header('Content-Security-Policy: default-src \'none\'; style-src \'unsafe-inline\'; img-src data:');
+        header('X-Content-Type-Options: nosniff');
         header('Content-Type: ' . Assets::mediaType($path));
         header('Content-Length: ' . (string) filesize($path));
         readfile($path);

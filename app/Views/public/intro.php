@@ -31,9 +31,11 @@ $audit = $prospect['audit'] ?? [];
 $findings = array_slice($audit['findings'] ?? [], 0, 5);
 $score = isset($audit['score']) ? (int) $audit['score'] : null;
 
-$palette = is_array($palette ?? null) && isset($palette['marque'])
+// Même garde que Generator::palette() : une palette d'avant les trois réglages
+// est recalculée plutôt que servie avec des jetons manquants.
+$palette = is_array($palette ?? null) && isset($palette['marque'], $palette['marque_fonce'])
     ? $palette
-    : Palette::forAnalysis($prospect['analysis'] ?? []);
+    : Palette::forAnalysis($prospect['analysis'] ?? [], (array) ($prospect['palette_manuelle'] ?? []));
 ?>
 <!DOCTYPE html>
 <html lang="fr">

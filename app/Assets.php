@@ -95,13 +95,20 @@ final class Assets
             }
         };
 
-        self::clear($prospectId);
+        // Un logo déposé à la main survit à une nouvelle analyse : il a été
+        // fourni justement parce que la lecture automatique ne le trouve pas,
+        // le réécraser à chaque passage serait absurde.
+        $depose = self::keepManualLogo($prospectId);
+
+        self::clear($prospectId, $depose['fichier'] ?? null);
         $mode = self::mode();
-        $catalogue = ['logo' => null, 'favicon' => null, 'photos' => [], 'mode' => $mode, 'at' => time()];
+        $catalogue = ['logo' => $depose, 'favicon' => null, 'photos' => [], 'mode' => $mode, 'at' => time()];
         $total = 0;
 
         $logo = trim((string) ($analysis['logo'] ?? ''));
-        if ($logo !== '') {
+        if ($depose !== null) {
+            $say('Logo déposé à la main, conservé', 'done');
+        } elseif ($logo !== '') {
             $say('Récupération du logo');
             $stored = self::store($prospectId, $logo, 'logo', $total);
             if ($stored !== null) {
@@ -111,6 +118,8 @@ final class Assets
             } else {
                 $say('Logo inexploitable, ignoré', 'warn');
             }
+        } else {
+            $say('Aucun logo trouvé sur le site — vous pouvez le déposer depuis la fiche', 'warn');
         }
 
         $favicon = trim((string) ($analysis['favicon'] ?? ''));
@@ -342,6 +351,106 @@ final class Assets
         };
     }
 
+    /**
+     * Remplace le logo par un fichier fourni à la main.
+     *
+     * Le logo est ce qui manque le plus souvent : beaucoup de sites le posent
+     * en fond CSS, ou sous un nom qui ne le désigne pas. Plutôt que de deviner
+     * mieux, on laisse le déposer — c'est plus sûr et c'est immédiat.
+     *
+     * @param array $fichier une entrée de $_FILES
+     * @return array{ok:bool,error:string}
+     */
+    public static function replaceLogo(string $prospectId, array $fichier): array
+    {
+        $erreur = (int) ($fichier['error'] ?? UPLOAD_ERR_NO_FILE);
+        if ($erreur === UPLOAD_ERR_NO_FILE) {
+            return ['ok' => false, 'error' => 'Aucun fichier reçu.'];
+        }
+        if ($erreur !== UPLOAD_ERR_OK) {
+            return ['ok' => false, 'error' => match ($erreur) {
+                UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE => 'Fichier trop lourd pour le serveur.',
+                UPLOAD_ERR_PARTIAL => 'Envoi interrompu, réessayez.',
+                default => 'Envoi impossible (code ' . $erreur . ').',
+            }];
+        }
+
+        $chemin = (string) ($fichier['tmp_name'] ?? '');
+        if ($chemin === '' || !is_uploaded_file($chemin)) {
+            return ['ok' => false, 'error' => 'Fichier introuvable après envoi.'];
+        }
+        if (filesize($chemin) > self::MAX_FICHIER) {
+            return ['ok' => false, 'error' => 'Le logo dépasse ' . Scraper::humanSize(self::MAX_FICHIER) . '.'];
+        }
+
+        $binaire = (string) file_get_contents($chemin);
+        $nomEnvoye = strtolower((string) ($fichier['name'] ?? ''));
+
+        // Le type déclaré par le navigateur n'engage personne : c'est le
+        // contenu qui décide, comme partout ailleurs dans l'application.
+        if (str_contains(strtolower($binaire), '<svg')) {
+            $svg = self::sanitizeSvg($binaire);
+            if ($svg === null) {
+                return ['ok' => false, 'error' => 'Ce SVG est illisible.'];
+            }
+            $entree = [
+                'fichier' => 'logo.svg', 'distant' => '', 'largeur' => 0, 'hauteur' => 0,
+                'orientation' => 'vectoriel', 'poids' => strlen($svg), 'source' => 'dépôt manuel',
+            ];
+            $contenu = $svg;
+        } else {
+            $probe = Image::probe($binaire);
+            if ($probe === null) {
+                return ['ok' => false, 'error' => 'Format non reconnu. Attendu : PNG, JPEG, WebP, GIF ou SVG.'];
+            }
+            if (max($probe['width'], $probe['height']) > self::MAX_EDGE) {
+                $reduit = Image::downscale($binaire, $probe, self::MAX_EDGE);
+                if ($reduit !== null) {
+                    $binaire = $reduit;
+                    $probe = Image::probe($binaire) ?? $probe;
+                }
+            }
+            $entree = [
+                'fichier' => 'logo.' . $probe['extension'], 'distant' => '',
+                'largeur' => $probe['width'], 'hauteur' => $probe['height'],
+                'orientation' => self::orientation($probe['width'], $probe['height']),
+                'poids' => strlen($binaire), 'source' => 'dépôt manuel',
+            ];
+            $contenu = $binaire;
+        }
+
+        $catalogue = self::catalogue($prospectId);
+        self::removeLogoFiles($prospectId, $catalogue);
+        if (@file_put_contents(self::dir($prospectId) . '/' . $entree['fichier'], $contenu) === false) {
+            return ['ok' => false, 'error' => 'Écriture impossible dans data/mockups : vérifiez les droits du dossier.'];
+        }
+
+        $catalogue['logo'] = $entree;
+        Store::write(self::cataloguePath($prospectId), $catalogue);
+        return ['ok' => true, 'error' => '', 'nom' => $nomEnvoye];
+    }
+
+    /** Retire le logo du catalogue, et son fichier s'il était chez nous. */
+    public static function forgetLogo(string $prospectId): void
+    {
+        $catalogue = self::catalogue($prospectId);
+        self::removeLogoFiles($prospectId, $catalogue);
+        $catalogue['logo'] = null;
+        Store::write(self::cataloguePath($prospectId), $catalogue);
+    }
+
+    /** Un logo remplacé peut avoir une autre extension : on efface les deux. */
+    private static function removeLogoFiles(string $prospectId, array $catalogue): void
+    {
+        $ancien = $catalogue['logo']['fichier'] ?? null;
+        if ($ancien !== null) {
+            @unlink(self::dir($prospectId) . '/' . basename((string) $ancien));
+        }
+        foreach (glob(self::dir($prospectId) . '/logo.*') ?: [] as $fichier) {
+            @unlink($fichier);
+        }
+    }
+
     /** Retire scripts et gestionnaires d'événements d'un SVG. */
     private static function sanitizeSvg(string $svg): ?string
     {
@@ -355,10 +464,24 @@ final class Assets
         return $svg;
     }
 
-    public static function clear(string $prospectId): void
+    /** L'entrée du logo si, et seulement si, il a été déposé à la main. */
+    private static function keepManualLogo(string $prospectId): ?array
+    {
+        $logo = self::catalogue($prospectId)['logo'] ?? null;
+        if (!is_array($logo) || ($logo['source'] ?? '') !== 'dépôt manuel') {
+            return null;
+        }
+        return self::pathOf($prospectId, (string) ($logo['fichier'] ?? '')) !== null ? $logo : null;
+    }
+
+    public static function clear(string $prospectId, ?string $garder = null): void
     {
         $dir = self::dir($prospectId);
+        $garder = $garder === null ? null : basename($garder);
         foreach (glob($dir . '/*') ?: [] as $file) {
+            if ($garder !== null && basename($file) === $garder) {
+                continue;
+            }
             @unlink($file);
         }
     }

@@ -319,8 +319,42 @@
         });
     }
 
+    /**
+     * Les deux façons de saisir une couleur restent d'accord entre elles : le
+     * sélecteur pour choisir à l'œil, le champ texte pour coller un code de
+     * charte. Seul le sélecteur est envoyé — le champ texte n'a pas de name.
+     */
+    function bindCouleurs() {
+        var champs = document.querySelectorAll('[data-couleur]');
+        Array.prototype.forEach.call(champs, function (pastille) {
+            var cle = pastille.getAttribute('data-couleur');
+            var texte = document.querySelector('[data-miroir="' + cle + '"]');
+            if (!texte) { return; }
+
+            pastille.addEventListener('input', function () {
+                texte.value = pastille.value;
+            });
+            texte.addEventListener('input', function () {
+                var valeur = texte.value.trim();
+                if (valeur.charAt(0) !== '#') { valeur = '#' + valeur; }
+                // La forme courte est acceptée : on la développe pour le sélecteur,
+                // qui n'accepte que six caractères.
+                if (/^#[0-9a-f]{3}$/i.test(valeur)) {
+                    valeur = '#' + valeur[1] + valeur[1] + valeur[2] + valeur[2] + valeur[3] + valeur[3];
+                }
+                if (/^#[0-9a-f]{6}$/i.test(valeur)) {
+                    pastille.value = valeur.toLowerCase();
+                }
+            });
+            texte.addEventListener('blur', function () {
+                texte.value = pastille.value;
+            });
+        });
+    }
+
     document.addEventListener('DOMContentLoaded', function () {
         bindAnalyze();
+        bindCouleurs();
         bindGenerate();
         bindDevices();
         bindVariables();

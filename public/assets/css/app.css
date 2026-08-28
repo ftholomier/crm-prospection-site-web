@@ -438,3 +438,40 @@ td.right, th.right { text-align: right; }
 }
 
 .liste-actifs span { overflow-wrap: anywhere; }
+
+/* Réglage d'une couleur : la pastille, le code hexadécimal et le contraste
+   mesuré sur la même ligne. Les deux champs restent synchronisés, si bien
+   qu'on peut aussi bien piocher dans le sélecteur que coller un code de charte. */
+.reglage { display: grid; gap: 4px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; }
+.reglage--fragile { border-color: var(--danger); background: var(--danger-soft); }
+.reglage > label { font-size: 13px; font-weight: 600; }
+
+.reglage__saisie { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+.reglage__saisie input[type="color"] {
+    width: 40px; height: 32px; flex: 0 0 40px;
+    padding: 2px; border: 1px solid var(--line); border-radius: 6px;
+    background: none; cursor: pointer;
+}
+
+.reglage__saisie input[type="text"] {
+    /* Sept caractères plus le dièse, plus la marge interne : en dessous, le
+       code se coupe et on ne lit plus la couleur qu'on vient de saisir. */
+    width: 12ch; flex: 0 0 auto;
+    padding: 6px 8px; font-size: 13px; text-transform: lowercase;
+}
+
+.tiny.danger, .small.danger { color: var(--danger); font-weight: 600; }
+
+.logo-apercu {
+    display: grid; place-items: center; padding: 18px;
+    /* Un damier discret : sur un aplat uni, un logo blanc sur fond transparent
+       disparaît sans qu'on comprenne pourquoi. */
+    background:
+        linear-gradient(45deg, var(--line) 25%, transparent 25%, transparent 75%, var(--line) 75%) 0 0 / 16px 16px,
+        linear-gradient(45deg, var(--line) 25%, transparent 25%, transparent 75%, var(--line) 75%) 8px 8px / 16px 16px,
+        var(--surface, #fff);
+    border: 1px solid var(--line); border-radius: 8px;
+}
+
+.logo-apercu img { max-width: 100%; max-height: 120px; }

@@ -5,6 +5,7 @@
  * @var array $palette @var array $actifs
  */
 use App\Assets;
+use App\Palette;
 use App\Config;
 use App\Csrf;
 use App\Events;
@@ -514,50 +515,144 @@ $mailable = Prospect::isMailable($p);
         </div>
 
         <?php if (!empty($palette['marque'])): ?>
+            <?php
+            $reglages = Palette::reglages($palette);
+            $source = (string) ($palette['source'] ?? 'repli');
+            $fragile = false;
+            foreach ($reglages as $r) {
+                $fragile = $fragile || !Palette::lisible($r['ratio']);
+            }
+            ?>
             <div class="card">
                 <div class="card-head">
                     <h2>Charte reprise du site</h2>
-                    <span class="badge <?= ($palette['source'] ?? '') === 'site' ? 'ok' : 'warn' ?>">
-                        <?= ($palette['source'] ?? '') === 'site' ? 'couleur du site' : 'teinte de repli' ?>
+                    <span class="badge <?= $source === 'repli' ? 'warn' : 'ok' ?>">
+                        <?= ['manuelle' => 'réglée à la main', 'site' => 'couleur du site'][$source] ?? 'teinte de repli' ?>
                     </span>
                 </div>
                 <p class="muted small">
-                    <?php if (($palette['source'] ?? '') === 'site'): ?>
-                        Couleur relevée sur le site du prospect. Les trois déclinaisons en sont dérivées en
-                        ne bougeant que la luminosité : la teinte reste reconnaissable, et chaque variante
-                        atteint le contraste minimal là où elle est employée.
+                    <?php if ($source === 'manuelle'): ?>
+                        Ces couleurs ont été réglées à la main. Elles sont conservées telles quelles, y compris
+                        si vous relancez l'analyse du site.
+                    <?php elseif ($source === 'site'): ?>
+                        Couleur relevée sur le site du prospect. Ajustez-la si elle n'est pas la bonne :
+                        les aplats, les accents et le gris des légendes sont recalculés à partir d'elle.
                     <?php else: ?>
                         Aucune couleur de charte nette n'a été trouvée — le site n'emploie que des gris ou
-                        des beiges. La maquette utilise une teinte neutre, à corriger dans les consignes de
-                        la fiche si vous connaissez la couleur de l'entreprise.
+                        des beiges. Réglez la dominante ci-dessous si vous connaissez la couleur de l'entreprise.
                     <?php endif; ?>
                 </p>
-                <div class="palette">
-                    <?php
-                    $jetons = [
-                        'marque' => ['Marque', null],
-                        'fonce' => ['Aplats', $palette['mesures']['fonce_sur_blanc'] ?? null],
-                        'texte' => ['Texte de marque', $palette['mesures']['texte_sur_teinte'] ?? null],
-                        'claire' => ['Sur fond sombre', $palette['mesures']['claire_sur_sombre'] ?? null],
-                        'voile' => ['Voile', null],
-                    ];
-                    ?>
-                    <?php foreach ($jetons as $cle => [$label, $ratio]): ?>
-                        <?php if (!empty($palette[$cle])): ?>
-                            <div class="jeton">
-                                <span class="jeton__pastille" style="background: <?= e((string) $palette[$cle]) ?>"></span>
-                                <span class="jeton__label"><?= e($label) ?></span>
-                                <code class="tiny"><?= e((string) $palette[$cle]) ?></code>
-                                <?php if ($ratio !== null): ?>
-                                    <span class="tiny muted"><?= e(number_format((float) $ratio, 2, ',', ' ')) ?>:1</span>
-                                <?php endif; ?>
+
+                <form method="post" action="<?= e(url('prospect_palette')) ?>" class="stack">
+                    <?= Csrf::field() ?>
+                    <input type="hidden" name="id" value="<?= e($id) ?>">
+                    <div class="palette">
+                        <?php foreach ($reglages as $cle => $reglage): ?>
+                            <?php $ko = !Palette::lisible($reglage['ratio']); ?>
+                            <div class="reglage<?= $ko ? ' reglage--fragile' : '' ?>">
+                                <label for="couleur_<?= e($cle) ?>"><?= e($reglage['label']) ?></label>
+                                <div class="reglage__saisie">
+                                    <input type="color" name="couleur_<?= e($cle) ?>" id="couleur_<?= e($cle) ?>"
+                                           value="<?= e($reglage['valeur']) ?>" data-couleur="<?= e($cle) ?>">
+                                    <input type="text" class="code" value="<?= e($reglage['valeur']) ?>"
+                                           data-miroir="<?= e($cle) ?>" spellcheck="false" aria-label="Code hexadécimal — <?= e($reglage['label']) ?>">
+                                    <?php if ($reglage['ratio'] !== null): ?>
+                                        <span class="tiny <?= $ko ? 'danger' : 'muted' ?>" title="Contraste le plus défavorable, sur les deux fonds du socle">
+                                            <?= e(number_format((float) $reglage['ratio'], 2, ',', ' ')) ?>:1
+                                        </span>
+                                    <?php endif; ?>
+                                </div>
+                                <span class="hint muted tiny"><?= e($reglage['aide']) ?></span>
                             </div>
+                        <?php endforeach; ?>
+                    </div>
+
+                    <?php if ($fragile): ?>
+                        <p class="flash error small">
+                            Une couleur au moins n'atteint pas 4,5:1 sur les deux fonds du socle : elle sera
+                            pénible à lire. Vous pouvez l'enregistrer quand même — c'est votre décision, pas la mienne.
+                        </p>
+                    <?php endif; ?>
+
+                    <div class="row">
+                        <button class="btn small primary" type="submit">Enregistrer les couleurs</button>
+                        <?php if (!empty($p['palette_manuelle'])): ?>
+                            <button class="btn small ghost" type="submit" name="action" value="reset">
+                                Revenir aux couleurs du site
+                            </button>
                         <?php endif; ?>
-                    <?php endforeach; ?>
-                </div>
+                    </div>
+                </form>
+
+                <details class="mt">
+                    <summary class="small">Les déclinaisons calculées à partir de la dominante</summary>
+                    <div class="palette mt">
+                        <?php
+                        $derivees = [
+                            'marque_fonce' => ['Aplats portant du texte clair', $palette['mesures']['fonce_sur_blanc'] ?? null],
+                            'marque_texte' => ['Petit texte de marque', $palette['mesures']['texte_sur_teinte'] ?? null],
+                            'marque_claire' => ['Accents sur fond sombre', $palette['mesures']['claire_sur_sombre'] ?? null],
+                            'marque_voile' => ['Aplats très pâles', null],
+                            'corps_doux' => ['Légendes et chapôs', null],
+                        ];
+                        ?>
+                        <?php foreach ($derivees as $cle => [$label, $ratio]): ?>
+                            <?php if (!empty($palette[$cle])): ?>
+                                <div class="jeton">
+                                    <span class="jeton__pastille" style="background: <?= e((string) $palette[$cle]) ?>"></span>
+                                    <span class="jeton__label"><?= e($label) ?></span>
+                                    <code class="tiny"><?= e((string) $palette[$cle]) ?></code>
+                                    <?php if ($ratio !== null): ?>
+                                        <span class="tiny muted"><?= e(number_format((float) $ratio, 2, ',', ' ')) ?>:1</span>
+                                    <?php endif; ?>
+                                </div>
+                            <?php endif; ?>
+                        <?php endforeach; ?>
+                    </div>
+                </details>
+
                 <p class="small mt">Police : <strong><?= e((string) ($palette['police_nom'] ?? '—')) ?></strong>
                     <?= empty($palette['police_import']) ? '<span class="muted tiny">(non chargée : repli système)</span>' : '<span class="muted tiny">(chargée depuis Google Fonts)</span>' ?>
                 </p>
+            </div>
+
+            <?php $logo = Assets::src($actifs['logo'] ?? null); ?>
+            <div class="card">
+                <div class="card-head">
+                    <h2>Logo</h2>
+                    <?php if ($logo !== null): ?>
+                        <span class="badge <?= (($actifs['logo']['source'] ?? '') === 'dépôt manuel') ? 'ok' : '' ?>">
+                            <?= (($actifs['logo']['source'] ?? '') === 'dépôt manuel') ? 'déposé à la main' : 'trouvé sur le site' ?>
+                        </span>
+                    <?php endif; ?>
+                </div>
+
+                <?php if ($logo !== null): ?>
+                    <div class="logo-apercu">
+                        <img src="<?= e(str_starts_with($logo, 'assets/')
+                            ? url('mockup_asset', ['id' => $id, 'f' => basename($logo)])
+                            : $logo) ?>" alt="Logo de <?= e(Prospect::displayName($p)) ?>">
+                    </div>
+                <?php else: ?>
+                    <p class="muted small">
+                        Aucun logo récupéré. C'est fréquent : beaucoup de sites le posent en fond CSS, où
+                        aucune lecture automatique ne va le chercher. Déposez-le, il sera repris dans les
+                        maquettes générées ensuite.
+                    </p>
+                <?php endif; ?>
+
+                <form method="post" action="<?= e(url('prospect_logo')) ?>" enctype="multipart/form-data" class="row mt">
+                    <?= Csrf::field() ?>
+                    <input type="hidden" name="id" value="<?= e($id) ?>">
+                    <label class="btn small<?= $logo === null ? ' primary' : ' ghost' ?>" style="margin:0">
+                        <?= $logo === null ? 'Déposer le logo' : 'Remplacer' ?>
+                        <input type="file" name="logo" accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml" hidden onchange="this.form.submit()">
+                    </label>
+                    <?php if ($logo !== null): ?>
+                        <button class="btn small ghost" type="submit" name="action" value="delete">Retirer</button>
+                    <?php endif; ?>
+                </form>
+                <span class="hint muted tiny">PNG, JPEG, WebP, GIF ou SVG, 3 Mo maximum. Un logo déposé ici survit à une nouvelle analyse.</span>
             </div>
         <?php endif; ?>
 

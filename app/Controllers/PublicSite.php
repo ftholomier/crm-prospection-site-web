@@ -103,6 +103,11 @@ final class PublicSite
             http_response_code(404);
             exit;
         }
+        // Un SVG est un document : servi depuis notre domaine, il pourrait
+        // exécuter du script. Il est déjà nettoyé au dépôt ; cet en-tête ferme
+        // ce qui aurait pu passer au travers.
+        header('Content-Security-Policy: default-src \'none\'; style-src \'unsafe-inline\'; img-src data:');
+        header('X-Content-Type-Options: nosniff');
         header('Content-Type: ' . Assets::mediaType($path));
         header('Content-Length: ' . (string) filesize($path));
         header('Cache-Control: private, max-age=86400');

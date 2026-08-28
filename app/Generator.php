@@ -652,9 +652,14 @@ final class Generator
     public static function palette(array $prospect): array
     {
         $palette = $prospect['palette'] ?? [];
-        if (is_array($palette) && isset($palette['marque'], $palette['mesures'])) {
+        // « marque_fonce » date de la palette à trois réglages : une fiche
+        // analysée avant est recalculée plutôt que servie incomplète.
+        if (is_array($palette) && isset($palette['marque'], $palette['marque_fonce'], $palette['mesures'])) {
             return $palette;
         }
-        return Palette::forAnalysis($prospect['analysis'] ?? []);
+        return Palette::forAnalysis(
+            $prospect['analysis'] ?? [],
+            (array) ($prospect['palette_manuelle'] ?? [])
+        );
     }
 }

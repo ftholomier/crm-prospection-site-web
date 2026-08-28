@@ -177,13 +177,15 @@ final class Analyzer
         // fois pour toutes, et on garde la trace de ce qui a été retenu pour
         // que ce ne soit pas une décision invisible.
         $notify('Identification de la couleur et de la police du site');
-        $palette = Palette::forAnalysis($analysis['data']);
+        $palette = Palette::forAnalysis($analysis['data'], (array) ($prospect['palette_manuelle'] ?? []));
         $prospect['palette'] = $palette;
         $notify(
-            'Couleur retenue ' . $palette['marque']
-                . ($palette['source'] === 'site' ? ' (reprise du site)' : ' (aucune couleur nette trouvée, teinte neutre)')
-                . ' — police ' . $palette['police'],
-            $palette['source'] === 'site' ? 'done' : 'warn'
+            'Couleur retenue ' . $palette['marque'] . match ($palette['source']) {
+                'manuelle' => ' (réglage manuel, conservé)',
+                'site' => ' (reprise du site)',
+                default => ' (aucune couleur nette trouvée, teinte neutre)',
+            } . ' — police ' . $palette['police_nom'],
+            $palette['source'] === 'repli' ? 'warn' : 'done'
         );
 
         if (Config::get('design.use_site_images', true)) {

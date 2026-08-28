@@ -19,6 +19,13 @@ final class Palette
     /** Seuil WCAG AA pour le texte courant. */
     private const SEUIL = 4.5;
 
+    /**
+     * Seuil du gris des légendes. Plus haut que le minimum : il reproduit le
+     * gris du socle à partir de sa couleur de texte, et garde donc la même
+     * douceur que la référence plutôt que de s'arrêter au strict nécessaire.
+     */
+    private const SEUIL_DOUX = 5.5;
+
     /** Teinte de repli, utilisée seulement faute de mieux. */
     public const REPLI = '#2563eb';
 
@@ -47,32 +54,89 @@ final class Palette
     public const FOND_TEINTE = '#faf7f3';
     public const SOMBRE = '#2b2724';
 
+    /** Couleur des titres, telle que le socle la pose par défaut. */
+    public const TITRES = '#2b2724';
+
+    /** Couleur du texte courant, telle que le socle la pose par défaut. */
+    public const CORPS = '#46403b';
+
     /**
      * Construit les jetons de couleur d'un prospect.
-     * @return array{marque:string,fonce:string,texte:string,claire:string,voile:string,mesures:array}
+     *
+     * Trois couleurs seulement se règlent : la dominante, celle des titres et
+     * celle du texte. Tout le reste en découle par calcul — les déclinaisons de
+     * la dominante et le gris doux des légendes — parce que ce sont justement
+     * celles dont le contraste se rate à l'œil.
      */
-    public static function derive(string $brand): array
+    public static function derive(string $brand, string $titres = '', string $corps = ''): array
     {
-        $marque = self::normalize($brand) ?? '#2563eb';
+        $marque = self::normalize($brand) ?? self::REPLI;
+        $titres = self::normalize($titres) ?? self::TITRES;
+        $corps = self::normalize($corps) ?? self::CORPS;
 
         $fonce = self::assombrirJusqua($marque, self::FOND, self::SEUIL);
         $texte = self::assombrirJusqua($marque, self::FOND_TEINTE, self::SEUIL);
         $claire = self::eclaircirJusqua($marque, self::SOMBRE, self::SEUIL);
         $voile = self::melanger($marque, self::FOND, 0.08);
+        // Le gris des légendes suit la couleur du texte : le socle en fixait un,
+        // qui jurerait avec un texte réglé sur une autre teinte.
+        $doux = self::eclaircirTantQue($corps, self::FOND_TEINTE, self::SEUIL_DOUX);
 
         return [
             'marque' => $marque,
-            'fonce' => $fonce,
-            'texte' => $texte,
-            'claire' => $claire,
-            'voile' => $voile,
+            'marque_fonce' => $fonce,
+            'marque_texte' => $texte,
+            'marque_claire' => $claire,
+            'marque_voile' => $voile,
+            'titres' => $titres,
+            'corps' => $corps,
+            'corps_doux' => $doux,
             'mesures' => [
+                'marque_sur_blanc' => round(self::contraste($marque, self::FOND), 2),
                 'fonce_sur_blanc' => round(self::contraste($fonce, self::FOND), 2),
                 'texte_sur_teinte' => round(self::contraste($texte, self::FOND_TEINTE), 2),
                 'claire_sur_sombre' => round(self::contraste($claire, self::SOMBRE), 2),
-                'marque_sur_blanc' => round(self::contraste($marque, self::FOND), 2),
+                'titres_sur_blanc' => round(self::contraste($titres, self::FOND), 2),
+                'titres_sur_teinte' => round(self::contraste($titres, self::FOND_TEINTE), 2),
+                'corps_sur_blanc' => round(self::contraste($corps, self::FOND), 2),
+                'corps_sur_teinte' => round(self::contraste($corps, self::FOND_TEINTE), 2),
             ],
         ];
+    }
+
+    /**
+     * Les trois réglages qui se modifient à la main, avec leur libellé et le
+     * contraste le plus défavorable de chacun. Sert l'écran de la fiche.
+     */
+    public static function reglages(array $palette): array
+    {
+        $m = $palette['mesures'] ?? [];
+        return [
+            'marque' => [
+                'label' => 'Couleur dominante',
+                'aide' => 'La couleur de marque. Les aplats, les traits et les accents en sont dérivés par calcul.',
+                'valeur' => (string) ($palette['marque'] ?? self::REPLI),
+                'ratio' => null,
+            ],
+            'titres' => [
+                'label' => 'Couleur des titres',
+                'aide' => 'Elle porte les titres de section et les intertitres.',
+                'valeur' => (string) ($palette['titres'] ?? self::TITRES),
+                'ratio' => min((float) ($m['titres_sur_blanc'] ?? 0), (float) ($m['titres_sur_teinte'] ?? 0)),
+            ],
+            'corps' => [
+                'label' => 'Couleur du texte',
+                'aide' => 'Elle porte le texte courant, et commande le gris des légendes.',
+                'valeur' => (string) ($palette['corps'] ?? self::CORPS),
+                'ratio' => min((float) ($m['corps_sur_blanc'] ?? 0), (float) ($m['corps_sur_teinte'] ?? 0)),
+            ],
+        ];
+    }
+
+    /** Un réglage manuel passe-t-il le seuil de lisibilité ? */
+    public static function lisible(?float $ratio): bool
+    {
+        return $ratio === null || $ratio >= self::SEUIL;
     }
 
     /**
@@ -85,7 +149,7 @@ final class Palette
      *
      * @return array{marque:string,fonce:string,texte:string,claire:string,voile:string,mesures:array,police:string,police_import:string,source:string,candidats:array}
      */
-    public static function forAnalysis(array $analysis): array
+    public static function forAnalysis(array $analysis, array $manuelle = []): array
     {
         $candidats = array_values(array_filter([
             ...(array) ($analysis['colors']['palette'] ?? []),
@@ -93,14 +157,26 @@ final class Palette
         ]));
         $choisie = self::pick($candidats);
 
-        $palette = self::derive($choisie ?? self::REPLI);
+        // Un réglage saisi à la main l'emporte sur ce qui a été relevé, et
+        // survit à une nouvelle analyse : sans quoi la correction serait à
+        // refaire chaque fois qu'on relance la lecture du site.
+        $marqueManuelle = self::normalize((string) ($manuelle['marque'] ?? ''));
+        $palette = self::derive(
+            $marqueManuelle ?? $choisie ?? self::REPLI,
+            (string) ($manuelle['titres'] ?? ''),
+            (string) ($manuelle['corps'] ?? '')
+        );
         $police = self::police($analysis);
 
         return $palette + [
             'police' => $police['stack'],
             'police_import' => $police['import'],
             'police_nom' => $police['nom'],
-            'source' => $choisie !== null ? 'site' : 'repli',
+            'source' => match (true) {
+                $marqueManuelle !== null => 'manuelle',
+                $choisie !== null => 'site',
+                default => 'repli',
+            },
             'candidats' => array_slice($candidats, 0, 8),
         ];
     }
@@ -159,10 +235,13 @@ final class Palette
         }
         return $css . ":root{\n"
             . "  --marque: {$palette['marque']};\n"
-            . "  --marque-fonce: {$palette['fonce']};   /* {$m['fonce_sur_blanc']}:1 sur blanc */\n"
-            . "  --marque-texte: {$palette['texte']};   /* {$m['texte_sur_teinte']}:1 sur le fond teinté */\n"
-            . "  --marque-claire: {$palette['claire']}; /* {$m['claire_sur_sombre']}:1 sur le fond sombre */\n"
-            . "  --marque-voile: {$palette['voile']};\n"
+            . "  --marque-fonce: {$palette['marque_fonce']};   /* {$m['fonce_sur_blanc']}:1 sur blanc */\n"
+            . "  --marque-texte: {$palette['marque_texte']};   /* {$m['texte_sur_teinte']}:1 sur le fond teinté */\n"
+            . "  --marque-claire: {$palette['marque_claire']}; /* {$m['claire_sur_sombre']}:1 sur le fond sombre */\n"
+            . "  --marque-voile: {$palette['marque_voile']};\n"
+            . "  --encre: {$palette['titres']};        /* {$m['titres_sur_blanc']}:1 sur blanc */\n"
+            . "  --texte: {$palette['corps']};         /* {$m['corps_sur_blanc']}:1 sur blanc */\n"
+            . "  --texte-doux: {$palette['corps_doux']};\n"
             . "  --police: {$police};\n"
             . "  --ombre-active: 0 4px 14px rgba({$r}, {$v}, {$b}, .16), 0 24px 60px rgba(43, 39, 36, .14);\n"
             . "}";
@@ -181,6 +260,27 @@ final class Palette
             }
         }
         return '#000000';
+    }
+
+    /**
+     * Éclaircit le plus possible sans passer sous le seuil.
+     *
+     * L'inverse des deux autres : on ne cherche pas à atteindre un contraste,
+     * on cherche la teinte la plus douce qui le tienne encore. C'est ce qui
+     * distingue un gris de légende d'un texte courant délavé.
+     */
+    private static function eclaircirTantQue(string $hex, string $fond, float $seuil): string
+    {
+        [$h, $s, $l] = self::toHsl($hex);
+        $retenu = $hex;
+        for ($i = 1; $i <= 100; $i++) {
+            $candidat = self::fromHsl($h, $s, min(1.0, $l + $i / 100));
+            if (self::contraste($candidat, $fond) < $seuil) {
+                break;
+            }
+            $retenu = $candidat;
+        }
+        return $retenu;
     }
 
     /** Éclaircit par pas de luminosité jusqu'à atteindre le seuil demandé. */
