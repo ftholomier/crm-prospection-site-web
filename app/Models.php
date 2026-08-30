@@ -324,17 +324,59 @@ final class Models
      */
     public static function priceOf(string $model, ?int $at = null): ?array
     {
-        if (isset(self::PRICING_HORAIRE[$model])) {
-            $tranche = self::heurePleine($at ?? time()) ? 'pleine' : 'creuse';
-            return self::PRICING_HORAIRE[$model][$tranche];
+        $fourchette = self::priceRange($model);
+        if ($fourchette !== null) {
+            return $fourchette[self::heurePleine($at ?? time()) ? 'pleine' : 'creuse'];
         }
         return self::PRICING[$model] ?? null;
     }
 
-    /** Fourchette d'un modèle facturé à l'heure, pour l'afficher honnêtement. */
+    /**
+     * Fourchette d'un modèle facturé à l'heure.
+     *
+     * Un tarif saisi dans les Réglages l'emporte sur celui livré avec
+     * l'application : la grille DeepSeek n'a pas pu être lue à sa source, et
+     * c'est la facture de l'utilisateur qui fait foi, pas ce que le code croit
+     * savoir.
+     */
     public static function priceRange(string $model): ?array
     {
+        $saisi = self::tarifSaisi($model);
+        if ($saisi !== null) {
+            return $saisi;
+        }
         return self::PRICING_HORAIRE[$model] ?? null;
+    }
+
+    /** Grille livrée avec l'application, sans les corrections. */
+    public static function priceRangeLivre(string $model): ?array
+    {
+        return self::PRICING_HORAIRE[$model] ?? null;
+    }
+
+    /** Modèles dont le tarif se saisit à la main. */
+    public static function modelesTarifables(): array
+    {
+        return array_keys(self::PRICING_HORAIRE);
+    }
+
+    /** Le tarif de ce modèle a-t-il été corrigé à la main ? */
+    public static function tarifSaisi(string $model): ?array
+    {
+        $tarifs = (array) Config::get('deepseek.tarifs', []);
+        $ligne = $tarifs[$model] ?? null;
+        if (!is_array($ligne) || count($ligne) < 4) {
+            return null;
+        }
+        $nombres = array_map(static fn ($v): float => (float) $v, array_values($ligne));
+        // Une ligne à zéro n'est pas un tarif : c'est un champ vidé.
+        if (max($nombres) <= 0) {
+            return null;
+        }
+        return [
+            'creuse' => [$nombres[0], $nombres[1]],
+            'pleine' => [$nombres[2], $nombres[3]],
+        ];
     }
 
     /**

@@ -1170,7 +1170,8 @@ final class Admin
                 ],
             ],
             'deepseek' => [
-                'model' => trim((string) ($post['deepseek_model'] ?? 'deepseek-chat')) ?: 'deepseek-chat',
+                'tarifs' => self::tarifsSaisis($post),
+                'model' => trim((string) ($post['deepseek_model'] ?? DeepSeek::DEFAUT)) ?: DeepSeek::DEFAUT,
                 'max_tokens' => Util::clamp((int) ($post['deepseek_max_tokens'] ?? 8000), 2000, 64000),
             ],
             'claude' => [
@@ -1379,6 +1380,39 @@ final class Admin
             'provider' => in_array($fournisseur, ['claude', 'deepseek'], true) ? $fournisseur : '',
             'model' => trim((string) ($post['step_' . $etape . '_model'] ?? '')),
         ];
+    }
+
+    /**
+     * Tarifs corrigés à la main.
+     *
+     * Une ligne identique à celle livrée avec l'application n'est pas
+     * enregistrée : elle deviendrait figée, et ne suivrait plus une mise à jour
+     * de la grille de référence.
+     */
+    private static function tarifsSaisis(array $post): array
+    {
+        $tarifs = [];
+        foreach ((array) ($post['tarif'] ?? []) as $modele => $valeurs) {
+            $modele = (string) $modele;
+            if (!in_array($modele, Models::modelesTarifables(), true) || !is_array($valeurs)) {
+                continue;
+            }
+            $nombres = [];
+            foreach ([0, 1, 2, 3] as $rang) {
+                $nombres[$rang] = max(0.0, (float) str_replace(',', '.', (string) ($valeurs[$rang] ?? 0)));
+            }
+            if (max($nombres) <= 0) {
+                continue;
+            }
+            $livre = Models::priceRangeLivre($modele);
+            if ($livre !== null && $nombres === [
+                $livre['creuse'][0], $livre['creuse'][1], $livre['pleine'][0], $livre['pleine'][1],
+            ]) {
+                continue;
+            }
+            $tarifs[$modele] = $nombres;
+        }
+        return $tarifs;
     }
 
     /** Rafraîchit la liste des modèles DeepSeek depuis le compte. */

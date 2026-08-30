@@ -633,3 +633,9 @@ td.right, th.right { text-align: right; }
 .conso__etape { font-weight: 500; overflow-wrap: anywhere; }
 .conso__jetons, .conso__cout { text-align: right; white-space: nowrap; }
 .conso__modele { overflow-wrap: anywhere; }
+
+/* Tarifs corrigeables : quatre petits champs plutôt qu'un texte figé. */
+.tarif { display: inline-flex; align-items: center; gap: 4px; justify-content: flex-end; flex-wrap: wrap; }
+/* Assez large pour « 0,0000 » plus la flèche du sélecteur : en dessous, le
+   dernier chiffre se cache derrière elle. */
+.tarif input[type="number"] { width: 10ch; padding: 4px 6px; font-size: 12px; text-align: right; }

@@ -264,21 +264,36 @@ $secretPlaceholder = static fn (string $value): string => $value !== '' ? 'Valeu
                     </tr>
                     </thead>
                     <tbody>
-                    <?php foreach ($tarifsDs as $modele): ?>
-                        <?php $fourchette = App\Models::priceRange($modele); ?>
-                        <?php if ($fourchette === null) { continue; } ?>
+                    <?php foreach (App\Models::modelesTarifables() as $modele): ?>
+                        <?php
+                        $fourchette = App\Models::priceRange($modele);
+                        $corrige = App\Models::tarifSaisi($modele) !== null;
+                        ?>
                         <tr>
                             <td data-label="Modèle">
                                 <span class="mono"><?= e($modele) ?></span>
                                 <?php if ($modeleDs === $modele): ?><span class="badge brand">Actif</span><?php endif; ?>
+                                <?php if ($corrige): ?><span class="badge ok">votre tarif</span><?php endif; ?>
                             </td>
                             <td class="right nowrap" data-label="Heure creuse">
-                                <?= e(number_format($fourchette['creuse'][0], 2, ',', ' ')) ?> $ ↓
-                                <?= e(number_format($fourchette['creuse'][1], 2, ',', ' ')) ?> $ ↑
+                                <span class="tarif">
+                                    <input type="number" step="0.0001" min="0" name="tarif[<?= e($modele) ?>][0]"
+                                           value="<?= e(number_format($fourchette['creuse'][0], 4, '.', '')) ?>"
+                                           aria-label="Entrée, heure creuse"> ↓
+                                    <input type="number" step="0.0001" min="0" name="tarif[<?= e($modele) ?>][1]"
+                                           value="<?= e(number_format($fourchette['creuse'][1], 4, '.', '')) ?>"
+                                           aria-label="Sortie, heure creuse"> ↑
+                                </span>
                             </td>
                             <td class="right nowrap" data-label="Heure pleine">
-                                <?= e(number_format($fourchette['pleine'][0], 2, ',', ' ')) ?> $ ↓
-                                <?= e(number_format($fourchette['pleine'][1], 2, ',', ' ')) ?> $ ↑
+                                <span class="tarif">
+                                    <input type="number" step="0.0001" min="0" name="tarif[<?= e($modele) ?>][2]"
+                                           value="<?= e(number_format($fourchette['pleine'][0], 4, '.', '')) ?>"
+                                           aria-label="Entrée, heure pleine"> ↓
+                                    <input type="number" step="0.0001" min="0" name="tarif[<?= e($modele) ?>][3]"
+                                           value="<?= e(number_format($fourchette['pleine'][1], 4, '.', '')) ?>"
+                                           aria-label="Sortie, heure pleine"> ↑
+                                </span>
                             </td>
                         </tr>
                     <?php endforeach; ?>
@@ -291,10 +306,14 @@ $secretPlaceholder = static fn (string $value): string => $value !== '' ? 'Valeu
                 appel est chiffré au tarif de l'heure où il a lieu, pas de l'heure où on le regarde —
                 générer vos maquettes en dehors de ces sept heures divise la facture par deux.
                 <br>
-                Ces tarifs ne viennent pas de la documentation de DeepSeek, qui n'est pas joignable depuis
-                cet hébergement, mais de trois sources concordantes relevées le
-                <?= e(date('d/m/Y', strtotime(App\Models::DEEPSEEK_PRICING_DATE))) ?> —
-                <a href="<?= e(App\Models::DEEPSEEK_PRICING_SOURCE) ?>" target="_blank" rel="noopener noreferrer">à confronter à votre première facture</a>.
+                <strong>Ces tarifs sont modifiables, et c'est volontaire.</strong> Ils ne viennent pas de la
+                documentation de DeepSeek — elle est bloquée par la politique réseau de l'hébergement où
+                cette application a été développée — mais de trois sources concordantes relevées le
+                <?= e(date('d/m/Y', strtotime(App\Models::DEEPSEEK_PRICING_DATE))) ?>. Ouvrez
+                <a href="<?= e(App\Models::DEEPSEEK_PRICING_SOURCE) ?>" target="_blank" rel="noopener noreferrer">leur page tarifs</a>
+                ou votre facture, corrigez les quatre nombres, et c'est votre chiffre qui fera foi partout :
+                relevé de consommation, estimation par étape, comparaison de modèles. En dollars par million
+                de jetons. Videz une ligne pour revenir aux valeurs livrées.
             </p>
             <p class="tiny muted">
                 La liste des modèles se met à jour seule une fois par jour.

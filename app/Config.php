@@ -169,6 +169,10 @@ final class Config
                 'model' => 'deepseek-v4-flash',
                 'max_tokens' => 8000,
                 'timeout' => 600,
+                // Tarifs corrigés à la main, par modèle :
+                // [entrée creuse, sortie creuse, entrée pleine, sortie pleine].
+                // Vides, ceux livrés avec l'application servent.
+                'tarifs' => [],
             ],
             'claude' => [
                 'api_key' => '',
