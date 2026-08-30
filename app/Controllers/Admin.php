@@ -9,6 +9,7 @@ use App\Auth;
 use App\Claude;
 use App\Config;
 use App\Csrf;
+use App\Editor;
 use App\Enrich;
 use App\Events;
 use App\Flash;
@@ -626,6 +627,187 @@ final class Admin
         header('Content-Type: ' . Assets::mediaType($path));
         header('Content-Length: ' . (string) filesize($path));
         readfile($path);
+    }
+
+    /**
+     * Éditeur de maquette : le panneau de champs et l'aperçu.
+     *
+     * Tout s'y modifie sans repasser par le modèle — textes, images, liens,
+     * couleurs, logo. C'est ce qui permet de rattraper une maquette en cinq
+     * minutes au lieu de relancer une génération et d'espérer mieux.
+     */
+    public static function mockupEdit(): void
+    {
+        Auth::requireLogin();
+        $id = (string) ($_GET['id'] ?? '');
+        $prospect = Prospect::find($id);
+        if ($prospect === null) {
+            Flash::error('Prospect introuvable.');
+            Util::redirect(Router::url('prospects'));
+        }
+        $id = (string) $prospect['id'];
+
+        $version = (string) ($_GET['v'] ?? ($prospect['mockup']['current'] ?? ''));
+        if ($version === '' || !Mockup::isComplete($id, $version)) {
+            Flash::error('Aucune maquette complète à modifier.');
+            Util::redirect(Router::url('prospect', ['id' => $id]));
+        }
+
+        $page = Mockup::safePage((string) ($_GET['p'] ?? 'accueil'));
+        $html = (string) Mockup::readPage($id, $version, $page);
+
+        echo render('admin/editor', [
+            'title' => 'Éditer la maquette — ' . Prospect::displayName($prospect),
+            'p' => $prospect,
+            'id' => $id,
+            'version' => $version,
+            'page' => $page,
+            'groupes' => Editor::groupes($html),
+            'palette' => Generator::palette($prospect),
+            'actifs' => Assets::catalogue($id),
+            'previewUrl' => Router::url('mockup_preview', ['id' => $id, 'v' => $version, 'p' => $page]),
+            // Une image posée en direct dans l'aperçu doit pointer l'adresse
+            // servie, pas le chemin relatif du fichier enregistré.
+            'assetPattern' => Mockup::assetPattern(Router::url('mockup_asset', ['id' => $id, 'f' => '{f}'])),
+        ]);
+    }
+
+    /** Enregistre les modifications d'une page. */
+    public static function mockupEditSave(): void
+    {
+        Auth::requireLogin();
+        Csrf::requireValid();
+
+        $id = (string) ($_POST['id'] ?? '');
+        $prospect = Prospect::find($id);
+        if ($prospect === null) {
+            Flash::error('Prospect introuvable.');
+            Util::redirect(Router::url('prospects'));
+        }
+        $id = (string) $prospect['id'];
+        $version = (string) ($_POST['v'] ?? '');
+        $page = Mockup::safePage((string) ($_POST['p'] ?? 'accueil'));
+
+        $html = Mockup::readPage($id, $version, $page);
+        if ($html === null) {
+            Flash::error('Page de maquette introuvable.');
+            Util::redirect(Router::url('prospect', ['id' => $id]));
+        }
+
+        $patch = [];
+        foreach ((array) ($_POST['champs'] ?? []) as $cle => $valeur) {
+            if (is_string($cle) && is_string($valeur)) {
+                $patch[$cle] = trim($valeur);
+            }
+        }
+
+        $result = Editor::apply($html, $patch);
+        if (!Mockup::writePage($id, $version, $page, $result['html'])) {
+            Flash::error('Écriture impossible dans data/mockups. Vérifiez les droits du dossier.');
+            Util::redirect(Router::url('mockup_edit', ['id' => $id, 'v' => $version, 'p' => $page]));
+        }
+
+        // Les couleurs valent pour les trois pages : on les range avec les
+        // réglages manuels de la fiche, d'où elles seront servies à chaque
+        // affichage, y compris d'une maquette déjà envoyée.
+        $manuelle = [];
+        foreach (['marque', 'titres', 'corps'] as $cle) {
+            $couleur = Palette::normalize((string) ($_POST['couleur_' . $cle] ?? ''));
+            if ($couleur !== null) {
+                $manuelle[$cle] = $couleur;
+            }
+        }
+        $charteChangee = $manuelle !== [] && $manuelle !== (array) ($prospect['palette_manuelle'] ?? []);
+        if ($charteChangee) {
+            Prospect::update($id, static function (array $fiche) use ($manuelle): array {
+                $fiche['palette_manuelle'] = $manuelle;
+                $fiche['palette'] = Palette::forAnalysis($fiche['analysis'] ?? [], $manuelle);
+                return $fiche;
+            });
+        }
+
+        Events::log($id, 'edit', ['page' => $page, 'version' => $version, 'champs' => $result['appliques']]);
+        $quoi = match (true) {
+            $result['appliques'] === 0 && !$charteChangee => 'Aucune modification à enregistrer',
+            $result['appliques'] === 0 => 'Charte mise à jour sur les trois pages',
+            default => $result['appliques'] . ' modification(s) enregistrée(s) sur « ' . Mockup::PAGES[$page] . ' »'
+                . ($charteChangee ? ', charte mise à jour sur les trois pages' : ''),
+        };
+        Flash::success($quoi . '.');
+        Util::redirect(Router::url('mockup_edit', ['id' => $id, 'v' => $version, 'p' => $page]));
+    }
+
+    /**
+     * Dépôt d'une image depuis l'éditeur.
+     *
+     * Répond en JSON : l'éditeur remplace l'image dans l'aperçu sans recharger
+     * la page, ce qui garde les modifications en cours de saisie.
+     */
+    public static function mockupMedia(): void
+    {
+        Auth::requireLogin();
+        header('Content-Type: application/json; charset=UTF-8');
+
+        $repondre = static function (array $data, int $code = 200): never {
+            http_response_code($code);
+            echo json_encode($data, JSON_UNESCAPED_UNICODE);
+            exit;
+        };
+
+        if (!Csrf::verify($_POST['_csrf'] ?? null)) {
+            $repondre(['ok' => false, 'error' => 'Session expirée. Rechargez la page.'], 419);
+        }
+
+        $prospect = Prospect::find((string) ($_POST['id'] ?? ''));
+        if ($prospect === null) {
+            $repondre(['ok' => false, 'error' => 'Prospect introuvable.'], 404);
+        }
+
+        $result = Assets::addImage((string) $prospect['id'], $_FILES['media'] ?? []);
+        if (!$result['ok']) {
+            $repondre(['ok' => false, 'error' => $result['error']], 422);
+        }
+
+        $repondre([
+            'ok' => true,
+            'src' => $result['src'],
+            'url' => Router::url('mockup_asset', ['id' => (string) $prospect['id'], 'f' => basename($result['src'])]),
+        ]);
+    }
+
+    /**
+     * Dérive la palette pour l'aperçu de l'éditeur.
+     *
+     * Les variantes ne sont pas recalculées en JavaScript : le contraste se
+     * mesure ici, et une seconde implémentation finirait par diverger de
+     * celle qui produit réellement les maquettes.
+     */
+    public static function paletteDerive(): void
+    {
+        Auth::requireLogin();
+        header('Content-Type: application/json; charset=UTF-8');
+
+        $palette = Palette::derive(
+            (string) ($_GET['marque'] ?? ''),
+            (string) ($_GET['titres'] ?? ''),
+            (string) ($_GET['corps'] ?? '')
+        );
+
+        echo json_encode([
+            'ok' => true,
+            'jetons' => [
+                '--marque' => $palette['marque'],
+                '--marque-fonce' => $palette['marque_fonce'],
+                '--marque-texte' => $palette['marque_texte'],
+                '--marque-claire' => $palette['marque_claire'],
+                '--marque-voile' => $palette['marque_voile'],
+                '--encre' => $palette['titres'],
+                '--texte' => $palette['corps'],
+                '--texte-doux' => $palette['corps_doux'],
+            ],
+            'mesures' => $palette['mesures'],
+        ], JSON_UNESCAPED_UNICODE);
+        exit;
     }
 
     /** Télécharge une version complète sous forme de fichiers HTML concaténés. */

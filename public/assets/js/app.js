@@ -352,9 +352,198 @@
         });
     }
 
+    /**
+     * Éditeur de maquette.
+     *
+     * L'aperçu est servi depuis notre domaine : le script peut donc écrire
+     * directement dans son document. Chaque frappe se voit immédiatement, sans
+     * aller-retour avec le serveur — c'est ce qui rend la retouche utilisable.
+     * Rien n'est enregistré tant qu'on ne le demande pas.
+     */
+    function bindEditeur() {
+        var form = document.querySelector('[data-editeur]');
+        var cadre = document.querySelector('[data-apercu]');
+        if (!form || !cadre) { return; }
+
+        function doc() {
+            try { return cadre.contentDocument; } catch (e) { return null; }
+        }
+
+        /* Le chemin est une suite d'index d'éléments depuis <body>, exactement
+           comme côté serveur : les nœuds de texte ne comptent pas. */
+        function noeud(chemin) {
+            var d = doc();
+            if (!d || !d.body) { return null; }
+            var courant = d.body;
+            var parts = chemin.split('/');
+            for (var i = 0; i < parts.length; i++) {
+                var enfants = [];
+                for (var j = 0; j < courant.children.length; j++) { enfants.push(courant.children[j]); }
+                courant = enfants[parseInt(parts[i], 10)];
+                if (!courant) { return null; }
+            }
+            return courant;
+        }
+
+        /* Le fichier enregistré porte « assets/photo.jpg » ; la page servie, elle,
+           reçoit ce chemin réécrit vers une adresse de notre domaine. Poser le
+           chemin brut dans l'aperçu donnerait une image cassée. */
+        var motif = form.getAttribute('data-actifs') || '';
+        function servie(valeur) {
+            var m = /^\.?\/?assets\/([A-Za-z0-9._-]+)$/.exec(valeur.trim());
+            return (m && motif) ? motif.replace('{f}', encodeURIComponent(m[1])) : valeur;
+        }
+
+        function appliquer(champ) {
+            var cible = noeud(champ.getAttribute('data-champ'));
+            if (!cible) { return; }
+            var type = champ.getAttribute('data-type');
+            if (type === 'texte') { cible.textContent = champ.value; }
+            else if (type === 'lien') { cible.setAttribute('href', champ.value); }
+            else if (type === 'image') { cible.setAttribute('src', servie(champ.value)); }
+            else if (type === 'alt') { cible.setAttribute('alt', champ.value); }
+        }
+
+        form.addEventListener('input', function (event) {
+            var champ = event.target;
+            if (champ && champ.hasAttribute && champ.hasAttribute('data-champ')) { appliquer(champ); }
+        });
+
+        /* Une couleur de marque commande cinq jetons, pas un seul : les aplats,
+           le petit texte et les accents en sont dérivés par un calcul de
+           contraste. Ce calcul reste au serveur — le refaire en JavaScript
+           donnerait deux vérités, dont une fausse le jour où l'autre change. */
+        var attente = null;
+        function rafraichirCharte() {
+            var d = doc();
+            if (!d || !d.documentElement) { return; }
+            var params = new URLSearchParams({ r: 'palette_derive' });
+            Array.prototype.forEach.call(form.querySelectorAll('[data-charte]'), function (p) {
+                params.set(p.getAttribute('data-charte'), p.value);
+            });
+            fetch('index.php?' + params.toString(), { credentials: 'same-origin' })
+                .then(function (r) { return r.json(); })
+                .then(function (data) {
+                    if (!data.ok) { return; }
+                    var cible = doc();
+                    if (!cible || !cible.documentElement) { return; }
+                    Object.keys(data.jetons).forEach(function (jeton) {
+                        cible.documentElement.style.setProperty(jeton, data.jetons[jeton]);
+                    });
+                })
+                .catch(function () { /* l'aperçu garde ses couleurs, sans bruit */ });
+        }
+        function poserCouleur() {
+            window.clearTimeout(attente);
+            attente = window.setTimeout(rafraichirCharte, 180);
+        }
+
+        Array.prototype.forEach.call(form.querySelectorAll('[data-charte]'), function (pastille) {
+            var cle = pastille.getAttribute('data-charte');
+            var texte = form.querySelector('[data-charte-code="' + cle + '"]');
+            pastille.addEventListener('input', function () {
+                if (texte) { texte.value = pastille.value; }
+                poserCouleur();
+            });
+            if (texte) {
+                texte.addEventListener('input', function () {
+                    var v = texte.value.trim();
+                    if (v.charAt(0) !== '#') { v = '#' + v; }
+                    if (/^#[0-9a-f]{3}$/i.test(v)) {
+                        v = '#' + v[1] + v[1] + v[2] + v[2] + v[3] + v[3];
+                    }
+                    if (/^#[0-9a-f]{6}$/i.test(v)) {
+                        pastille.value = v.toLowerCase();
+                        poserCouleur();
+                    }
+                });
+            }
+        });
+
+        /* Dépôt d'une image : le fichier part seul, et seul le champ concerné
+           est mis à jour. Recharger la page perdrait les saisies en cours. */
+        Array.prototype.forEach.call(form.querySelectorAll('[data-depot]'), function (entree) {
+            entree.addEventListener('change', function () {
+                var fichier = entree.files && entree.files[0];
+                if (!fichier) { return; }
+                var champ = document.getElementById(entree.getAttribute('data-depot'));
+                var jeton = form.querySelector('input[name="_csrf"]');
+                var corps = new FormData();
+                corps.append('_csrf', jeton ? jeton.value : '');
+                corps.append('id', form.getAttribute('data-id'));
+                corps.append('media', fichier);
+
+                entree.disabled = true;
+                fetch(form.getAttribute('data-media'), { method: 'POST', body: corps, credentials: 'same-origin' })
+                    .then(function (r) { return r.json(); })
+                    .then(function (data) {
+                        if (!data.ok) { window.alert(data.error || 'Dépôt impossible.'); return; }
+                        if (champ) {
+                            champ.value = data.src;
+                            appliquer(champ);   // passe par servie(), donc par l'adresse réécrite
+                            var bloc = champ.closest('.champ');
+                            if (bloc) { bloc.classList.remove('champ--a-pourvoir'); }
+                        }
+                    })
+                    .catch(function () { window.alert('Dépôt impossible : le serveur n\'a pas répondu.'); })
+                    .finally(function () { entree.disabled = false; entree.value = ''; });
+            });
+        });
+
+        /* Annuler : on recharge le cadre, ce qui remet la page telle qu'elle est
+           enregistrée, puis les champs reprennent leur valeur d'origine. */
+        var annuler = form.querySelector('[data-annuler]');
+        if (annuler) {
+            annuler.addEventListener('click', function () {
+                window.setTimeout(function () { cadre.contentWindow.location.reload(); }, 0);
+            });
+        }
+
+        /* Avec plus de cent champs, retrouver « le texte du troisième bloc »
+           demande un filtre : il ouvre les sections qui contiennent le mot et
+           masque les champs qui ne le portent pas. */
+        var filtre = form.querySelector('[data-filtre]');
+        if (filtre) {
+            filtre.addEventListener('input', function () {
+                var q = filtre.value.trim().toLowerCase();
+                Array.prototype.forEach.call(form.querySelectorAll('details.bloc'), function (bloc) {
+                    var trouves = 0;
+                    Array.prototype.forEach.call(bloc.querySelectorAll('.champ'), function (champ) {
+                        var visible = q === '' || champ.textContent.toLowerCase().indexOf(q) !== -1
+                            || Array.prototype.some.call(champ.querySelectorAll('input, textarea'), function (e) {
+                                return (e.value || '').toLowerCase().indexOf(q) !== -1;
+                            });
+                        champ.hidden = !visible;
+                        if (visible) { trouves++; }
+                    });
+                    bloc.hidden = q !== '' && trouves === 0;
+                    if (q !== '' && trouves > 0) { bloc.open = true; }
+                });
+            });
+        }
+
+        Array.prototype.forEach.call(form.querySelectorAll('[data-largeur]'), function (bouton) {
+            bouton.addEventListener('click', function () {
+                cadre.style.width = bouton.getAttribute('data-largeur');
+                Array.prototype.forEach.call(form.querySelectorAll('[data-largeur]'), function (b) {
+                    b.classList.toggle('primary', b === bouton);
+                    b.classList.toggle('ghost', b !== bouton);
+                });
+            });
+        });
+
+        /* Au premier chargement du cadre, on repose les saisies déjà faites :
+           un rechargement de l'aperçu ne doit pas effacer le travail en cours. */
+        cadre.addEventListener('load', function () {
+            Array.prototype.forEach.call(form.querySelectorAll('[data-champ]'), appliquer);
+            rafraichirCharte();
+        });
+    }
+
     document.addEventListener('DOMContentLoaded', function () {
         bindAnalyze();
         bindCouleurs();
+        bindEditeur();
         bindGenerate();
         bindDevices();
         bindVariables();

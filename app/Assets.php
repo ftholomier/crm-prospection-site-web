@@ -128,10 +128,14 @@ final class Assets
         // fourni justement parce que la lecture automatique ne le trouve pas,
         // le réécraser à chaque passage serait absurde.
         $depose = self::keepManualLogo($prospectId);
+        $deposees = self::keepManualPhotos($prospectId);
 
-        self::clear($prospectId, $depose['fichier'] ?? null);
+        self::clear($prospectId, array_merge(
+            $depose === null ? [] : [(string) $depose['fichier']],
+            array_column($deposees, 'fichier')
+        ));
         $mode = self::mode();
-        $catalogue = ['logo' => $depose, 'favicon' => null, 'photos' => [], 'mode' => $mode, 'at' => time()];
+        $catalogue = ['logo' => $depose, 'favicon' => null, 'photos' => $deposees, 'mode' => $mode, 'at' => time()];
         $total = 0;
 
         $logo = trim((string) ($analysis['logo'] ?? ''));
@@ -469,6 +473,78 @@ final class Assets
         return ['ok' => true, 'error' => '', 'nom' => $nomEnvoye];
     }
 
+    /**
+     * Ajoute une image au catalogue depuis un dépôt manuel.
+     *
+     * Sert l'éditeur : quand une photo manque ou ne convient pas, on en met une
+     * soi-même plutôt que d'espérer que la prochaine lecture du site fasse
+     * mieux.
+     *
+     * @param array $fichier une entrée de $_FILES
+     * @return array{ok:bool,error:string,src?:string}
+     */
+    public static function addImage(string $prospectId, array $fichier): array
+    {
+        $erreur = (int) ($fichier['error'] ?? UPLOAD_ERR_NO_FILE);
+        if ($erreur === UPLOAD_ERR_NO_FILE) {
+            return ['ok' => false, 'error' => 'Aucun fichier reçu.'];
+        }
+        if ($erreur !== UPLOAD_ERR_OK) {
+            return ['ok' => false, 'error' => match ($erreur) {
+                UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE => 'Fichier trop lourd pour le serveur.',
+                UPLOAD_ERR_PARTIAL => 'Envoi interrompu, réessayez.',
+                default => 'Envoi impossible (code ' . $erreur . ').',
+            }];
+        }
+
+        $chemin = (string) ($fichier['tmp_name'] ?? '');
+        if ($chemin === '' || !is_uploaded_file($chemin)) {
+            return ['ok' => false, 'error' => 'Fichier introuvable après envoi.'];
+        }
+        if (filesize($chemin) > self::MAX_FICHIER) {
+            return ['ok' => false, 'error' => 'L\'image dépasse ' . Scraper::humanSize(self::MAX_FICHIER) . '.'];
+        }
+
+        $binaire = (string) file_get_contents($chemin);
+        $probe = Image::probe($binaire);
+        if ($probe === null) {
+            return ['ok' => false, 'error' => 'Format non reconnu. Attendu : PNG, JPEG, WebP ou GIF.'];
+        }
+        if (max($probe['width'], $probe['height']) > self::MAX_EDGE) {
+            $reduit = Image::downscale($binaire, $probe, self::MAX_EDGE);
+            if ($reduit !== null) {
+                $binaire = $reduit;
+                $probe = Image::probe($binaire) ?? $probe;
+            }
+        }
+
+        // Un nom tiré du contenu : redéposer deux fois la même image ne crée
+        // pas deux fichiers, et le nom reste stable d'une session à l'autre.
+        $nom = 'depot-' . substr(sha1($binaire), 0, 12) . '.' . $probe['extension'];
+        if (@file_put_contents(self::dir($prospectId) . '/' . $nom, $binaire) === false) {
+            return ['ok' => false, 'error' => 'Écriture impossible dans data/mockups : vérifiez les droits du dossier.'];
+        }
+
+        $catalogue = self::catalogue($prospectId);
+        $catalogue['photos'] = array_values(array_filter(
+            $catalogue['photos'] ?? [],
+            static fn (array $photo): bool => ($photo['fichier'] ?? '') !== $nom
+        ));
+        $catalogue['photos'][] = [
+            'fichier' => $nom,
+            'distant' => '',
+            'largeur' => $probe['width'],
+            'hauteur' => $probe['height'],
+            'orientation' => self::orientation($probe['width'], $probe['height']),
+            'poids' => strlen($binaire),
+            'source' => 'dépôt manuel',
+            'alt' => '',
+        ];
+        Store::write(self::cataloguePath($prospectId), $catalogue);
+
+        return ['ok' => true, 'error' => '', 'src' => 'assets/' . $nom];
+    }
+
     /** Retire le logo du catalogue, et son fichier s'il était chez nous. */
     public static function forgetLogo(string $prospectId): void
     {
@@ -513,12 +589,26 @@ final class Assets
         return self::pathOf($prospectId, (string) ($logo['fichier'] ?? '')) !== null ? $logo : null;
     }
 
-    public static function clear(string $prospectId, ?string $garder = null): void
+    /** Les photos déposées à la main, qu'une nouvelle analyse ne doit pas jeter. */
+    private static function keepManualPhotos(string $prospectId): array
+    {
+        $gardees = [];
+        foreach (self::catalogue($prospectId)['photos'] ?? [] as $photo) {
+            if (($photo['source'] ?? '') === 'dépôt manuel'
+                && self::pathOf($prospectId, (string) ($photo['fichier'] ?? '')) !== null) {
+                $gardees[] = $photo;
+            }
+        }
+        return $gardees;
+    }
+
+    /** @param string[] $garder noms de fichiers à conserver */
+    public static function clear(string $prospectId, array $garder = []): void
     {
         $dir = self::dir($prospectId);
-        $garder = $garder === null ? null : basename($garder);
+        $garder = array_map('basename', array_filter($garder));
         foreach (glob($dir . '/*') ?: [] as $file) {
-            if ($garder !== null && basename($file) === $garder) {
+            if (in_array(basename($file), $garder, true)) {
                 continue;
             }
             @unlink($file);

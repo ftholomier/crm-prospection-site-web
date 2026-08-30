@@ -234,6 +234,7 @@ $mailable = Prospect::isMailable($p);
                         <button type="button" data-width="390px">Mobile</button>
                     </div>
                     <div class="actions" style="margin-left:auto">
+                        <a class="btn small primary" href="<?= e(url('mockup_edit', ['id' => $id, 'v' => $currentVersion, 'p' => $previewPage])) ?>">Modifier</a>
                         <a class="btn small" href="<?= e(url('mockup_preview', ['id' => $id, 'v' => $currentVersion, 'p' => $previewPage])) ?>" target="_blank" rel="noopener">Ouvrir en grand</a>
                         <a class="btn small" href="<?= e(url('mockup_download', ['id' => $id, 'v' => $currentVersion, 'p' => $previewPage])) ?>">Télécharger</a>
                     </div>

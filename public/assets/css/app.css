@@ -475,3 +475,105 @@ td.right, th.right { text-align: right; }
 }
 
 .logo-apercu img { max-width: 100%; max-height: 120px; }
+
+/* ==========================================================================
+   ÉDITEUR DE MAQUETTE
+   Les champs à gauche, la maquette à droite. Les deux colonnes défilent
+   séparément : on garde le bloc qu'on modifie sous les yeux en même temps que
+   son effet dans la page.
+   ========================================================================== */
+.editeur {
+    display: grid;
+    grid-template-columns: minmax(0, 380px) minmax(0, 1fr);
+    gap: 18px;
+    align-items: start;
+}
+
+.editeur__panneau {
+    display: grid;
+    /* Une grille implicite se cale sur son plus large enfant : sans cette
+       colonne bornée, un champ un peu long élargit tout le panneau et le
+       déborde de sa colonne. */
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
+    align-content: start;
+    max-height: calc(100vh - 150px);
+    overflow-y: auto;
+    padding-right: 4px;
+    min-width: 0;
+}
+
+.editeur__barre {
+    min-width: 0;
+    flex-wrap: wrap;
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    display: flex;
+    gap: 8px;
+    padding: 10px;
+    background: var(--surface, #fff);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+}
+
+.bloc { border: 1px solid var(--line); border-radius: 10px; background: var(--surface, #fff); }
+
+.bloc > summary {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    padding: 11px 13px; cursor: pointer; font-weight: 600; font-size: 14px;
+    list-style: none;
+}
+.bloc > summary::-webkit-details-marker { display: none; }
+.bloc > summary::before { content: "▸"; color: var(--muted); font-size: 11px; }
+.bloc[open] > summary::before { content: "▾"; }
+.bloc > summary > span:first-of-type { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+
+.bloc__corps { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; padding: 4px 13px 15px; border-top: 1px solid var(--line); }
+
+.champ { display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px; min-width: 0; }
+.champ > label { font-size: 12.5px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+.champ input[type="text"], .champ textarea { width: 100%; min-width: 0; }
+.champ textarea { resize: vertical; }
+.champ--a-pourvoir { padding: 8px; margin: -8px; border-radius: 8px; background: var(--warn-soft); }
+
+.champ__couleur { display: flex; align-items: center; gap: 8px; }
+.champ__couleur input[type="color"] {
+    width: 38px; height: 30px; flex: 0 0 38px; padding: 2px;
+    border: 1px solid var(--line); border-radius: 6px; background: none; cursor: pointer;
+}
+.champ__couleur input[type="text"] { width: 12ch; flex: 0 0 auto; text-transform: lowercase; }
+
+.champ__image { display: flex; align-items: center; gap: 8px; }
+.champ__image input[type="text"] { flex: 1; min-width: 0; font-size: 12px; }
+
+.editeur__apercu { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; min-width: 0; position: sticky; top: 16px; }
+
+.editeur__outils {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    flex-wrap: wrap;
+    padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface, #fff);
+}
+
+/* Le cadre garde un fond neutre : la maquette y flotte comme sur un plan de
+   travail, et l'on voit tout de suite où elle s'arrête en mode mobile. */
+.editeur__cadre {
+    display: grid; place-items: start center;
+    height: calc(100vh - 210px); min-height: 420px;
+    overflow: hidden;
+    background: #eceff3; border: 1px solid var(--line); border-radius: 10px;
+}
+
+.editeur__cadre iframe {
+    width: 100%; height: 100%; border: 0; background: #fff;
+    transition: width .25s ease;
+}
+
+@media (max-width: 1100px) {
+    .editeur { grid-template-columns: minmax(0, 1fr); }
+    .editeur__panneau { max-height: none; }
+    .editeur__apercu { position: static; }
+    .editeur__cadre { height: 70vh; }
+}
+
+.editeur__filtre { flex: 1; min-width: 0; padding: 6px 9px; font-size: 13px; }
