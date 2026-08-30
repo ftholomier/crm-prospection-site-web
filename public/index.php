@@ -63,6 +63,7 @@ $routes = [
     'prospect_manual' => [Admin::prospectManual(...), true],
     'prospect_palette' => [Admin::prospectPalette(...), true],
     'prospect_logo' => [Admin::prospectLogo(...), true],
+    'prospect_assets' => [Admin::prospectAssets(...), true],
     'screenshot' => [Admin::screenshot(...), true],
     'shot_admin' => [Admin::shotAdmin(...), true],
     'portrait_admin' => [Admin::portraitAdmin(...), true],

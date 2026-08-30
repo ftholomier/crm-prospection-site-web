@@ -224,8 +224,49 @@ final class Mockup
      * qui est servie. Une couleur corrigée s'applique donc immédiatement, sans
      * regénérer quoi que ce soit.
      */
+    /** Dispositions de menu proposées, et leur libellé. */
+    public const MENUS = [
+        'lateral' => 'Panneau latéral (burger)',
+        'horizontal' => 'Barre horizontale',
+    ];
+
+    /**
+     * Impose la disposition de menu affichée d'emblée.
+     *
+     * Le balisage porte les deux menus quoi qu'il arrive ; seule la classe de
+     * l'en-tête change. C'est ce qui permet au prospect de basculer sans
+     * recharger, et à l'agence de choisir par quoi il commence.
+     */
+    public static function applyMenu(string $html, string $menu): string
+    {
+        if (!isset(self::MENUS[$menu])) {
+            return $html;
+        }
+        $voulue = 'entete--' . $menu;
+        return preg_replace_callback(
+            '~(<header\b[^>]*\sclass=")([^"]*)(")~i',
+            static function (array $m) use ($voulue): string {
+                $classes = preg_split('~\s+~', trim($m[2])) ?: [];
+                $classes = array_values(array_filter(
+                    $classes,
+                    static fn (string $c): bool => $c !== 'entete--lateral' && $c !== 'entete--horizontal'
+                ));
+                $classes[] = $voulue;
+                return $m[1] . implode(' ', $classes) . $m[3];
+            },
+            $html,
+            1
+        ) ?? $html;
+    }
+
     public static function applyCharte(string $html, array $palette): string
     {
+        // La disposition de menu se pose ici, comme les couleurs : elle décide
+        // seulement de ce que le prospect voit EN PREMIER — la bascule reste à
+        // sa main. La figer à la génération obligerait à régénérer pour la
+        // changer d'avis.
+        $html = self::applyMenu($html, (string) ($palette['menu'] ?? ''));
+
         if (($palette['marque'] ?? '') === '') {
             return $html;
         }

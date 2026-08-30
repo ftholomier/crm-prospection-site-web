@@ -129,13 +129,17 @@ final class Assets
         // le réécraser à chaque passage serait absurde.
         $depose = self::keepManualLogo($prospectId);
         $deposees = self::keepManualPhotos($prospectId);
+        // Les images écartées à la main le restent : sans cela, relancer
+        // l'analyse les ferait toutes revenir et le tri serait à refaire.
+        $ecartees = self::ecartees($prospectId);
 
         self::clear($prospectId, array_merge(
             $depose === null ? [] : [(string) $depose['fichier']],
             array_column($deposees, 'fichier')
         ));
         $mode = self::mode();
-        $catalogue = ['logo' => $depose, 'favicon' => null, 'photos' => $deposees, 'mode' => $mode, 'at' => time()];
+        $catalogue = ['logo' => $depose, 'favicon' => null, 'photos' => $deposees, 'mode' => $mode,
+            'ecartees' => $ecartees, 'at' => time()];
         $total = 0;
 
         $logo = trim((string) ($analysis['logo'] ?? ''));
@@ -165,7 +169,7 @@ final class Assets
             }
         }
 
-        $sources = self::selectPhotos($analysis);
+        $sources = self::selectPhotos($analysis, $ecartees);
         if ($sources !== []) {
             $say('Récupération de ' . count($sources) . ' photo(s)');
         }
@@ -203,13 +207,13 @@ final class Assets
      * Retient les photos utiles : les grandes d'abord, sans les pictogrammes
      * ni les vignettes, et sans les doublons de miniature.
      */
-    private static function selectPhotos(array $analysis): array
+    private static function selectPhotos(array $analysis, array $ecartees = []): array
     {
         $retenues = [];
         $vues = [];
         foreach ($analysis['images'] ?? [] as $image) {
             $url = (string) ($image['url'] ?? '');
-            if ($url === '') {
+            if ($url === '' || in_array($url, $ecartees, true)) {
                 continue;
             }
             $nom = strtolower(basename((string) parse_url($url, PHP_URL_PATH)));
@@ -543,6 +547,135 @@ final class Assets
         Store::write(self::cataloguePath($prospectId), $catalogue);
 
         return ['ok' => true, 'error' => '', 'src' => 'assets/' . $nom];
+    }
+
+    /**
+     * Retire une photo du catalogue.
+     *
+     * Ce qui ne figure plus au catalogue n'existe plus pour la génération : le
+     * modèle ne reçoit que ce catalogue, et le contrôle de conformité refuse
+     * toute photo qui n'y est pas. Écarter une image est donc la manière de
+     * dire « pas celle-là » avant de relancer.
+     *
+     * Le fichier n'est effacé que s'il est chez nous et qu'aucune autre entrée
+     * ne s'en sert : deux entrées peuvent pointer le même fichier après un
+     * re-dépôt.
+     */
+    public static function removeImage(string $prospectId, string $fichier): array
+    {
+        $fichier = basename(trim($fichier));
+        if ($fichier === '' || $fichier === '.' || $fichier === '..') {
+            return ['ok' => false, 'error' => 'Image non identifiée.'];
+        }
+
+        $catalogue = self::catalogue($prospectId);
+        $photos = $catalogue['photos'] ?? [];
+        $reste = [];
+        $trouvee = null;
+        foreach ($photos as $photo) {
+            // Une photo pointée à distance n'a pas de fichier local : elle
+            // s'identifie alors par son adresse.
+            $cle = ($photo['fichier'] ?? '') !== '' ? (string) $photo['fichier'] : (string) ($photo['distant'] ?? '');
+            if ($trouvee === null && (basename($cle) === $fichier || sha1($cle) === $fichier)) {
+                $trouvee = $photo;
+                continue;
+            }
+            $reste[] = $photo;
+        }
+        if ($trouvee === null) {
+            return ['ok' => false, 'error' => 'Cette image ne figure pas dans le catalogue.'];
+        }
+
+        $catalogue['photos'] = $reste;
+        // La liste des images écartées est conservée : une nouvelle collecte
+        // ne doit pas les faire revenir, sinon écarter une photo ne servirait
+        // que jusqu'à la prochaine analyse.
+        $ecarte = (string) (($trouvee['distant'] ?? '') !== '' ? $trouvee['distant'] : ($trouvee['fichier'] ?? ''));
+        if ($ecarte !== '' && !in_array($ecarte, $catalogue['ecartees'] ?? [], true)) {
+            $catalogue['ecartees'][] = $ecarte;
+        }
+        Store::write(self::cataloguePath($prospectId), $catalogue);
+
+        $local = (string) ($trouvee['fichier'] ?? '');
+        if ($local !== '' && !self::fichierEncoreUtilise($catalogue, $local)) {
+            @unlink(self::dir($prospectId) . '/' . basename($local));
+        }
+        return ['ok' => true, 'error' => ''];
+    }
+
+    /** Ce fichier sert-il encore à une autre entrée du catalogue ? */
+    private static function fichierEncoreUtilise(array $catalogue, string $fichier): bool
+    {
+        foreach (array_merge($catalogue['photos'] ?? [], array_filter([
+            $catalogue['logo'] ?? null,
+            $catalogue['favicon'] ?? null,
+        ])) as $entree) {
+            if (($entree['fichier'] ?? '') === $fichier) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Images écartées à la main, à ne plus jamais récupérer. */
+    public static function ecartees(string $prospectId): array
+    {
+        return array_values(array_filter((array) (self::catalogue($prospectId)['ecartees'] ?? [])));
+    }
+
+    /**
+     * Ajoute une photo par son adresse, sans la télécharger.
+     *
+     * Le pendant du dépôt de fichier : l'agence colle l'adresse d'une image
+     * qu'elle a repérée sur le site du prospect et que la collecte a manquée.
+     * En mode « liens », rien n'est copié — c'est le réglage que vous avez
+     * demandé, et l'adresse est reprise telle quelle dans la maquette.
+     */
+    public static function addImageByUrl(string $prospectId, string $url): array
+    {
+        $url = trim($url);
+        if ($url === '' || !preg_match('~^https?://~i', $url)) {
+            return ['ok' => false, 'error' => 'Adresse invalide : elle doit commencer par http:// ou https://.'];
+        }
+        if (!preg_match('~\.(jpe?g|png|webp|gif|avif)(\?|#|$)~i', $url) && !str_contains($url, 'format=')) {
+            return ['ok' => false, 'error' => 'Cette adresse ne désigne pas une image reconnue (jpg, png, webp, gif, avif).'];
+        }
+
+        $catalogue = self::catalogue($prospectId);
+        foreach ($catalogue['photos'] ?? [] as $photo) {
+            if (($photo['distant'] ?? '') === $url) {
+                return ['ok' => false, 'error' => 'Cette image est déjà au catalogue.'];
+            }
+        }
+
+        // Les dimensions ne sont pas connues sans télécharger : on interroge
+        // l'image, et si le serveur refuse on la garde quand même en la
+        // déclarant de format inconnu plutôt que de la rejeter.
+        $largeur = 0;
+        $hauteur = 0;
+        $reponse = Http::get($url, 10);
+        if ($reponse['ok'] && $reponse['body'] !== '') {
+            $probe = Image::probe($reponse['body']);
+            if ($probe !== null) {
+                $largeur = $probe['width'];
+                $hauteur = $probe['height'];
+            }
+        }
+
+        $catalogue['photos'][] = [
+            'fichier' => '',
+            'distant' => $url,
+            'largeur' => $largeur,
+            'hauteur' => $hauteur,
+            'orientation' => $largeur > 0 ? self::orientation($largeur, $hauteur) : 'paysage',
+            'poids' => 0,
+            'source' => 'adresse saisie',
+            'alt' => '',
+        ];
+        $catalogue['ecartees'] = array_values(array_diff((array) ($catalogue['ecartees'] ?? []), [$url]));
+        Store::write(self::cataloguePath($prospectId), $catalogue);
+
+        return ['ok' => true, 'error' => '', 'src' => $url];
     }
 
     /** Retire le logo du catalogue, et son fichier s'il était chez nous. */

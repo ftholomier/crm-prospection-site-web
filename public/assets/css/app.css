@@ -422,11 +422,20 @@ td.right, th.right { text-align: right; }
     margin: 10px 0 0;
     padding: 0;
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(88px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(118px, 1fr));
     gap: 10px;
 }
 
-.liste-actifs li { display: grid; gap: 4px; min-width: 0; }
+.liste-actifs li { display: grid; gap: 4px; min-width: 0; position: relative; }
+
+/* Le bouton d'écartement ne s'affiche qu'au survol de sa vignette : quinze
+   boutons rouges alignés feraient lire la carte comme un écran de suppression,
+   alors qu'on y vient d'abord pour regarder ce qui a été récupéré. */
+.liste-actifs form { position: absolute; inset: auto 4px 26px auto; opacity: 0; transition: opacity .15s; }
+.liste-actifs li:hover form,
+.liste-actifs form:focus-within { opacity: 1; }
+@media (hover: none) { .liste-actifs form { opacity: 1; } }
+.liste-actifs form button { padding: 2px 8px; font-size: 11px; }
 
 .liste-actifs img {
     width: 100%;

@@ -186,6 +186,10 @@ final class Palette
                 default => 'repli',
             },
             'candidats' => array_slice($candidats, 0, 8),
+            // La disposition de menu retenue voyage avec la charte : elle est
+            // appliquée au moment de servir la page, au même titre que les
+            // couleurs, et survit donc à un recalcul de palette.
+            'menu' => (string) ($manuelle['menu'] ?? ''),
         ];
     }
 

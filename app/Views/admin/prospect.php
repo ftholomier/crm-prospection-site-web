@@ -71,6 +71,11 @@ $mailable = Prospect::isMailable($p);
                   data-mode="new"
                   data-pages="<?= e(implode(',', array_keys(Mockup::PAGES))) ?>">
                 <button class="btn primary" type="submit">Générer les 3 maquettes</button>
+                <span class="hint muted tiny">
+                    Une fois les pages produites, l'<strong>éditeur</strong> s'ouvre depuis la maquette :
+                    couleurs, photos et textes se corrigent à la main, sans repasser par l'IA ni
+                    consommer de jetons.
+                </span>
             </form>
         <?php endif; ?>
     </div>
@@ -261,7 +266,9 @@ $mailable = Prospect::isMailable($p);
                         <button type="button" data-width="390px">Mobile</button>
                     </div>
                     <div class="actions" style="margin-left:auto">
-                        <a class="btn small primary" href="<?= e(url('mockup_edit', ['id' => $id, 'v' => $currentVersion, 'p' => $previewPage])) ?>">Modifier</a>
+                        <a class="btn small primary" href="<?= e(url('mockup_edit', ['id' => $id, 'v' => $currentVersion, 'p' => $previewPage])) ?>">
+                            Éditeur — couleurs, photos, textes
+                        </a>
                         <a class="btn small" href="<?= e(url('compare', ['id' => $id])) ?>">Comparer les modèles</a>
                         <a class="btn small" href="<?= e(url('mockup_preview', ['id' => $id, 'v' => $currentVersion, 'p' => $previewPage])) ?>" target="_blank" rel="noopener">Ouvrir en grand</a>
                         <a class="btn small" href="<?= e(url('mockup_download', ['id' => $id, 'v' => $currentVersion, 'p' => $previewPage])) ?>">Télécharger</a>
@@ -603,8 +610,26 @@ $mailable = Prospect::isMailable($p);
                         </p>
                     <?php endif; ?>
 
+                    <?php $menuActuel = (string) ($palette['menu'] ?? 'lateral'); ?>
+                    <div class="field">
+                        <label for="menu">Menu affiché en premier</label>
+                        <select name="menu" id="menu">
+                            <?php foreach (App\Mockup::MENUS as $cleMenu => $labelMenu): ?>
+                                <option value="<?= e($cleMenu) ?>" <?= $menuActuel === $cleMenu ? 'selected' : '' ?>>
+                                    <?= e($labelMenu) ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                        <span class="hint muted tiny">
+                            La maquette porte <strong>les deux menus</strong> et le prospect bascule de l'un
+                            à l'autre par le bouton en bas à droite de sa page : c'est une décision qui se
+                            prend en regardant. Ce réglage ne fixe que celui qu'il voit en arrivant, et il
+                            s'applique sans régénérer.
+                        </span>
+                    </div>
+
                     <div class="row">
-                        <button class="btn small primary" type="submit">Enregistrer les couleurs</button>
+                        <button class="btn small primary" type="submit">Enregistrer la charte</button>
                         <?php if (!empty($p['palette_manuelle'])): ?>
                             <button class="btn small ghost" type="submit" name="action" value="reset">
                                 Revenir aux couleurs du site
@@ -687,43 +712,118 @@ $mailable = Prospect::isMailable($p);
 
         <?php
         $photos = $actifs['photos'] ?? [];
-        $aDesActifs = !empty($actifs['logo']) || !empty($actifs['favicon']) || $photos !== [];
+        $ecartees = Assets::ecartees($id);
+        // La carte s'affiche même vide : c'est là qu'on ajoute une photo quand
+        // la collecte n'a rien trouvé, et une carte cachée ne s'utilise pas.
+        $servir = static fn (string $src): string => str_starts_with($src, 'assets/')
+            ? url('mockup_asset', ['id' => $id, 'f' => basename($src)])
+            : $src;
         ?>
-        <?php if ($aDesActifs): ?>
-            <div class="card">
-                <div class="card-head">
-                    <h2>Actifs récupérés</h2>
+        <div class="card" id="actifs">
+            <div class="card-head">
+                <h2>Actifs récupérés</h2>
+                <div class="actions">
+                    <span class="badge"><?= count($photos) ?> photo<?= count($photos) > 1 ? 's' : '' ?></span>
                     <span class="badge"><?= ($actifs['mode'] ?? 'copie') === 'liens' ? 'liens distants' : 'copiés ici' ?></span>
                 </div>
-                <p class="muted small">
-                    Ce sont ces fichiers-là que la maquette affichera. Ce qui ne figure pas ici n'existera pas
-                    dans les pages générées.
-                </p>
+            </div>
+            <p class="muted small">
+                Ce sont ces fichiers-là que la maquette affichera, et rien d'autre : le modèle ne reçoit
+                que ce catalogue, et une page qui inventerait une photo est refusée avant l'envoi.
+                Écartez ce qui ne vous convient pas, ajoutez ce qui manque, <strong>puis relancez la
+                génération</strong> — c'est ainsi qu'on pilote ce que montrera la maquette suivante.
+            </p>
+
+            <?php if ($photos === [] && empty($actifs['logo'])): ?>
+                <div class="empty">
+                    <h3>Aucun actif</h3>
+                    <p>La collecte n'a rien rapporté — site bloqué, images en fond CSS, ou analyse pas
+                        encore lancée. Ajoutez ci-dessous les photos que vous voulez voir dans la maquette.</p>
+                </div>
+            <?php else: ?>
                 <ul class="liste-actifs">
                     <?php foreach (['logo' => 'Logo', 'favicon' => 'Favicon'] as $cle => $label): ?>
                         <?php $src = Assets::src($actifs[$cle] ?? null); ?>
                         <?php if ($src !== null): ?>
                             <li>
-                                <img src="<?= e(str_starts_with($src, 'assets/')
-                                    ? url('mockup_asset', ['id' => $id, 'f' => basename($src)])
-                                    : $src) ?>" alt="<?= e($label) ?>" loading="lazy">
+                                <img src="<?= e($servir($src)) ?>" alt="<?= e($label) ?>" loading="lazy">
                                 <span class="tiny"><?= e($label) ?></span>
                             </li>
                         <?php endif; ?>
                     <?php endforeach; ?>
                     <?php foreach ($photos as $photo): ?>
-                        <?php $src = Assets::src($photo); ?>
-                        <?php if ($src === null) { continue; } ?>
+                        <?php
+                        $src = Assets::src($photo);
+                        if ($src === null) { continue; }
+                        // Une photo pointée à distance n'a pas de fichier local :
+                        // elle s'identifie alors par son adresse.
+                        $cleRetrait = ($photo['fichier'] ?? '') !== ''
+                            ? basename((string) $photo['fichier'])
+                            : sha1((string) ($photo['distant'] ?? ''));
+                        ?>
                         <li>
-                            <img src="<?= e(str_starts_with($src, 'assets/')
-                                ? url('mockup_asset', ['id' => $id, 'f' => basename($src)])
-                                : $src) ?>" alt="<?= e((string) ($photo['alt'] ?? '')) ?>" loading="lazy">
-                            <span class="tiny muted"><?= (int) $photo['largeur'] ?>×<?= (int) $photo['hauteur'] ?> · <?= e((string) $photo['orientation']) ?></span>
+                            <img src="<?= e($servir($src)) ?>" alt="<?= e((string) ($photo['alt'] ?? '')) ?>" loading="lazy">
+                            <span class="tiny muted">
+                                <?= (int) $photo['largeur'] > 0
+                                    ? (int) $photo['largeur'] . '×' . (int) $photo['hauteur'] . ' · ' . e((string) $photo['orientation'])
+                                    : e((string) $photo['orientation']) ?>
+                                <?php if (($photo['source'] ?? '') !== '' && $photo['source'] !== 'site'): ?>
+                                    · <?= e((string) $photo['source']) ?>
+                                <?php endif; ?>
+                            </span>
+                            <form method="post" action="<?= e(url('prospect_assets')) ?>"
+                                  data-confirm="Écarter cette photo du catalogue ? Elle ne reviendra pas, même après une nouvelle analyse.">
+                                <?= Csrf::field() ?>
+                                <input type="hidden" name="id" value="<?= e($id) ?>">
+                                <input type="hidden" name="action" value="retirer">
+                                <input type="hidden" name="fichier" value="<?= e($cleRetrait) ?>">
+                                <button class="btn danger small ghost" type="submit">Écarter</button>
+                            </form>
                         </li>
                     <?php endforeach; ?>
                 </ul>
+            <?php endif; ?>
+
+            <div class="divider"></div>
+
+            <div class="field-row">
+                <form method="post" action="<?= e(url('prospect_assets')) ?>" enctype="multipart/form-data" class="field">
+                    <?= Csrf::field() ?>
+                    <input type="hidden" name="id" value="<?= e($id) ?>">
+                    <input type="hidden" name="action" value="ajouter_fichier">
+                    <label for="photo_ajout">Déposer une photo</label>
+                    <input type="file" name="photo" id="photo_ajout" accept="image/*" required>
+                    <span class="hint muted tiny">
+                        Copiée dans data/mockups. Elle survit aux analyses suivantes : c'est le recours
+                        quand le site du prospect ne laisse rien récupérer.
+                    </span>
+                    <button class="btn small mt" type="submit">Ajouter cette photo</button>
+                </form>
+
+                <form method="post" action="<?= e(url('prospect_assets')) ?>" class="field">
+                    <?= Csrf::field() ?>
+                    <input type="hidden" name="id" value="<?= e($id) ?>">
+                    <input type="hidden" name="action" value="ajouter_url">
+                    <label for="photo_url">…ou coller l'adresse d'une image</label>
+                    <input type="url" name="url" id="photo_url" class="mono"
+                           placeholder="https://le-site-du-prospect.fr/photos/chantier.jpg">
+                    <span class="hint muted tiny">
+                        Rien n'est téléchargé : l'adresse est reprise telle quelle dans la maquette.
+                        C'est le mode « liens » que vous avez demandé, image par image.
+                    </span>
+                    <button class="btn small mt" type="submit">Ajouter cette adresse</button>
+                </form>
             </div>
-        <?php endif; ?>
+
+            <?php if ($ecartees !== []): ?>
+                <p class="tiny muted">
+                    <?= count($ecartees) ?> image<?= count($ecartees) > 1 ? 's' : '' ?> écartée<?= count($ecartees) > 1 ? 's' : '' ?>
+                    à la main : elle<?= count($ecartees) > 1 ? 's ne reviendront' : ' ne reviendra' ?> pas lors
+                    d'une nouvelle analyse. Pour <?= count($ecartees) > 1 ? 'en récupérer une' : 'la récupérer' ?>,
+                    collez son adresse ci-dessus.
+                </p>
+            <?php endif; ?>
+        </div>
 
         <?php if ($consommation !== []): ?>
             <div class="card">

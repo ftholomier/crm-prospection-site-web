@@ -27,8 +27,11 @@
 
 <a class="evitement" href="#contenu">Aller au contenu</a>
 
-<header class="entete">
+<header class="entete entete--lateral">
   <div class="entete__interieur">
+    <button class="burger" type="button" aria-label="Ouvrir le menu" aria-expanded="false" aria-controls="panneau-nav">
+      <span></span><span></span><span></span>
+    </button>
     <a class="entete__logo" href="accueil.html">
       MAISON RIVAGE
       <span>Paysagiste</span>
@@ -46,6 +49,33 @@
   </div>
   <span class="entete__faisceau" aria-hidden="true"><i class="entete__onde"></i></span>
 </header>
+
+<div class="voile" aria-hidden="true"></div>
+
+<!-- ---------------------------------------------------------------------
+     PANNEAU DE NAVIGATION — il glisse depuis la gauche. Servi tel quel en
+     disposition latérale, il devient le menu du téléphone en disposition
+     horizontale : le même balisage sert les deux, seul l'affichage change.
+     --------------------------------------------------------------------- -->
+<nav id="panneau-nav" class="panneau" aria-label="Navigation principale">
+  <div class="panneau__tete">
+    <a class="panneau__logo" href="accueil.html">
+      MAISON RIVAGE
+      <span>Paysagiste</span>
+    </a>
+    <button class="panneau__fermer" type="button">Fermer</button>
+  </div>
+  <div class="panneau__corps">
+    <a class="panneau__lien" href="a-propos.html" aria-current="page"><span class="panneau__num">01</span>À propos</a>
+    <a class="panneau__lien" href="prestations.html"><span class="panneau__num">02</span>Nos prestations</a>
+    <a class="panneau__lien" href="accueil.html#realisations"><span class="panneau__num">03</span>Réalisations</a>
+    <a class="panneau__lien" href="#contact"><span class="panneau__num">04</span>Contact</a>
+  </div>
+  <div class="panneau__pied">
+    <a class="panneau__tel" href="tel:+33381000000">03 81 00 00 00</a>
+    <a class="btn btn--plein" href="#contact">Demander un devis</a>
+  </div>
+</nav>
 
 <main id="contenu">
 
@@ -278,6 +308,17 @@
     </div>
   </div>
 </footer>
+
+
+<!-- ---------------------------------------------------------------------
+     BASCULE DE MENU — pièce de maquette, pas du site livré. Elle permet au
+     prospect d'essayer les deux dispositions et de trancher en regardant.
+     Le choix le suit d'une page à l'autre.
+     --------------------------------------------------------------------- -->
+<button class="bascule-menu" type="button" data-bascule-menu aria-pressed="false">
+  <span class="bascule-menu__puce" aria-hidden="true"></span>
+  <span data-bascule-libelle>Menu latéral</span>
+</button>
 
 <script src="socle.js"></script>
 </body>

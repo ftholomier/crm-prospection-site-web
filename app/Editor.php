@@ -51,6 +51,12 @@ final class Editor
             $prefixe = strtolower($bloc->nodeName) === 'main' ? $rang . '/' : '';
 
             foreach ($racines as $sousRang => $section) {
+                // La bascule de menu et le voile sont des pièces de maquette,
+                // pas du contenu : les proposer à l'édition ferait corriger le
+                // libellé d'un dispositif qui ne sera pas livré.
+                if (self::estDispositif($section)) {
+                    continue;
+                }
                 $chemin = $prefixe === '' ? (string) $rang : $prefixe . $sousRang;
                 $champs = [];
                 self::collecter($section, $chemin, $champs);
@@ -275,6 +281,18 @@ final class Editor
         };
     }
 
+    /** Éléments qui servent la démonstration et non le site livré. */
+    private static function estDispositif(\DOMElement $element): bool
+    {
+        $classe = ' ' . strtolower($element->getAttribute('class')) . ' ';
+        foreach ([' bascule-menu ', ' voile '] as $marqueur) {
+            if (str_contains($classe, $marqueur)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private const TITRES_SECTION = [
         'section' => 'Section',
         'entete' => 'En-tête',
@@ -285,6 +303,7 @@ final class Editor
         'pied' => 'Pied de page',
         'evitement' => 'Lien d\'évitement',
         'galerie' => 'Galerie',
+        'panneau' => 'Menu latéral',
     ];
 
     // ------------------------------------------------------------ Écriture

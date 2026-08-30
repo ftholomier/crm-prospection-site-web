@@ -583,9 +583,19 @@ final class Admin
             Util::redirect(Router::url('prospect', ['id' => $id]));
         }
 
-        $updated = Prospect::update($id, static function (array $p) use ($manuelle): array {
+        // La disposition de menu voyage avec la charte : elle s'applique au
+        // moment de servir la page, comme les couleurs, et ne demande donc
+        // aucune régénération.
+        $menu = (string) ($_POST['menu'] ?? '');
+        $menu = isset(Mockup::MENUS[$menu]) ? $menu : '';
+
+        $updated = Prospect::update($id, static function (array $p) use ($manuelle, $menu): array {
             $p['palette_manuelle'] = $manuelle;
             $p['palette'] = Palette::forAnalysis($p['analysis'] ?? [], $manuelle);
+            if ($menu !== '') {
+                $p['palette']['menu'] = $menu;
+                $p['palette_manuelle']['menu'] = $menu;
+            }
             return $p;
         });
 
@@ -598,10 +608,13 @@ final class Admin
         }
 
         if ($fragiles !== []) {
-            Flash::error('Couleurs enregistrées, mais sous le seuil de lisibilité : '
+            Flash::error('Charte enregistrée, mais sous le seuil de lisibilité : '
                 . implode(', ', $fragiles) . '. Il en faut 4,5:1 sur les deux fonds du socle.');
         } else {
-            Flash::success('Couleurs enregistrées. Elles seront reprises à la prochaine génération.');
+            // La charte s'applique au moment de servir la page : dire « à la
+            // prochaine génération » ferait régénérer pour rien.
+            Flash::success('Charte enregistrée. Elle s\'applique immédiatement à la maquette en ligne,'
+                . ' sans régénération.');
         }
         Util::redirect(Router::url('prospect', ['id' => $id]));
     }
@@ -634,6 +647,60 @@ final class Admin
             Flash::error($result['error']);
         }
         Util::redirect(Router::url('prospect', ['id' => $id]));
+    }
+
+    /**
+     * Gestion du catalogue d'actifs : en retirer, en ajouter.
+     *
+     * Le catalogue est ce que le modèle reçoit, et le contrôle de conformité
+     * refuse toute photo qui n'y figure pas. Le tenir à la main est donc le
+     * seul moyen de peser sur ce que la génération suivante affichera — sans
+     * quoi il faudrait relancer et espérer.
+     */
+    public static function prospectAssets(): void
+    {
+        Auth::requireLogin();
+        Csrf::requireValid();
+
+        $id = (string) ($_POST['id'] ?? '');
+        $prospect = Prospect::find($id);
+        if ($prospect === null) {
+            Flash::error('Prospect introuvable.');
+            Util::redirect(Router::url('prospects'));
+        }
+        $id = (string) $prospect['id'];
+        $retour = Router::url('prospect', ['id' => $id]) . '#actifs';
+
+        switch ((string) ($_POST['action'] ?? '')) {
+            case 'retirer':
+                $result = Assets::removeImage($id, (string) ($_POST['fichier'] ?? ''));
+                if ($result['ok']) {
+                    Events::log($id, 'assets', ['message' => 'Photo écartée du catalogue']);
+                    Flash::success('Photo écartée. Elle ne reviendra pas, même après une nouvelle analyse,'
+                        . ' et n\'apparaîtra pas dans les maquettes générées ensuite.');
+                } else {
+                    Flash::error($result['error']);
+                }
+                break;
+
+            case 'ajouter_url':
+                $result = Assets::addImageByUrl($id, (string) ($_POST['url'] ?? ''));
+                $result['ok']
+                    ? Flash::success('Image ajoutée au catalogue par son adresse.')
+                    : Flash::error($result['error']);
+                break;
+
+            case 'ajouter_fichier':
+                $result = Assets::addImage($id, $_FILES['photo'] ?? []);
+                $result['ok']
+                    ? Flash::success('Photo déposée. Elle survivra aux prochaines analyses.')
+                    : Flash::error($result['error']);
+                break;
+
+            default:
+                Flash::error('Action inconnue.');
+        }
+        Util::redirect($retour);
     }
 
     /** Sert un actif de maquette dans la prévisualisation de l'administration. */

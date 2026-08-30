@@ -353,6 +353,18 @@ final class Generator
                 . "\n- N'ajoute aucune classe nouvelle, aucun style en ligne, aucune balise <style> ni <script>."
                 . "\n- Navigation entre les pages : accueil.html, a-propos.html, prestations.html, avec"
                 . " aria-current=\"page\" sur la page courante."
+                . "\n- L'en-tête porte DEUX navigations qui décrivent le même menu : la barre horizontale"
+                . " .navbar et le panneau latéral #panneau-nav. Elles doivent rester rigoureusement"
+                . " identiques — mêmes entrées, mêmes libellés, même ordre — parce que le prospect bascule"
+                . " de l'une à l'autre et comparerait sinon deux menus différents. Ne supprime ni le"
+                . " bouton .burger, ni le .voile, ni le panneau, ni la .bascule-menu."
+                . ($page === 'accueil'
+                    ? "\n- Le bandeau d'accueil est un diaporama : un bloc .heros__photo[data-vue] par"
+                        . " photo. Mets-en autant que tu as de photos panoramiques de qualité, trois au"
+                        . " mieux, deux si tu n'en as que deux. Le premier bloc porte la classe"
+                        . " est-visible. Avec une seule photo, garde un seul bloc et supprime la"
+                        . " .heros__jauge : un diaporama d'une vue n'a rien à annoncer."
+                    : "")
                 . "\n\n" . self::sortieAttendue();
 
             if (trim($instruction) !== '') {
