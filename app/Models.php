@@ -362,6 +362,10 @@ final class Models
      * valeurs servent tant que rien n'a encore été mesuré.
      */
     private const PROFIL_ETAPES = [
+        // La lecture d'un site rapporte jusqu'à six pages entières : c'est de
+        // loin le plus gros volume d'entrée de l'application, et la raison pour
+        // laquelle son modèle mérite d'être choisi.
+        'lecture' => ['input' => 45000, 'output' => 4000],
         'brief' => ['input' => 6000, 'output' => 3000],
         'pages' => ['input' => 12000, 'output' => 21000],
     ];
@@ -546,6 +550,25 @@ final class Models
                 'output' => $profil['output'],
                 'measured' => $profil['measured'],
                 'cost' => $cout,
+                'dans_le_total' => true,
+            ];
+        }
+
+        // Les étapes hors maquette sont chiffrées aussi — on ne règle pas un
+        // modèle à l'aveugle — mais elles n'entrent pas dans le total : la
+        // lecture d'un site est un recours, pas une étape de chaque génération.
+        foreach (Ai::ETAPES_HORS_MAQUETTE as $etape => $label) {
+            $profil = self::stepProfile($etape);
+            $modele = Ai::modelFor($etape);
+            $lignes[$etape] = [
+                'label' => $label,
+                'provider' => Ai::label(Ai::for($etape)['provider']),
+                'model' => $modele,
+                'input' => $profil['input'],
+                'output' => $profil['output'],
+                'measured' => $profil['measured'],
+                'cost' => self::cost($modele, $profil['input'], 0, $profil['output']),
+                'dans_le_total' => false,
             ];
         }
 

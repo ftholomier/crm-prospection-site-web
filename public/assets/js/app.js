@@ -581,20 +581,23 @@
         var principal = document.querySelector('[data-fournisseur]');
         var defaut = principal ? principal.value : 'claude';
 
-        Array.prototype.forEach.call(document.querySelectorAll('[data-etape-fournisseur]'), function (menu) {
-            var etape = menu.getAttribute('data-etape-fournisseur');
-            var retenu = menu.value || defaut;
+        /* On parcourt les LIGNES, pas les menus de fournisseur : une étape dont
+           le fournisseur est imposé n'en a pas, et son coût cessait de se
+           recalculer — c'est pourtant la ligne la plus chère du tableau. */
+        Array.prototype.forEach.call(document.querySelectorAll('[data-etape-ligne]'), function (ligne) {
+            var etape = ligne.getAttribute('data-etape-ligne');
+            var menu = document.querySelector('[data-etape-fournisseur="' + etape + '"]');
+            var listes = document.querySelectorAll('[data-etape-modele="' + etape + '"]');
+            var retenu = menu ? (menu.value || defaut)
+                : (listes.length ? listes[0].getAttribute('data-pour') : defaut);
             var actif = null;
 
-            Array.prototype.forEach.call(
-                document.querySelectorAll('[data-etape-modele="' + etape + '"]'),
-                function (liste) {
-                    var sien = liste.getAttribute('data-pour') === retenu;
-                    liste.disabled = !sien;
-                    liste.hidden = !sien;
-                    if (sien) { actif = liste; }
-                }
-            );
+            Array.prototype.forEach.call(listes, function (liste) {
+                var sien = liste.getAttribute('data-pour') === retenu;
+                liste.disabled = !sien;
+                liste.hidden = !sien;
+                if (sien) { actif = liste; }
+            });
 
             /* Le champ libre n'accompagne que l'option « Autre » ; désactivé, il
                n'écrase pas le modèle choisi dans le menu. */

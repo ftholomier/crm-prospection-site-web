@@ -509,15 +509,23 @@ $champSecret = static function (string $nom, string $valeur, string $aide, strin
                     <th>Étape</th>
                     <th>Fournisseur</th>
                     <th>Modèle</th>
-                    <th class="right nowrap">Jetons / maquette</th>
+                    <th class="right nowrap">Jetons / passage</th>
                     <th class="right nowrap">Coût estimé</th>
                 </tr>
                 </thead>
                 <tbody>
-                <?php foreach (App\Ai::ETAPES as $etape => $labelEtape): ?>
+                <?php
+                $aides = [
+                    'lecture' => 'Le recours quand le site refuse d\'être lu : la requête part de chez Anthropic, pas de votre serveur.',
+                    'brief' => 'Le contenu réel : prestations, textes, ce qu\'on retire faute de matière.',
+                    'pages' => 'Le remplissage des trois gabarits.',
+                ];
+                ?>
+                <?php foreach (App\Ai::etapes() as $etape => $labelEtape): ?>
                     <?php
                     $reglageEtape = (array) ($config['ai']['steps'][$etape] ?? []);
-                    $fEtape = App\Ai::normalize((string) ($reglageEtape['provider'] ?? ''), '');
+                    $impose = App\Ai::ETAPES_IMPOSEES[$etape] ?? '';
+                    $fEtape = $impose !== '' ? $impose : App\Ai::normalize((string) ($reglageEtape['provider'] ?? ''), '');
                     $mEtape = (string) ($reglageEtape['model'] ?? '');
                     $ligne = $estimation['lignes'][$etape];
                     // Le fournisseur réellement en vigueur pour cette étape :
@@ -530,13 +538,24 @@ $champSecret = static function (string $nom, string $valeur, string $aide, strin
                         data-jetons-sortie="<?= (int) $ligne['output'] ?>">
                         <td data-label="Étape">
                             <strong><?= e($labelEtape) ?></strong>
-                            <div class="tiny muted">
-                                <?= $etape === 'brief'
-                                    ? 'Le contenu réel : prestations, textes, ce qu\'on retire faute de matière.'
-                                    : 'Le remplissage des trois gabarits.' ?>
-                            </div>
+                            <?php if (empty($ligne['dans_le_total'])): ?>
+                                <span class="badge">hors maquette</span>
+                            <?php endif; ?>
+                            <div class="tiny muted"><?= e($aides[$etape] ?? '') ?></div>
                         </td>
                         <td data-label="Fournisseur">
+                            <?php if ($impose !== ''): ?>
+                                <?php // Fournisseur imposé : le menu affiche la contrainte au lieu de
+                                      // proposer des choix qui seraient refusés à l'enregistrement. ?>
+                                <select disabled>
+                                    <option><?= e(App\Ai::label($impose)) ?> — imposé</option>
+                                </select>
+                                <div class="tiny muted">
+                                    Cette étape repose sur l'outil <span class="mono">web_fetch</span>,
+                                    exécuté chez Anthropic : ni DeepSeek ni Gemini n'ont d'équivalent.
+                                    Le <strong>modèle</strong>, lui, se choisit — et c'est là que ça compte.
+                                </div>
+                            <?php else: ?>
                             <select name="step_<?= e($etape) ?>_provider" data-etape-fournisseur="<?= e($etape) ?>">
                                 <option value="" <?= $fEtape === '' ? 'selected' : '' ?>>Comme le principal</option>
                                 <?php foreach (App\Ai::FOURNISSEURS as $cle => $nomFournisseur): ?>
@@ -545,9 +564,14 @@ $champSecret = static function (string $nom, string $valeur, string $aide, strin
                                     </option>
                                 <?php endforeach; ?>
                             </select>
+                            <?php endif; ?>
                         </td>
                         <td data-label="Modèle">
-                            <?php foreach (App\Ai::FOURNISSEURS as $cle => $nomFournisseur): ?>
+                            <?php // Une étape imposée n'a qu'un catalogue : le sien.
+                            $catalogueEtape = $impose !== ''
+                                ? [$impose => $catalogues[$impose]]
+                                : $catalogues; ?>
+                            <?php foreach ($catalogueEtape as $cle => $_): ?>
                                 <?php
                                 // Un menu par fournisseur : seul celui du
                                 // fournisseur retenu est actif, les autres sont
@@ -605,13 +629,16 @@ $champSecret = static function (string $nom, string $valeur, string $aide, strin
 
         <p class="tiny muted">
             <?php if ($estimation['total'] !== null): ?>
-                Total estimé : <strong><?= e(App\Models::formatCost($estimation['total'])) ?></strong> par maquette complète.
+                Total estimé : <strong><?= e(App\Models::formatCost($estimation['total'])) ?></strong> par maquette complète
+                — la lecture d'un site n'y figure pas : elle n'a lieu que sur les sites qui refusent
+                d'être lus, et elle se paie à chaque fois qu'on l'emploie.
             <?php else: ?>
                 Le total n'est pas calculable : au moins un modèle retenu n'a pas de tarif relevé ici
                 (les grilles DeepSeek ne le sont pas).
             <?php endif; ?>
             Laissez « Comme le principal » et « Par défaut » pour que tout suive le fournisseur du haut
-            de page. La liste des modèles suit le fournisseur choisi sur la ligne, et le coût estimé se
+            de page. La lecture d'un site est de loin le plus gros volume d'entrée de l'application —
+            jusqu'à six pages entières — et c'est donc la ligne où le choix du modèle pèse le plus. La liste des modèles suit le fournisseur choisi sur la ligne, et le coût estimé se
             recalcule à chaque changement. La répartition des jetons, elle, s'ajuste à votre consommation
             réelle après quelques maquettes.
         </p>

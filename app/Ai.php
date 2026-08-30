@@ -173,11 +173,45 @@ final class Ai
         return $client::readsImages(self::modelFor('brief'));
     }
 
-    /** Étapes dont le modèle se règle séparément. */
+    /**
+     * Étapes de la génération d'une maquette, dont le modèle se règle
+     * séparément. Ce sont elles, et elles seules, qui composent le coût d'une
+     * maquette et qui décident des clés API indispensables.
+     */
     public const ETAPES = [
         'brief' => 'Direction artistique',
         'pages' => 'Pages de la maquette',
     ];
+
+    /**
+     * Étapes réglables mais étrangères à la maquette.
+     *
+     * La lecture d'un site bloqué n'a pas lieu à chaque génération : c'est un
+     * recours. Son coût ne doit donc pas entrer dans le total « par maquette »,
+     * et l'absence de sa clé ne doit pas empêcher de générer.
+     */
+    public const ETAPES_HORS_MAQUETTE = [
+        'lecture' => 'Lecture du site par l\'IA',
+    ];
+
+    /**
+     * Étapes dont le fournisseur est imposé.
+     *
+     * La lecture d'un site passe par l'outil serveur web_fetch, qui n'existe
+     * que chez Anthropic : la requête part de chez eux, et c'est précisément ce
+     * qui la fait passer là où notre serveur est filtré. Le choix se limite
+     * donc au modèle — et il vaut la peine, c'est l'étape la plus lourde en
+     * jetons d'entrée de toute l'application.
+     */
+    public const ETAPES_IMPOSEES = [
+        'lecture' => self::CLAUDE,
+    ];
+
+    /** Toutes les étapes réglables, dans l'ordre où elles s'enchaînent. */
+    public static function etapes(): array
+    {
+        return self::ETAPES_HORS_MAQUETTE + self::ETAPES;
+    }
 
     /**
      * Fournisseur et modèle d'une étape.
@@ -194,13 +228,20 @@ final class Ai
     public static function for(?string $etape = null): array
     {
         $defaut = ['provider' => self::provider(), 'model' => ''];
-        if ($etape === null || !isset(self::ETAPES[$etape])) {
+        if ($etape === null || !isset(self::etapes()[$etape])) {
             return $defaut;
         }
 
         $reglage = (array) Config::get('ai.steps.' . $etape, []);
-        $fournisseur = trim((string) ($reglage['provider'] ?? ''));
         $modele = trim((string) ($reglage['model'] ?? ''));
+
+        // Une étape au fournisseur imposé ignore ce qui serait enregistré :
+        // seul son modèle se règle.
+        if (isset(self::ETAPES_IMPOSEES[$etape])) {
+            return ['provider' => self::ETAPES_IMPOSEES[$etape], 'model' => $modele];
+        }
+
+        $fournisseur = trim((string) ($reglage['provider'] ?? ''));
         if ($fournisseur === '' && $modele === '') {
             return $defaut;
         }
@@ -276,6 +317,32 @@ final class Ai
                 $choix['model'] !== '' ? $choix['model'] : self::modelFor($etape),
                 $reponse['usage'] ?? []
             );
+        }
+        return $reponse;
+    }
+
+    /**
+     * Appel avec outils serveur — la lecture d'un site bloqué.
+     *
+     * Il ne passe pas par dispatch() : les outils serveur imposent une boucle
+     * de reprise propre à Anthropic. Mais il est chiffré et ventilé comme les
+     * autres, sinon l'étape la plus lourde en jetons d'entrée resterait absente
+     * du relevé — et le relevé aurait cessé d'être juste.
+     */
+    public static function withServerTools(array $options, int $maxContinuations = 4): array
+    {
+        $etape = isset($options['etape']) ? (string) $options['etape'] : null;
+        unset($options['etape']);
+
+        $modele = $etape !== null ? self::modelFor($etape) : self::defaultModel(self::CLAUDE);
+        $options['model'] = $modele;
+
+        $reponse = Claude::withServerTools($options, $maxContinuations);
+        if ($reponse['ok']) {
+            if ($etape !== null) {
+                Models::recordStep($etape, $reponse['usage'] ?? []);
+            }
+            Consumption::record(self::CLAUDE, $modele, $reponse['usage'] ?? []);
         }
         return $reponse;
     }

@@ -176,7 +176,11 @@ final class Stream
         }
         self::startJournal($id, 'Lecture du site par l\'IA');
         if (!\App\SiteReader::isAvailable()) {
-            self::fail('La lecture d\'un site bloqué passe toujours par Claude — elle repose sur un outil exécuté chez Anthropic, que DeepSeek n\'a pas. Renseignez la clé Claude dans les Réglages, même si la génération est confiée à un autre fournisseur.');
+            self::fail('La lecture d\'un site bloqué passe toujours par Claude : elle repose sur l\'outil '
+                . 'web_fetch, exécuté chez Anthropic, dont ni DeepSeek ni Gemini n\'ont d\'équivalent. '
+                . 'Renseignez la clé Claude dans les Réglages, même si la génération est confiée à un '
+                . 'autre fournisseur. Le modèle employé pour cette lecture se choisit dans « Un modèle '
+                . 'par étape ».');
         }
 
         $result = Analyzer::runFromAi($id, static function (string $message, string $state = 'running'): void {

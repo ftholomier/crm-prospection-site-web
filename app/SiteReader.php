@@ -33,6 +33,12 @@ final class SiteReader
         return Claude::isConfigured();
     }
 
+    /** Modèle employé, pour l'annoncer avant de dépenser. */
+    public static function model(): string
+    {
+        return Ai::modelFor('lecture');
+    }
+
     /**
      * Lit le site et en extrait le contenu exploitable.
      * @return array{ok:bool,error:string,data:array,pages:array,usage:array}
@@ -52,7 +58,12 @@ final class SiteReader
 
         $result = null;
         foreach (self::TOOL_VERSIONS as $index => $version) {
-            $result = Claude::withServerTools([
+            // Par la façade : le modèle vient du réglage de l'étape « lecture »,
+            // et les jetons entrent dans le relevé de consommation. En passant
+            // par Claude en direct, cette étape — la plus lourde en entrée de
+            // toute l'application — n'y figurait pas.
+            $result = Ai::withServerTools([
+                'etape' => 'lecture',
                 'system' => self::systemPrompt(),
                 'messages' => [['role' => 'user', 'content' => self::task($url, $domain)]],
                 'tools' => [self::tool($version, $domain)],

@@ -1263,6 +1263,7 @@ final class Admin
             'ai' => [
                 'provider' => Ai::normalize((string) ($post['ai_provider'] ?? '')),
                 'steps' => [
+                    'lecture' => self::stepChoice($post, 'lecture'),
                     'brief' => self::stepChoice($post, 'brief'),
                     'pages' => self::stepChoice($post, 'pages'),
                 ],
