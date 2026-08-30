@@ -194,11 +194,17 @@ final class Admin
             'status' => (string) ($_GET['status'] ?? ''),
             'sort' => (string) ($_GET['sort'] ?? 'recent'),
         ];
+        $doublon = trim((string) ($_GET['doublon'] ?? ''));
         echo render('admin/prospects', [
             'title' => 'Prospects',
             'rows' => Prospect::search($filters),
             'filters' => $filters,
             'counts' => Stats::dashboard()['by_status'],
+            'rangs' => Prospect::ranksByDomain(),
+            // Une adresse déjà suivie que l'on vient de soumettre : la liste
+            // propose alors d'ouvrir la fiche ou d'en créer une seconde.
+            'doublon' => $doublon,
+            'doublonFiches' => $doublon === '' ? [] : Prospect::siblings(Util::domain($doublon)),
         ]);
     }
 
@@ -242,6 +248,9 @@ final class Admin
             'palette' => $prospect['palette'] ?? [],
             'actifs' => Assets::catalogue($id),
             'consommation' => Consumption::byVersion($id),
+            // Les autres fiches du même site : c'est par là que passe une
+            // comparaison entre deux modèles sur le même prospect.
+            'fichesDuDomaine' => Prospect::siblings((string) $prospect['domain']),
         ]);
     }
 
@@ -255,14 +264,20 @@ final class Admin
             Flash::error('URL invalide. Exemple attendu : monentreprise.fr');
             Util::redirect(Router::url('prospects'));
         }
+        // Un domaine déjà suivi n'est plus un refus mais une question : suivre
+        // deux fois le même site est le seul moyen de comparer deux maquettes
+        // du même prospect. Le doublon reste explicite — on ne le crée jamais
+        // par inadvertance.
         $existing = Prospect::findByUrl($url);
-        if ($existing !== null) {
-            Flash::info('Ce domaine est déjà suivi.');
-            Util::redirect(Router::url('prospect', ['id' => $existing['id']]));
+        if ($existing !== null && empty($_POST['force'])) {
+            Util::redirect(Router::url('prospects', ['doublon' => $url]));
         }
 
         $prospect = Prospect::create($url);
-        Flash::success('Prospect ajouté. Lancez l\'analyse du site.');
+        Flash::success($existing === null
+            ? 'Prospect ajouté. Lancez l\'analyse du site.'
+            : 'Seconde fiche créée pour ' . $prospect['domain']
+                . ' : les deux sont indépendantes, y compris leurs maquettes et leur consommation.');
         Util::redirect(Router::url('prospect', ['id' => $prospect['id'], 'autorun' => 'analyze']));
     }
 
@@ -307,9 +322,24 @@ final class Admin
         Auth::requireLogin();
         Csrf::requireValid();
         $id = (string) ($_POST['id'] ?? '');
+
+        $prospect = Prospect::find($id);
+        if ($prospect === null) {
+            Flash::error('Prospect introuvable : il a peut-être déjà été supprimé.');
+            Util::redirect(Router::url('prospects'));
+        }
+
         Prospect::delete($id);
-        Flash::success('Prospect supprimé, maquettes comprises.');
-        Util::redirect(Router::url('prospects'));
+        Flash::success('« ' . Prospect::displayName($prospect) . ' » supprimé, maquettes comprises.');
+
+        // Supprimer depuis une liste filtrée doit ramener à cette liste-là :
+        // les filtres sont reconstruits ici plutôt que repris d'une URL fournie
+        // par le formulaire, qui pourrait pointer ailleurs.
+        Util::redirect(Router::url('prospects', [
+            'search' => (string) ($_POST['search'] ?? ''),
+            'status' => (string) ($_POST['status'] ?? ''),
+            'sort' => (string) ($_POST['sort'] ?? ''),
+        ]));
     }
 
     /**

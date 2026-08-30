@@ -2,7 +2,7 @@
 /**
  * @var array $p @var array $versions @var string $currentVersion @var array $timeline
  * @var array $sends @var array $schedule @var string $mockupUrl @var bool $hasShot @var string $shotUrl
- * @var array $palette @var array $actifs @var array $consommation
+ * @var array $palette @var array $actifs @var array $consommation @var array $fichesDuDomaine
  */
 use App\Assets;
 use App\Palette;
@@ -37,6 +37,24 @@ $mailable = Prospect::isMailable($p);
             · <?php $status = (string) $p['status']; require __DIR__ . '/../partials/status.php'; ?>
             <?php if (Suppression::has((string) $p['email'])): ?>
                 <span class="badge danger">Désinscrit</span>
+            <?php endif; ?>
+            <?php if (count($fichesDuDomaine) > 1): ?>
+                <?php
+                // Plusieurs fiches pour un même site : on est en comparaison.
+                // Sans ce rappel, on ne sait plus laquelle on regarde.
+                $rangIci = 0;
+                foreach ($fichesDuDomaine as $i => $f) {
+                    if ((string) $f['id'] === $id) { $rangIci = $i + 1; }
+                }
+                ?>
+                <br>
+                <span class="badge brand">fiche <?= $rangIci ?> sur <?= count($fichesDuDomaine) ?></span>
+                <span class="tiny muted">pour ce domaine —</span>
+                <?php foreach ($fichesDuDomaine as $i => $f): ?>
+                    <?php if ((string) $f['id'] !== $id): ?>
+                        <a class="tiny" href="<?= e(url('prospect', ['id' => $f['id']])) ?>">fiche <?= $i + 1 ?></a>
+                    <?php endif; ?>
+                <?php endforeach; ?>
             <?php endif; ?>
         </div>
     </div>

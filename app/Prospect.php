@@ -119,6 +119,69 @@ final class Prospect
         return null;
     }
 
+    /**
+     * Nombre de fiches par domaine.
+     *
+     * Un même site peut être suivi plusieurs fois : c'est ce qui permet de
+     * générer deux maquettes du même prospect avec deux modèles différents et
+     * de comparer la dépense. La liste doit alors dire lesquelles sont des
+     * doublons, sans quoi deux lignes identiques deviennent indiscernables.
+     *
+     * @return array<string,int> domaine => nombre de fiches
+     */
+    public static function countByDomain(): array
+    {
+        $comptes = [];
+        foreach (self::index() as $row) {
+            $domaine = (string) ($row['domain'] ?? '');
+            if ($domaine !== '') {
+                $comptes[$domaine] = ($comptes[$domaine] ?? 0) + 1;
+            }
+        }
+        return $comptes;
+    }
+
+    /**
+     * Rang de chaque fiche parmi celles de son domaine.
+     *
+     * L'heure de création ne suffit pas à les distinguer : une seconde fiche
+     * créée pour comparer l'est dans la minute qui suit la première, et les
+     * deux lignes affichaient la même heure. Le rang, lui, est toujours lisible.
+     *
+     * @return array<string,array{rang:int,total:int}>
+     */
+    public static function ranksByDomain(): array
+    {
+        $parDomaine = [];
+        foreach (self::index() as $row) {
+            $parDomaine[(string) ($row['domain'] ?? '')][] = $row;
+        }
+
+        $rangs = [];
+        foreach ($parDomaine as $fiches) {
+            usort($fiches, static fn (array $a, array $b): int
+                => (int) ($a['created_at'] ?? 0) <=> (int) ($b['created_at'] ?? 0)
+                ?: strcmp((string) $a['id'], (string) $b['id']));
+            $total = count($fiches);
+            foreach ($fiches as $rang => $fiche) {
+                $rangs[(string) $fiche['id']] = ['rang' => $rang + 1, 'total' => $total];
+            }
+        }
+        return $rangs;
+    }
+
+    /** Fiches d'un même domaine, de la plus ancienne à la plus récente. */
+    public static function siblings(string $domain): array
+    {
+        $fiches = array_values(array_filter(
+            self::index(),
+            static fn (array $row): bool => (string) ($row['domain'] ?? '') === $domain
+        ));
+        usort($fiches, static fn (array $a, array $b): int
+            => (int) ($a['created_at'] ?? 0) <=> (int) ($b['created_at'] ?? 0));
+        return $fiches;
+    }
+
     /** Enregistre un prospect et rafraîchit l'index. */
     public static function save(array $prospect): array
     {
