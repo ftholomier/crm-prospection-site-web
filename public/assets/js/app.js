@@ -662,6 +662,49 @@
         });
     }
 
+    /* Le collage de code source dit ce qu'il a reçu.
+       Une zone de texte remplie d'un coup de Ctrl+V ne donne aucun retour : on
+       ne sait pas si le contenu est passé, ni s'il est complet. La taille
+       affichée le dit, et suffit à repérer un collage tronqué. */
+    function bindCollage() {
+        var form = document.querySelector('[data-collage]');
+        if (!form) { return; }
+        var etat = form.querySelector('[data-collage-etat]');
+        var champs = form.querySelectorAll('[data-collage-champ]');
+        if (!etat || !champs.length) { return; }
+
+        function poids(n) {
+            return n < 1024 ? n + ' o'
+                : (n < 1048576 ? (n / 1024).toFixed(0) + ' Ko' : (n / 1048576).toFixed(1) + ' Mo');
+        }
+
+        function majEtat() {
+            var total = 0;
+            var pages = 0;
+            Array.prototype.forEach.call(champs, function (c) {
+                var n = c.value.length;
+                if (n > 0) { total += n; pages++; }
+            });
+            if (total === 0) {
+                etat.textContent = 'Collez le code source ci-dessus, puis cliquez ici.';
+                return;
+            }
+            var accueil = form.querySelector('#html_accueil');
+            if (accueil && accueil.value.trim() === '') {
+                etat.textContent = 'Il manque la page d\'accueil : c\'est la seule indispensable.';
+                return;
+            }
+            etat.textContent = pages + ' page' + (pages > 1 ? 's' : '') + ' collée'
+                + (pages > 1 ? 's' : '') + ', ' + poids(total) + ' — prêt à analyser.';
+        }
+
+        Array.prototype.forEach.call(champs, function (c) {
+            c.addEventListener('input', majEtat);
+            c.addEventListener('paste', function () { window.setTimeout(majEtat, 0); });
+        });
+        majEtat();
+    }
+
     function bindEtapes() {
         var menus = document.querySelectorAll('[data-etape-fournisseur], [data-etape-modele]');
         if (!menus.length) { return; }
@@ -692,6 +735,7 @@
         bindFournisseur();
         bindEtapes();
         bindSecrets();
+        bindCollage();
         bindAnalyze();
         bindCouleurs();
         bindEditeur();

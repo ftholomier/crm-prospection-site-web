@@ -158,14 +158,14 @@ $mailable = Prospect::isMailable($p);
                     <h3>Site pas encore analysé</h3>
                     <p>L'analyse lit la page d'accueil et les pages clés, calcule le score de vétusté et récupère les coordonnées.</p>
                     <p class="small">Si le site refuse la lecture automatique, fournissez la page vous-même
-                        <a href="#saisie-manuelle">dans le champ juste en dessous</a> : le résultat est identique.</p>
+                        <a href="#html_accueil">dans le champ juste en dessous</a> : le résultat est identique.</p>
                 </div>
             </div>
         <?php endif; ?>
 
         <div class="card" id="saisie-manuelle">
             <div class="card-head">
-                <h2>Le site bloque l'analyse ?</h2>
+                <h2 id="saisie-manuelle">Le site bloque l'analyse ?</h2>
                 <?php if ($hasManualSource): ?>
                     <div class="actions"><span class="badge ok">Code source enregistré</span></div>
                 <?php endif; ?>
@@ -213,29 +213,49 @@ $mailable = Prospect::isMailable($p);
                 sélectionnez tout (<strong>Ctrl+A</strong>) et collez. C'est la seule voie qui donne
                 le score de vétusté, puisqu'il se calcule sur le code lui-même.
             </p>
-            <form method="post" action="<?= e(url('prospect_manual')) ?>">
+            <?php /* Le bouton suivait les trois champs facultatifs : cinq cents pixels
+                     sous le champ où l'on venait de coller, et gris parce qu'une
+                     analyse existait déjà. On collait, et plus rien n'indiquait quoi
+                     faire. L'action est maintenant collée au champ qui la commande,
+                     et les pages facultatives sont repliées en dessous. */ ?>
+            <form method="post" action="<?= e(url('prospect_manual')) ?>" data-collage>
                 <?= Csrf::field() ?>
                 <input type="hidden" name="id" value="<?= e($id) ?>">
                 <div class="field">
                     <label for="html_accueil">Page d'accueil <span class="muted">— indispensable</span></label>
                     <textarea class="code" name="html_accueil" id="html_accueil" rows="6"
+                              data-collage-champ
                               placeholder="&lt;!DOCTYPE html&gt;&#10;&lt;html lang=&quot;fr&quot;&gt;…"></textarea>
                 </div>
-                <?php foreach ([
-                    'contact' => ['Page contact', 'Porte le plus souvent l\'email et le téléphone.'],
-                    'legal' => ['Mentions légales', 'Porte la raison sociale exacte et le SIREN.'],
-                    'services' => ['Page prestations', 'Alimente la page Prestations de la maquette.'],
-                ] as $role => [$titre, $aide]): ?>
-                    <div class="field">
-                        <label for="html_<?= e($role) ?>"><?= e($titre) ?> <span class="muted">— facultatif</span></label>
-                        <textarea class="code" name="html_<?= e($role) ?>" id="html_<?= e($role) ?>" rows="3"></textarea>
-                        <span class="hint muted tiny"><?= e($aide) ?></span>
-                    </div>
-                <?php endforeach; ?>
-                <button class="btn <?= $hasAnalysis ? '' : 'primary' ?>" type="submit">
-                    <?= $hasManualSource ? 'Remplacer les pages collées' : 'Analyser ces pages' ?>
-                </button>
-                <p class="tiny muted mt">Les feuilles de style externes restent hors de portée : les couleurs sont déduites du code collé.</p>
+
+                <div class="row">
+                    <button class="btn primary" type="submit">
+                        <?= $hasManualSource ? 'Remplacer les pages collées' : 'Analyser ces pages' ?>
+                    </button>
+                    <span class="tiny muted" data-collage-etat>Collez le code source ci-dessus, puis cliquez ici.</span>
+                </div>
+
+                <details class="mt">
+                    <summary class="small">Ajouter d'autres pages — facultatif, améliore le relevé</summary>
+                    <?php foreach ([
+                        'contact' => ['Page contact', 'Porte le plus souvent l\'email et le téléphone.'],
+                        'legal' => ['Mentions légales', 'Porte la raison sociale exacte et le SIREN.'],
+                        'services' => ['Page prestations', 'Alimente la page Prestations de la maquette.'],
+                    ] as $role => [$titre, $aide]): ?>
+                        <div class="field mt">
+                            <label for="html_<?= e($role) ?>"><?= e($titre) ?></label>
+                            <textarea class="code" name="html_<?= e($role) ?>" id="html_<?= e($role) ?>" rows="3"
+                                      data-collage-champ></textarea>
+                            <span class="hint muted tiny"><?= e($aide) ?></span>
+                        </div>
+                    <?php endforeach; ?>
+                </details>
+
+                <p class="tiny muted mt">
+                    Les feuilles de style externes restent hors de portée : les couleurs sont déduites du
+                    code collé. Une page dépassant la taille acceptée par votre hébergement est refusée
+                    avec un message explicite — collez-en une à la fois si le cas se présente.
+                </p>
             </form>
         </div>
 

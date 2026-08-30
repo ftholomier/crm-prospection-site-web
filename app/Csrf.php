@@ -27,12 +27,32 @@ final class Csrf
         return $expected !== '' && is_string($token) && hash_equals($expected, $token);
     }
 
-    /** Bloque la requête si le jeton est absent ou invalide. */
+    /**
+     * Bloque la requête si le jeton est absent ou invalide.
+     *
+     * Un cas se déguise en jeton manquant et n'en est pas un : un envoi plus
+     * gros que post_max_size arrive avec un $_POST entièrement vide, jeton
+     * compris. PHP ne lève rien, et l'utilisateur lit « session expirée » alors
+     * que sa session est parfaitement valide — il vient simplement de coller
+     * une page de 3 Mo. Le cas se reconnaît à un corps annoncé mais non
+     * analysé, et il se dit en clair.
+     */
     public static function requireValid(): void
     {
-        if (!self::verify($_POST['_csrf'] ?? null)) {
-            http_response_code(419);
-            exit('Session expirée. Rechargez la page et réessayez.');
+        if (self::verify($_POST['_csrf'] ?? null)) {
+            return;
         }
+
+        $annonce = (int) ($_SERVER['CONTENT_LENGTH'] ?? 0);
+        if ($_POST === [] && $annonce > 0) {
+            $limite = (string) ini_get('post_max_size');
+            http_response_code(413);
+            exit('Envoi refusé : ' . Scraper::humanSize($annonce) . ' reçus, au-delà de ce que votre '
+                . 'hébergement accepte (post_max_size = ' . $limite . '). Le contenu n\'a pas été lu. '
+                . 'Collez une page à la fois, ou faites relever cette limite par votre hébergeur.');
+        }
+
+        http_response_code(419);
+        exit('Session expirée. Rechargez la page et réessayez.');
     }
 }
