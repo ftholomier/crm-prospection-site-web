@@ -150,7 +150,7 @@ final class Config
                 'signature' => '',
                 'cron_key' => '',
             ],
-            // Fournisseur d'IA : « claude » ou « deepseek ».
+            // Fournisseur d'IA : « claude », « deepseek » ou « gemini ».
             'ai' => [
                 'provider' => 'claude',
                 // Un modèle par étape. Le brief décide de ce qu'on garde et de
@@ -173,6 +173,13 @@ final class Config
                 // [entrée creuse, sortie creuse, entrée pleine, sortie pleine].
                 // Vides, ceux livrés avec l'application servent.
                 'tarifs' => [],
+            ],
+            'gemini' => [
+                'api_key' => '',
+                'base_url' => '',
+                'model' => 'gemini-2.5-flash-lite',
+                'max_tokens' => 8000,
+                'timeout' => 600,
             ],
             'claude' => [
                 'api_key' => '',

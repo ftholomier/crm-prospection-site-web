@@ -79,6 +79,81 @@ final class Models
         return ($heure >= 1 && $heure < 4) || ($heure >= 6 && $heure < 10);
     }
 
+    /**
+     * Tarifs Gemini, en dollars par million de jetons : [entrée, sortie, entrée en cache].
+     *
+     * Relevés sur la page tarifaire officielle de Google, colonne « Global »,
+     * tranche « ≤ 200K jetons d'entrée » — celle où se situent toutes nos
+     * requêtes. C'est la seule des trois grilles de ce fichier qui ait pu être
+     * lue à sa source ; les autres viennent d'une capture ou d'un relevé.
+     *
+     * L'écart de génération se paie cher : 2.5 Flash-Lite coûte le cinquième de
+     * 3.5 Flash-Lite pour un travail — remplir un gabarit imposé — que les deux
+     * savent faire.
+     */
+    public const GEMINI_PRICING_DATE = '2026-08-30';
+    public const GEMINI_PRICING_SOURCE = 'https://cloud.google.com/vertex-ai/generative-ai/pricing';
+
+    private const PRICING_GEMINI = [
+        'gemini-2.5-flash-lite' => [0.10, 0.40, 0.01],
+        'gemini-2.5-flash' => [0.30, 2.50, 0.03],
+        'gemini-2.5-pro' => [1.25, 10.0, 0.125],
+        'gemini-3-flash' => [0.50, 3.0, 0.05],
+        'gemini-3.1-flash-lite' => [0.25, 1.50, 0.025],
+        'gemini-3.1-pro' => [2.0, 12.0, 0.20],
+        'gemini-3.5-flash-lite' => [0.30, 2.50, 0.03],
+        'gemini-3.5-flash' => [1.50, 9.0, 0.15],
+        'gemini-3.6-flash' => [1.50, 7.50, 0.15],
+        'gemini-3.7-flash' => [1.50, 7.50, 0.15],
+    ];
+
+    /**
+     * Tarifs de lancement, valables jusqu'à une date annoncée par Google.
+     *
+     * Les deux derniers Flash sont à moitié prix jusqu'au 31 décembre 2026 ;
+     * au 1er janvier ils doublent. La table ci-dessus porte donc le tarif
+     * définitif, et celle-ci la remise tant qu'elle court : un relevé de
+     * consommation daté doit rester juste quand on le rouvre en février.
+     */
+    private const PRICING_GEMINI_LANCEMENT = [
+        'gemini-3.6-flash' => ['fin' => '2027-01-01', 'prix' => [0.75, 3.75, 0.075]],
+        'gemini-3.7-flash' => ['fin' => '2027-01-01', 'prix' => [0.75, 3.75, 0.075]],
+    ];
+
+    /**
+     * Tarif Gemini d'un modèle, le suffixe de version en moins.
+     *
+     * Les identifiants d'API portent des suffixes mouvants — « -preview »,
+     * « -preview-11-2026 », « -002 » — qui ne changent pas le prix. Les ignorer
+     * évite d'afficher « tarif non relevé » sur un modèle dont on connaît
+     * parfaitement la grille.
+     */
+    private static function prixGemini(string $model, int $at): ?array
+    {
+        $nom = strtolower(trim($model));
+        if (!str_starts_with($nom, 'gemini-')) {
+            return null;
+        }
+        // On raccourcit le nom jusqu'à tomber sur une entrée connue :
+        // « gemini-3.1-flash-lite-preview-11-2026 » finit sur
+        // « gemini-3.1-flash-lite ».
+        while ($nom !== '') {
+            if (isset(self::PRICING_GEMINI[$nom])) {
+                $lancement = self::PRICING_GEMINI_LANCEMENT[$nom] ?? null;
+                if ($lancement !== null && $at < strtotime($lancement['fin'])) {
+                    return $lancement['prix'];
+                }
+                return self::PRICING_GEMINI[$nom];
+            }
+            $coupe = strrpos($nom, '-');
+            if ($coupe === false) {
+                return null;
+            }
+            $nom = substr($nom, 0, $coupe);
+        }
+        return null;
+    }
+
     private const PRICING = [
         'claude-fable-5' => [10.0, 50.0, 1.0],
         'claude-mythos-5' => [10.0, 50.0, 1.0],
@@ -347,7 +422,7 @@ final class Models
         if ($fourchette !== null) {
             return $fourchette[self::heurePleine($at ?? time()) ? 'pleine' : 'creuse'];
         }
-        return self::PRICING[$model] ?? null;
+        return self::PRICING[$model] ?? self::prixGemini($model, $at ?? time());
     }
 
     /**
@@ -393,6 +468,17 @@ final class Models
     public static function priceRangeLivre(string $model): ?array
     {
         return self::PRICING_HORAIRE[$model] ?? null;
+    }
+
+    /** Modèles Gemini dont le tarif est relevé, du moins cher au plus cher. */
+    public static function modelesGemini(): array
+    {
+        $modeles = array_keys(self::PRICING_GEMINI);
+        usort($modeles, static function (string $a, string $b): int {
+            return self::PRICING_GEMINI[$a][0] <=> self::PRICING_GEMINI[$b][0]
+                ?: self::PRICING_GEMINI[$a][1] <=> self::PRICING_GEMINI[$b][1];
+        });
+        return $modeles;
     }
 
     /** Modèles dont le tarif se saisit à la main. */
@@ -589,9 +675,13 @@ final class Models
         if ($cost === null) {
             return 'tarif inconnu';
         }
-        if ($cost < 0.01) {
-            return '< 0,01 $';
+        // Une maquette complète coûte moins d'un centime chez les modèles les
+        // moins chers : arrondir au centime effacerait exactement l'écart qu'on
+        // cherche à comparer d'un modèle à l'autre.
+        if ($cost > 0 && $cost < 0.0001) {
+            return '< 0,0001 $';
         }
-        return number_format($cost, 2, ',', ' ') . ' $';
+        $decimales = $cost < 0.01 ? 4 : ($cost < 1 ? 3 : 2);
+        return number_format($cost, $decimales, ',', ' ') . ' $';
     }
 }

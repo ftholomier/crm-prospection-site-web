@@ -365,7 +365,9 @@ final class Generator
             'impose' => $impose,
             'system' => self::systemPrompt($prospect),
             'messages' => [['role' => 'user', 'content' => $task]],
-            'max_tokens' => (int) Config::get(Ai::provider() === Ai::DEEPSEEK ? 'deepseek.max_tokens' : 'claude.max_tokens', 24000),
+            'max_tokens' => Ai::maxTokens(($impose['provider'] ?? '') !== ''
+                ? (string) $impose['provider']
+                : Ai::for('pages')['provider']),
         ], $onDelta);
 
         if (!$result['ok']) {

@@ -59,7 +59,7 @@ $secretPlaceholder = static fn (string $value): string => $value !== '' ? 'Valeu
         </div>
     </div>
 
-    <?php $fournisseur = ($config['ai']['provider'] ?? 'claude') === 'deepseek' ? 'deepseek' : 'claude'; ?>
+    <?php $fournisseur = App\Ai::normalize((string) ($config['ai']['provider'] ?? 'claude')); ?>
     <div class="card" id="claude">
         <div class="card-head">
             <h2>Génération des maquettes</h2>
@@ -71,15 +71,17 @@ $secretPlaceholder = static fn (string $value): string => $value !== '' ? 'Valeu
         <div class="field">
             <label for="ai_provider">Fournisseur</label>
             <select name="ai_provider" id="ai_provider" data-fournisseur>
-                <option value="claude" <?= $fournisseur === 'claude' ? 'selected' : '' ?>>Claude (Anthropic)</option>
-                <option value="deepseek" <?= $fournisseur === 'deepseek' ? 'selected' : '' ?>>DeepSeek</option>
+                <?php foreach (App\Ai::FOURNISSEURS as $cle => $nomFournisseur): ?>
+                    <option value="<?= e($cle) ?>" <?= $fournisseur === $cle ? 'selected' : '' ?>><?= e($nomFournisseur) ?></option>
+                <?php endforeach; ?>
             </select>
             <span class="hint muted tiny">
-                DeepSeek coûte nettement moins cher. Une seule fonction n'existe que chez Anthropic et se
-                désactive si vous le choisissez : <strong>la lecture d'un site bloqué par l'IA</strong>, qui
-                repose sur un outil exécuté chez eux. La capture du site, elle, peut être lue par le modèle
-                <span class="mono">deepseek-v4-flash-vision-exp</span>, au tarif de Flash — choisissez-le
-                pour l'étape « Direction artistique » si vous voulez que le modèle voie le site actuel.
+                DeepSeek et Gemini coûtent nettement moins cher : la page la moins chère se génère
+                aujourd'hui chez Gemini, avec <span class="mono">gemini-2.5-flash-lite</span>.
+                Une seule fonction n'existe que chez Anthropic et se désactive si vous choisissez un autre
+                fournisseur : <strong>la lecture d'un site bloqué par l'IA</strong>, qui repose sur un outil
+                exécuté chez eux. La capture du site, elle, est lue par tous les modèles Claude et Gemini,
+                mais côté DeepSeek par le seul <span class="mono">deepseek-v4-flash-vision-exp</span>.
                 Le reste — brief, pages, retouches — fonctionne à l'identique.
             </span>
         </div>
@@ -333,7 +335,112 @@ $secretPlaceholder = static fn (string $value): string => $value !== '' ? 'Valeu
             </p>
         </div>
 
-        <?php $estimation = App\Models::estimateByStep(); ?>
+        <div data-bloc-fournisseur="gemini"<?= $fournisseur === 'gemini' ? '' : ' hidden' ?>>
+            <div class="field">
+                <label for="gemini_api_key">Clé API Gemini</label>
+                <input type="password" name="gemini_api_key" id="gemini_api_key" autocomplete="off"
+                       placeholder="<?= e($secretPlaceholder((string) ($config['gemini']['api_key'] ?? ''))) ?>">
+                <span class="hint muted tiny">
+                    À créer sur aistudio.google.com, rubrique « API keys ». Stockée dans data/config.json,
+                    hors de la racine web. L'API « Generative Language » doit être activée sur le projet
+                    Google associé, sinon la clé est refusée alors qu'elle est valide.
+                </span>
+            </div>
+            <div class="field-row">
+                <div class="field">
+                    <label for="gemini_model">Modèle</label>
+                    <?php
+                    $modelesGem = App\Gemini::catalog();
+                    $modeleGem = (string) ($config['gemini']['model'] ?? App\Gemini::DEFAUT);
+                    $connuGem = in_array($modeleGem, array_column($modelesGem, 'id'), true);
+                    ?>
+                    <select name="gemini_model" id="gemini_model">
+                        <?php foreach ($modelesGem as $modele): ?>
+                            <?php $prixGem = App\Models::priceOf((string) $modele['id']); ?>
+                            <option value="<?= e($modele['id']) ?>" <?= $modeleGem === $modele['id'] ? 'selected' : '' ?>>
+                                <?= e($modele['label']) ?><?= $prixGem === null ? ' — tarif non relevé'
+                                    : ' — ' . e(nombre($prixGem[0])) . ' $ / ' . e(nombre($prixGem[1])) . ' $ par million' ?>
+                            </option>
+                        <?php endforeach; ?>
+                        <?php if (!$connuGem && $modeleGem !== ''): ?>
+                            <option value="<?= e($modeleGem) ?>" selected><?= e($modeleGem) ?> — hors liste</option>
+                        <?php endif; ?>
+                    </select>
+                    <span class="hint muted tiny">
+                        <?php if (App\Gemini::fetchedAt() > 0): ?>
+                            Liste renvoyée par votre compte Google, relevée <?= e(ago(App\Gemini::fetchedAt())) ?>.
+                        <?php else: ?>
+                            Liste de secours : les noms exacts se relèvent sur votre compte dès la clé
+                            enregistrée. Les versions préliminaires portent des suffixes qui changent
+                            — c'est précisément pourquoi cette liste ne doit pas être écrite en dur.
+                        <?php endif; ?>
+                    </span>
+                </div>
+                <div class="field">
+                    <label for="gemini_max_tokens">Tokens maximum par page</label>
+                    <input type="number" name="gemini_max_tokens" id="gemini_max_tokens" min="2000" max="64000" step="1000"
+                           value="<?= (int) ($config['gemini']['max_tokens'] ?? 8000) ?>">
+                </div>
+            </div>
+
+            <div class="table-wrap">
+                <table class="table">
+                    <thead>
+                    <tr>
+                        <th>Modèle</th>
+                        <th class="right nowrap">Entrée</th>
+                        <th class="right nowrap">Sortie</th>
+                        <th class="right nowrap">Entrée en cache</th>
+                        <th class="right nowrap">Coût / maquette</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <?php foreach (App\Models::modelesGemini() as $modele): ?>
+                        <?php $prixGem = App\Models::priceOf($modele); ?>
+                        <tr<?= $modeleGem === $modele ? ' style="background:var(--brand-soft)"' : '' ?>>
+                            <td data-label="Modèle">
+                                <span class="mono"><?= e($modele) ?></span>
+                                <?php if ($modeleGem === $modele): ?><span class="badge brand">Actif</span><?php endif; ?>
+                            </td>
+                            <td class="right nowrap" data-label="Entrée"><?= e(nombre($prixGem[0])) ?> $</td>
+                            <td class="right nowrap" data-label="Sortie"><?= e(nombre($prixGem[1])) ?> $</td>
+                            <td class="right nowrap" data-label="Entrée en cache"><?= e(nombre($prixGem[2] ?? $prixGem[0])) ?> $</td>
+                            <td class="right nowrap strong" data-label="Coût / maquette">
+                                <?= e(App\Models::formatCost(App\Models::costFor($prixGem[0], $prixGem[1]))) ?>
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+            <p class="tiny muted">
+                En dollars par million de jetons. Grille relevée sur
+                <a href="<?= e(App\Models::GEMINI_PRICING_SOURCE) ?>" target="_blank" rel="noopener noreferrer">la page tarifaire officielle de Google</a>
+                le <?= e(date('d/m/Y', strtotime(App\Models::GEMINI_PRICING_DATE))) ?>, colonne « Global »,
+                tranche « ≤ 200 000 jetons d'entrée » — celle où se situent toutes les requêtes de cette
+                application. Contrairement aux deux autres fournisseurs, cette grille a pu être lue
+                directement à sa source.
+                <br>
+                Les Flash 3.6 et 3.7 sont à moitié prix jusqu'au 31 décembre 2026 ; le relevé de
+                consommation applique la remise tant qu'elle court, et le tarif plein ensuite.
+            </p>
+            <p class="tiny muted">
+                La liste des modèles se met à jour seule une fois par jour.
+                <button class="btn small ghost" type="submit" formaction="<?= e(url('gemini_refresh')) ?>" formnovalidate>
+                    Rafraîchir maintenant
+                </button>
+            </p>
+        </div>
+
+        <?php
+        $estimation = App\Models::estimateByStep();
+        // Un catalogue par fournisseur, relevé une seule fois : deux étapes et
+        // trois fournisseurs feraient sinon six lectures pour la même liste.
+        $catalogues = [];
+        foreach (array_keys(App\Ai::FOURNISSEURS) as $cleFournisseur) {
+            $catalogues[$cleFournisseur] = App\Ai::catalog($cleFournisseur);
+        }
+        ?>
         <div class="divider"></div>
         <h3>Un modèle par étape</h3>
         <p class="small muted">
@@ -359,11 +466,17 @@ $secretPlaceholder = static fn (string $value): string => $value !== '' ? 'Valeu
                 <?php foreach (App\Ai::ETAPES as $etape => $labelEtape): ?>
                     <?php
                     $reglageEtape = (array) ($config['ai']['steps'][$etape] ?? []);
-                    $fEtape = (string) ($reglageEtape['provider'] ?? '');
+                    $fEtape = App\Ai::normalize((string) ($reglageEtape['provider'] ?? ''), '');
                     $mEtape = (string) ($reglageEtape['model'] ?? '');
                     $ligne = $estimation['lignes'][$etape];
+                    // Le fournisseur réellement en vigueur pour cette étape :
+                    // « comme le principal » suit celui du haut de page.
+                    $fActif = $fEtape !== '' ? $fEtape : $fournisseur;
+                    $libre = $mEtape !== '' && !in_array($mEtape, array_column($catalogues[$fActif], 'id'), true);
                     ?>
-                    <tr>
+                    <tr data-etape-ligne="<?= e($etape) ?>"
+                        data-jetons-entree="<?= (int) $ligne['input'] ?>"
+                        data-jetons-sortie="<?= (int) $ligne['output'] ?>">
                         <td data-label="Étape">
                             <strong><?= e($labelEtape) ?></strong>
                             <div class="tiny muted">
@@ -373,23 +486,63 @@ $secretPlaceholder = static fn (string $value): string => $value !== '' ? 'Valeu
                             </div>
                         </td>
                         <td data-label="Fournisseur">
-                            <select name="step_<?= e($etape) ?>_provider">
+                            <select name="step_<?= e($etape) ?>_provider" data-etape-fournisseur="<?= e($etape) ?>">
                                 <option value="" <?= $fEtape === '' ? 'selected' : '' ?>>Comme le principal</option>
-                                <option value="claude" <?= $fEtape === 'claude' ? 'selected' : '' ?>>Claude</option>
-                                <option value="deepseek" <?= $fEtape === 'deepseek' ? 'selected' : '' ?>>DeepSeek</option>
+                                <?php foreach (App\Ai::FOURNISSEURS as $cle => $nomFournisseur): ?>
+                                    <option value="<?= e($cle) ?>" <?= $fEtape === $cle ? 'selected' : '' ?>>
+                                        <?= e(App\Ai::label($cle)) ?>
+                                    </option>
+                                <?php endforeach; ?>
                             </select>
                         </td>
                         <td data-label="Modèle">
-                            <input type="text" class="mono" name="step_<?= e($etape) ?>_model"
-                                   value="<?= e($mEtape) ?>" placeholder="modèle par défaut" spellcheck="false"
-                                   list="modeles-connus">
+                            <?php foreach (App\Ai::FOURNISSEURS as $cle => $nomFournisseur): ?>
+                                <?php
+                                // Un menu par fournisseur : seul celui du
+                                // fournisseur retenu est actif, les autres sont
+                                // désactivés, donc ni visibles ni envoyés. Un
+                                // champ libre commun affichait des modèles
+                                // Claude en face de DeepSeek.
+                                $actif = $cle === $fActif;
+                                $defautCle = App\Ai::defaultModel($cle);
+                                $prixDefaut = App\Models::priceOf($defautCle);
+                                ?>
+                                <select name="step_<?= e($etape) ?>_model" class="mono"
+                                        data-etape-modele="<?= e($etape) ?>" data-pour="<?= e($cle) ?>"
+                                        <?= $actif ? '' : 'disabled hidden' ?>>
+                                    <option value=""
+                                            data-entree="<?= e((string) ($prixDefaut[0] ?? '')) ?>"
+                                            data-sortie="<?= e((string) ($prixDefaut[1] ?? '')) ?>"
+                                            <?= $mEtape === '' ? 'selected' : '' ?>>
+                                        Par défaut — <?= e($defautCle) ?>
+                                    </option>
+                                    <?php foreach ($catalogues[$cle] as $modele): ?>
+                                        <?php $prixModele = App\Models::priceOf((string) $modele['id']); ?>
+                                        <option value="<?= e($modele['id']) ?>"
+                                                data-entree="<?= e((string) ($prixModele[0] ?? '')) ?>"
+                                                data-sortie="<?= e((string) ($prixModele[1] ?? '')) ?>"
+                                                <?= ($actif && $mEtape === $modele['id']) ? 'selected' : '' ?>>
+                                            <?= e($modele['id']) ?><?= $prixModele === null ? ' — tarif non relevé'
+                                                : ' — ' . e(nombre($prixModele[0])) . ' / ' . e(nombre($prixModele[1])) . ' $' ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                    <option value="__libre__" <?= ($actif && $libre) ? 'selected' : '' ?>>
+                                        Autre — saisir un identifiant
+                                    </option>
+                                </select>
+                            <?php endforeach; ?>
+                            <input type="text" class="mono" name="step_<?= e($etape) ?>_model_libre"
+                                   data-etape-libre="<?= e($etape) ?>" spellcheck="false"
+                                   placeholder="identifiant exact du modèle"
+                                   value="<?= $libre ? e($mEtape) : '' ?>"
+                                   <?= $libre ? '' : 'disabled hidden' ?>>
                         </td>
                         <td class="right nowrap tiny muted" data-label="Jetons / maquette">
                             <?= number_format($ligne['input'], 0, ',', ' ') ?> ↓
                             <?= number_format($ligne['output'], 0, ',', ' ') ?> ↑
                             <?= $ligne['measured'] ? '' : '<span class="faint">(estimé)</span>' ?>
                         </td>
-                        <td class="right nowrap strong" data-label="Coût estimé">
+                        <td class="right nowrap strong" data-label="Coût estimé" data-cout-etape="<?= e($etape) ?>">
                             <?= $ligne['cost'] === null ? '<span class="faint">tarif non relevé</span>'
                                 : e(App\Models::formatCost($ligne['cost'])) ?>
                         </td>
@@ -406,10 +559,10 @@ $secretPlaceholder = static fn (string $value): string => $value !== '' ? 'Valeu
                 Le total n'est pas calculable : au moins un modèle retenu n'a pas de tarif relevé ici
                 (les grilles DeepSeek ne le sont pas).
             <?php endif; ?>
-            Laissez les deux champs vides pour que tout suive le fournisseur principal.
-            Le nom du modèle s'écrit tel quel — <span class="mono">claude-haiku-4-5</span>,
-            <span class="mono">deepseek-chat</span> — et la répartition des jetons s'ajuste à votre
-            consommation réelle après quelques maquettes.
+            Laissez « Comme le principal » et « Par défaut » pour que tout suive le fournisseur du haut
+            de page. La liste des modèles suit le fournisseur choisi sur la ligne, et le coût estimé se
+            recalcule à chaque changement. La répartition des jetons, elle, s'ajuste à votre consommation
+            réelle après quelques maquettes.
         </p>
 
         <div class="field-row">
@@ -431,20 +584,6 @@ $secretPlaceholder = static fn (string $value): string => $value !== '' ? 'Valeu
                        placeholder="Relevé bancaire de janvier">
             </div>
         </div>
-
-        <?php
-        // Les identifiants connus des deux fournisseurs, en suggestion : le champ
-        // reste libre, un modèle sorti après cette version doit rester saisissable.
-        $suggestions = array_merge(
-            array_column($models, 'id'),
-            array_column(App\DeepSeek::catalog(), 'id')
-        );
-        ?>
-        <datalist id="modeles-connus">
-            <?php foreach (array_unique($suggestions) as $suggestion): ?>
-                <option value="<?= e((string) $suggestion) ?>"></option>
-            <?php endforeach; ?>
-        </datalist>
 
         <div class="divider"></div>
 
@@ -814,9 +953,23 @@ $secretPlaceholder = static fn (string $value): string => $value !== '' ? 'Valeu
     <div class="card">
         <div class="card-head"><h2>Tester la configuration</h2></div>
         <div class="row mb">
+            <?php
+            // Un bouton par fournisseur réellement sollicité : avec un réglage
+            // par étape, « tester la clé » sans dire laquelle ne veut plus rien
+            // dire — et c'est justement la clé de l'étape qui manque qui fait
+            // échouer une génération à mi-parcours.
+            $aTester = App\Ai::providersUsed();
+            ?>
             <form method="post" action="<?= e(url('test_claude')) ?>">
                 <?= Csrf::field() ?>
-                <button class="btn" type="submit">Tester la clé API <?= e(App\Ai::label()) ?></button>
+                <?php foreach ($aTester as $cleTest): ?>
+                    <button class="btn" type="submit" name="provider" value="<?= e($cleTest) ?>">
+                        Tester la clé API <?= e(App\Ai::label($cleTest)) ?>
+                        <?php if (!App\Ai::isConfiguredFor($cleTest)): ?>
+                            <span class="badge warn">absente</span>
+                        <?php endif; ?>
+                    </button>
+                <?php endforeach; ?>
             </form>
             <form method="post" action="<?= e(url('models_refresh')) ?>">
                 <?= Csrf::field() ?>

@@ -45,6 +45,19 @@ function dt(?int $timestamp, string $format = 'd/m/Y à H:i'): string
     return date($format, $timestamp);
 }
 
+/**
+ * Nombre affiché sans zéros inutiles.
+ *
+ * Les tarifs vont de 0,007 $ à 75 $ par million de jetons : deux décimales
+ * afficheraient « 0,01 » là où l'écart avec 0,025 fait un facteur trois sur la
+ * facture. On garde quatre décimales et on retire ce qui ne sert pas.
+ */
+function nombre(float $valeur, int $decimales = 4): string
+{
+    $texte = number_format($valeur, $decimales, ',', ' ');
+    return str_contains($texte, ',') ? rtrim(rtrim($texte, '0'), ',') : $texte;
+}
+
 /** Durée relative courte (« il y a 3 j »). */
 function ago(?int $timestamp): string
 {

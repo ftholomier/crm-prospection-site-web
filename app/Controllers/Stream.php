@@ -298,7 +298,7 @@ final class Stream
                 continue;
             }
             $candidats[] = [
-                'provider' => $fournisseur === Ai::DEEPSEEK ? Ai::DEEPSEEK : Ai::CLAUDE,
+                'provider' => Ai::normalize(trim($fournisseur)),
                 'model' => $modele,
                 'note' => '',
             ];

@@ -7,40 +7,74 @@ namespace App;
  * Choix du fournisseur d'IA.
  *
  * L'application ne s'adresse plus directement à Claude : elle passe par ici, et
- * c'est le réglage « ai.provider » qui décide. Les deux clients rendent la même
+ * c'est le réglage « ai.provider » qui décide. Tous les clients rendent la même
  * forme de réponse, si bien que le générateur ignore lequel a répondu.
  *
- * Ce que les deux ne font pas également est dit franchement plutôt que masqué :
- * la lecture d'un site bloqué repose sur un outil serveur qui n'existe que chez
- * Anthropic, et la capture d'écran n'est lisible que par Claude.
+ * Ce qu'ils ne font pas également est dit franchement plutôt que masqué : la
+ * lecture d'un site bloqué repose sur un outil serveur qui n'existe que chez
+ * Anthropic, et tous les modèles ne savent pas lire une capture d'écran.
  */
 final class Ai
 {
     public const CLAUDE = 'claude';
     public const DEEPSEEK = 'deepseek';
+    public const GEMINI = 'gemini';
+
+    /**
+     * Les fournisseurs, dans l'ordre où ils sont proposés.
+     *
+     * Une seule liste : ajouter un fournisseur ne doit pas obliger à retrouver
+     * les huit endroits qui les énuméraient, ce qui est exactement la faute qui
+     * a laissé les listes de modèles désynchronisées de leur fournisseur.
+     */
+    public const FOURNISSEURS = [
+        self::CLAUDE => 'Claude (Anthropic)',
+        self::DEEPSEEK => 'DeepSeek',
+        self::GEMINI => 'Gemini (Google)',
+    ];
+
+    /** Classe cliente d'un fournisseur. */
+    private const CLIENTS = [
+        self::CLAUDE => Claude::class,
+        self::DEEPSEEK => DeepSeek::class,
+        self::GEMINI => Gemini::class,
+    ];
+
+    /** Ramène n'importe quelle saisie à un fournisseur connu. */
+    public static function normalize(string $provider, string $defaut = self::CLAUDE): string
+    {
+        return isset(self::FOURNISSEURS[$provider]) ? $provider : $defaut;
+    }
 
     public static function provider(): string
     {
-        return Config::get('ai.provider') === self::DEEPSEEK ? self::DEEPSEEK : self::CLAUDE;
+        return self::normalize((string) Config::get('ai.provider', self::CLAUDE));
     }
 
     public static function label(?string $provider = null): string
     {
-        return ($provider ?? self::provider()) === self::DEEPSEEK ? 'DeepSeek' : 'Claude';
+        $provider = self::normalize((string) ($provider ?? self::provider()));
+        // Le nom court suffit à l'écran : « Claude », « DeepSeek », « Gemini ».
+        return trim(explode('(', self::FOURNISSEURS[$provider])[0]);
+    }
+
+    public static function isConfiguredFor(string $provider): bool
+    {
+        $client = self::CLIENTS[self::normalize($provider)];
+        return $client::isConfigured();
     }
 
     /**
      * Toutes les clés nécessaires sont-elles présentes ?
      *
-     * Un réglage par étape peut solliciter les deux fournisseurs : il ne suffit
+     * Un réglage par étape peut solliciter plusieurs fournisseurs : il ne suffit
      * plus que le principal soit configuré, sinon la génération partirait pour
      * échouer à mi-parcours, après avoir déjà consommé le brief.
      */
     public static function isConfigured(): bool
     {
         foreach (self::providersUsed() as $fournisseur) {
-            $ok = $fournisseur === self::DEEPSEEK ? DeepSeek::isConfigured() : Claude::isConfigured();
-            if (!$ok) {
+            if (!self::isConfiguredFor($fournisseur)) {
                 return false;
             }
         }
@@ -57,12 +91,57 @@ final class Ai
         return array_values(array_unique($utilises));
     }
 
+    /** Modèle par défaut d'un fournisseur, celui de ses Réglages. */
+    public static function defaultModel(string $provider): string
+    {
+        $provider = self::normalize($provider);
+        if ($provider === self::CLAUDE) {
+            return (string) Config::get('claude.model', 'claude-opus-5');
+        }
+        $client = self::CLIENTS[$provider];
+        return $client::model();
+    }
+
     /** Modèle en vigueur, pour l'afficher là où le coût et le suivi le sont. */
     public static function model(): string
     {
-        return self::provider() === self::DEEPSEEK
-            ? DeepSeek::model()
-            : (string) Config::get('claude.model', 'claude-opus-5');
+        return self::defaultModel(self::provider());
+    }
+
+    /**
+     * Plafond de jetons produits, propre au fournisseur.
+     *
+     * Il ne se déduit pas du principal : une page générée par Gemini doit
+     * respecter le plafond réglé pour Gemini, sinon on demande à un modèle
+     * 24 000 jetons quand ses réglages en annoncent 8 000.
+     */
+    public static function maxTokens(string $provider): int
+    {
+        $provider = self::normalize($provider);
+        if ($provider === self::CLAUDE) {
+            return (int) Config::get('claude.max_tokens', 24000);
+        }
+        $client = self::CLIENTS[$provider];
+        return $client::defaultMaxTokens();
+    }
+
+    /**
+     * Modèles proposés par un fournisseur, tels qu'ils s'affichent dans un menu.
+     *
+     * @return array<int,array{id:string,label:string}>
+     */
+    public static function catalog(string $provider): array
+    {
+        $provider = self::normalize($provider);
+        if ($provider === self::CLAUDE) {
+            $modeles = [];
+            foreach (Models::catalog() as $modele) {
+                $modeles[] = ['id' => (string) $modele['id'], 'label' => (string) ($modele['name'] ?? $modele['id'])];
+            }
+            return $modeles;
+        }
+        $client = self::CLIENTS[$provider];
+        return $client::catalog();
     }
 
     /**
@@ -81,15 +160,17 @@ final class Ai
      * La capture du site peut-elle être jointe ?
      *
      * Elle n'accompagne que le brief : c'est le modèle de cette étape-là qui
-     * décide. Tous les modèles Claude la lisent ; côté DeepSeek, seul le
-     * modèle vision — au même tarif que Flash.
+     * décide. Tous les modèles Claude et Gemini la lisent ; côté DeepSeek, seul
+     * le modèle vision — au même tarif que Flash.
      */
     public static function readsImages(): bool
     {
-        if (self::for('brief')['provider'] === self::CLAUDE) {
+        $provider = self::for('brief')['provider'];
+        if ($provider === self::CLAUDE) {
             return true;
         }
-        return DeepSeek::readsImages(self::modelFor('brief'));
+        $client = self::CLIENTS[self::normalize($provider)];
+        return $client::readsImages(self::modelFor('brief'));
     }
 
     /** Étapes dont le modèle se règle séparément. */
@@ -124,22 +205,17 @@ final class Ai
             return $defaut;
         }
 
-        $fournisseur = $fournisseur === self::DEEPSEEK ? self::DEEPSEEK
-            : ($fournisseur === self::CLAUDE ? self::CLAUDE : self::provider());
-
-        return ['provider' => $fournisseur, 'model' => $modele];
+        return [
+            'provider' => self::normalize($fournisseur, self::provider()),
+            'model' => $modele,
+        ];
     }
 
     /** Modèle réellement employé pour une étape, nom résolu. */
     public static function modelFor(?string $etape = null): string
     {
         $choix = self::for($etape);
-        if ($choix['model'] !== '') {
-            return $choix['model'];
-        }
-        return $choix['provider'] === self::DEEPSEEK
-            ? DeepSeek::model()
-            : (string) Config::get('claude.model', 'claude-opus-5');
+        return $choix['model'] !== '' ? $choix['model'] : self::defaultModel($choix['provider']);
     }
 
     public static function message(array $options): array
@@ -172,7 +248,7 @@ final class Ai
         $impose = (array) ($options['impose'] ?? []);
         unset($options['impose']);
         if (($impose['provider'] ?? '') !== '') {
-            $choix['provider'] = $impose['provider'] === self::DEEPSEEK ? self::DEEPSEEK : self::CLAUDE;
+            $choix['provider'] = self::normalize((string) $impose['provider']);
             $choix['model'] = trim((string) ($impose['model'] ?? ''));
             // Un appel imposé n'entre pas dans la ventilation par étape : il ne
             // reflète pas la consommation ordinaire de l'application.
@@ -183,9 +259,8 @@ final class Ai
             $options['model'] = $choix['model'];
         }
 
-        $reponse = $choix['provider'] === self::DEEPSEEK
-            ? ($streaming ? DeepSeek::stream($options, $onDelta) : DeepSeek::message($options))
-            : ($streaming ? Claude::stream($options, $onDelta) : Claude::message($options));
+        $client = self::CLIENTS[$choix['provider']];
+        $reponse = $streaming ? $client::stream($options, $onDelta) : $client::message($options);
 
         // La ventilation se fait ici : les clients ignorent à quelle étape ils
         // répondent, et n'ont pas à le savoir.
@@ -205,9 +280,10 @@ final class Ai
         return $reponse;
     }
 
-    public static function test(): array
+    public static function test(?string $provider = null): array
     {
-        return self::provider() === self::DEEPSEEK ? DeepSeek::test() : Claude::test();
+        $client = self::CLIENTS[self::normalize((string) ($provider ?? self::provider()))];
+        return $client::test();
     }
 
     /** Message d'aide quand rien n'est configuré, adapté au fournisseur choisi. */
@@ -215,8 +291,7 @@ final class Ai
     {
         $manquants = [];
         foreach (self::providersUsed() as $fournisseur) {
-            $ok = $fournisseur === self::DEEPSEEK ? DeepSeek::isConfigured() : Claude::isConfigured();
-            if (!$ok) {
+            if (!self::isConfiguredFor($fournisseur)) {
                 $manquants[] = self::label($fournisseur);
             }
         }
@@ -225,7 +300,7 @@ final class Ai
         }
         return count($manquants) > 1
             ? 'Vos réglages par étape sollicitent ' . implode(' et ', $manquants)
-                . ' : les deux clés API doivent être renseignées.'
+                . ' : toutes ces clés API doivent être renseignées.'
             : 'Aucune clé API ' . $manquants[0] . ' n\'est renseignée dans les Réglages.';
     }
 }

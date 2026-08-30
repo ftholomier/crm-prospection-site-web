@@ -554,8 +554,8 @@
         });
     }
 
-    /* Les réglages du fournisseur non retenu sont masqués : afficher deux clés
-       d'API côte à côte laisse toujours penser qu'il faut renseigner les deux. */
+    /* Les réglages du fournisseur non retenu sont masqués : afficher trois clés
+       d'API côte à côte laisse toujours penser qu'il faut renseigner les trois. */
     function bindFournisseur() {
         var choix = document.querySelector('[data-fournisseur]');
         if (!choix) { return; }
@@ -563,9 +563,89 @@
             Array.prototype.forEach.call(document.querySelectorAll('[data-bloc-fournisseur]'), function (bloc) {
                 bloc.hidden = bloc.getAttribute('data-bloc-fournisseur') !== choix.value;
             });
+            /* « Comme le principal » suit ce menu-ci : changer de fournisseur
+               en haut doit changer les modèles proposés plus bas. */
+            majEtapes();
         }
         choix.addEventListener('change', afficher);
         afficher();
+    }
+
+    /* Un menu de modèles par fournisseur, et un seul actif.
+
+       Le champ était auparavant libre, avec une liste de suggestions mêlant les
+       fournisseurs : on pouvait laisser « claude-haiku-4-5 » en face de
+       DeepSeek, et l'erreur n'apparaissait qu'au premier appel d'API. Les
+       menus inactifs sont désactivés, donc jamais envoyés. */
+    function majEtapes() {
+        var principal = document.querySelector('[data-fournisseur]');
+        var defaut = principal ? principal.value : 'claude';
+
+        Array.prototype.forEach.call(document.querySelectorAll('[data-etape-fournisseur]'), function (menu) {
+            var etape = menu.getAttribute('data-etape-fournisseur');
+            var retenu = menu.value || defaut;
+            var actif = null;
+
+            Array.prototype.forEach.call(
+                document.querySelectorAll('[data-etape-modele="' + etape + '"]'),
+                function (liste) {
+                    var sien = liste.getAttribute('data-pour') === retenu;
+                    liste.disabled = !sien;
+                    liste.hidden = !sien;
+                    if (sien) { actif = liste; }
+                }
+            );
+
+            /* Le champ libre n'accompagne que l'option « Autre » ; désactivé, il
+               n'écrase pas le modèle choisi dans le menu. */
+            var libre = document.querySelector('[data-etape-libre="' + etape + '"]');
+            if (libre) {
+                var ouvert = !!actif && actif.value === '__libre__';
+                libre.disabled = !ouvert;
+                libre.hidden = !ouvert;
+            }
+            majCout(etape, actif);
+        });
+    }
+
+    /* Le coût estimé de l'étape, recalculé sur place.
+
+       Il était rendu par le serveur et ne bougeait plus : on choisissait un
+       modèle cinq fois moins cher en gardant le chiffre de l'ancien sous les
+       yeux jusqu'à l'enregistrement. */
+    function majCout(etape, liste) {
+        var cellule = document.querySelector('[data-cout-etape="' + etape + '"]');
+        var ligne = document.querySelector('[data-etape-ligne="' + etape + '"]');
+        if (!cellule || !ligne || !liste) { return; }
+
+        var option = liste.options[liste.selectedIndex];
+        var entree = option ? parseFloat(option.getAttribute('data-entree')) : NaN;
+        var sortie = option ? parseFloat(option.getAttribute('data-sortie')) : NaN;
+        if (!option || isNaN(entree) || isNaN(sortie)) {
+            cellule.innerHTML = '<span class="faint">tarif non relevé</span>';
+            return;
+        }
+
+        var jetonsIn = parseInt(ligne.getAttribute('data-jetons-entree'), 10) || 0;
+        var jetonsOut = parseInt(ligne.getAttribute('data-jetons-sortie'), 10) || 0;
+        cellule.textContent = argent(jetonsIn / 1e6 * entree + jetonsOut / 1e6 * sortie);
+    }
+
+    /* Même règle d'arrondi que côté PHP : une maquette coûte parfois moins d'un
+       centime, et arrondir au centime effacerait l'écart qu'on compare. */
+    function argent(dollars) {
+        if (dollars > 0 && dollars < 0.0001) { return '< 0,0001 $'; }
+        var decimales = dollars < 0.01 ? 4 : (dollars < 1 ? 3 : 2);
+        return dollars.toFixed(decimales).replace('.', ',') + ' $';
+    }
+
+    function bindEtapes() {
+        var menus = document.querySelectorAll('[data-etape-fournisseur], [data-etape-modele]');
+        if (!menus.length) { return; }
+        Array.prototype.forEach.call(menus, function (menu) {
+            menu.addEventListener('change', majEtapes);
+        });
+        majEtapes();
     }
 
     /* Les aperçus de comparaison sont rendus en 1280 px puis réduits pour tenir
@@ -587,6 +667,7 @@
     document.addEventListener('DOMContentLoaded', function () {
         bindComparaison();
         bindFournisseur();
+        bindEtapes();
         bindAnalyze();
         bindCouleurs();
         bindEditeur();

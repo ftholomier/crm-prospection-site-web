@@ -54,7 +54,9 @@ $defaut = implode(',', array_map(
                spellcheck="false" data-candidats>
         <span class="hint muted tiny">
             Un candidat par virgule, sous la forme <span class="mono">fournisseur:modèle</span> —
-            <span class="mono">claude:claude-haiku-4-5</span>, <span class="mono">deepseek:deepseek-chat</span>.
+            <span class="mono">claude:claude-haiku-4-5</span>,
+            <span class="mono">gemini:gemini-2.5-flash-lite</span>,
+            <span class="mono">deepseek:deepseek-v4-flash</span>.
             Quatre au maximum. Le premier est votre réglage actuel : sans lui, vous compareriez deux
             inconnues sans savoir si l'une vaut mieux que ce que vous avez déjà.
         </span>

@@ -17,6 +17,7 @@ use App\Editor;
 use App\Enrich;
 use App\Events;
 use App\Flash;
+use App\Gemini;
 use App\Generator;
 use App\Mail\Smtp;
 use App\Mailer;
@@ -1163,7 +1164,7 @@ final class Admin
                 'signature' => (string) ($post['signature'] ?? ''),
             ],
             'ai' => [
-                'provider' => ($post['ai_provider'] ?? '') === 'deepseek' ? 'deepseek' : 'claude',
+                'provider' => Ai::normalize((string) ($post['ai_provider'] ?? '')),
                 'steps' => [
                     'brief' => self::stepChoice($post, 'brief'),
                     'pages' => self::stepChoice($post, 'pages'),
@@ -1173,6 +1174,10 @@ final class Admin
                 'tarifs' => self::tarifsSaisis($post),
                 'model' => trim((string) ($post['deepseek_model'] ?? DeepSeek::DEFAUT)) ?: DeepSeek::DEFAUT,
                 'max_tokens' => Util::clamp((int) ($post['deepseek_max_tokens'] ?? 8000), 2000, 64000),
+            ],
+            'gemini' => [
+                'model' => trim((string) ($post['gemini_model'] ?? Gemini::DEFAUT)) ?: Gemini::DEFAUT,
+                'max_tokens' => Util::clamp((int) ($post['gemini_max_tokens'] ?? 8000), 2000, 64000),
             ],
             'claude' => [
                 'model' => self::chosenModel($post),
@@ -1266,6 +1271,7 @@ final class Admin
         foreach ([
             'claude_api_key' => 'claude.api_key',
             'deepseek_api_key' => 'deepseek.api_key',
+            'gemini_api_key' => 'gemini.api_key',
             'smtp_pass' => 'smtp.pass',
             'pappers_key' => 'enrichment.pappers_api_key',
             'shot_key' => 'screenshot.api_key',
@@ -1376,9 +1382,15 @@ final class Admin
     private static function stepChoice(array $post, string $etape): array
     {
         $fournisseur = (string) ($post['step_' . $etape . '_provider'] ?? '');
+        $modele = trim((string) ($post['step_' . $etape . '_model'] ?? ''));
+        // « Autre » ouvre un champ libre : un modèle sorti après cette version
+        // doit rester saisissable, sinon la liste devient une prison.
+        if ($modele === '__libre__') {
+            $modele = trim((string) ($post['step_' . $etape . '_model_libre'] ?? ''));
+        }
         return [
-            'provider' => in_array($fournisseur, ['claude', 'deepseek'], true) ? $fournisseur : '',
-            'model' => trim((string) ($post['step_' . $etape . '_model'] ?? '')),
+            'provider' => isset(Ai::FOURNISSEURS[$fournisseur]) ? $fournisseur : '',
+            'model' => $modele,
         ];
     }
 
@@ -1422,12 +1434,31 @@ final class Admin
     /** Rafraîchit la liste des modèles DeepSeek depuis le compte. */
     public static function deepseekRefresh(): void
     {
+        self::rafraichirModeles(Ai::DEEPSEEK);
+    }
+
+    /** Rafraîchit la liste des modèles Gemini depuis le compte. */
+    public static function geminiRefresh(): void
+    {
+        self::rafraichirModeles(Ai::GEMINI);
+    }
+
+    /**
+     * Relit le catalogue d'un fournisseur.
+     *
+     * La liste est ce qui garantit qu'un nom de modèle proposé existe encore :
+     * deux modèles DeepSeek retirés en juillet ont déjà fait échouer des
+     * générations au premier appel.
+     */
+    private static function rafraichirModeles(string $provider): void
+    {
         Auth::requireLogin();
         Csrf::requireValid();
-        $result = DeepSeek::refresh();
+        $nom = Ai::label($provider);
+        $result = $provider === Ai::GEMINI ? Gemini::refresh() : DeepSeek::refresh();
         $result['ok']
-            ? Flash::success($result['count'] . ' modèle(s) DeepSeek récupéré(s).')
-            : Flash::error('Modèles DeepSeek : ' . $result['error']);
+            ? Flash::success($result['count'] . ' modèle(s) ' . $nom . ' récupéré(s).')
+            : Flash::error('Modèles ' . $nom . ' : ' . $result['error']);
         Util::redirect(Router::url('settings') . '#claude');
     }
 
@@ -1436,10 +1467,16 @@ final class Admin
     {
         Auth::requireLogin();
         Csrf::requireValid();
-        $result = Ai::test();
+        // Le bouton peut viser un fournisseur précis : avec trois clés
+        // possibles, « tester la clé » sans dire laquelle ne veut plus rien
+        // dire une fois les réglages par étape en place.
+        $vise = trim((string) ($_POST['provider'] ?? ''));
+        $provider = $vise !== '' ? Ai::normalize($vise) : Ai::provider();
+        $result = Ai::test($provider);
+        $nom = Ai::label($provider);
         $result['ok']
-            ? Flash::success('Clé API ' . Ai::label() . ' valide, le modèle répond.')
-            : Flash::error('API ' . Ai::label() . ' : ' . $result['error']);
+            ? Flash::success('Clé API ' . $nom . ' valide, le modèle ' . $result['model'] . ' répond.')
+            : Flash::error('API ' . $nom . ' : ' . $result['error']);
         Util::redirect(Router::url('settings') . '#claude');
     }
 

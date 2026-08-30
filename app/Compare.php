@@ -78,6 +78,9 @@ final class Compare
         if (DeepSeek::isConfigured()) {
             $candidats[] = ['provider' => Ai::DEEPSEEK, 'model' => DeepSeek::DEFAUT, 'note' => ''];
         }
+        if (Gemini::isConfigured()) {
+            $candidats[] = ['provider' => Ai::GEMINI, 'model' => Gemini::DEFAUT, 'note' => ''];
+        }
 
         // Le réglage actuel figure déjà en tête : on ne le propose pas deux fois.
         $vus = [];

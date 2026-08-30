@@ -102,6 +102,7 @@ $routes = [
     'test_claude' => [Admin::testClaude(...), true],
     'models_refresh' => [Admin::modelsRefresh(...), true],
     'deepseek_refresh' => [Admin::deepseekRefresh(...), true],
+    'gemini_refresh' => [Admin::geminiRefresh(...), true],
 
     // Traitements longs en flux
     'analyze_stream' => [Stream::analyze(...), true],

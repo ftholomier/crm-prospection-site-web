@@ -166,8 +166,8 @@ $mailable = Prospect::isMailable($p);
                 <p class="small muted">
                     <span class="badge warn">Claude requis</span>
                     Cette étape passe toujours par Claude : elle repose sur un outil exécuté chez Anthropic,
-                    que DeepSeek n'a pas. Une clé Claude renseignée suffit, même si vos maquettes sont
-                    générées par DeepSeek.
+                    que ni DeepSeek ni Gemini n'ont. Une clé Claude renseignée suffit, même si vos
+                    maquettes sont générées ailleurs.
                 </p>
             <?php endif; ?>
             <button class="btn primary" type="button"
