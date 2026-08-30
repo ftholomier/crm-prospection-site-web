@@ -47,6 +47,67 @@ final class Screenshot
         ],
     ];
 
+    /**
+     * Essai de capture, sans rien enregistrer.
+     *
+     * La capture échouait en silence : il ne restait qu'une image manquante,
+     * sans moyen de savoir si le service refusait, si l'hébergement bloquait la
+     * sortie, ou si l'octet reçu n'était pas une image. Cet essai rapporte tout
+     * ce que le serveur a réellement vu.
+     *
+     * @return array{ok:bool,message:string,details:array}
+     */
+    public static function test(string $targetUrl = 'https://example.com/'): array
+    {
+        $source = self::providerUrl($targetUrl);
+        if ($source === null) {
+            return ['ok' => false, 'message' => 'Aucun service de capture configuré.', 'details' => [
+                'fournisseur' => (string) Config::get('screenshot.provider', 'none'),
+            ]];
+        }
+
+        $debut = microtime(true);
+        $reponse = Http::get($source, 45);
+        $duree = round(microtime(true) - $debut, 1);
+
+        // L'adresse porte la clé API : elle est tronquée avant tout affichage.
+        $details = [
+            'fournisseur' => (string) Config::get('screenshot.provider', 'none'),
+            'adresse appelée' => preg_replace('/(access_key=)[^&]+/', '$1…', $source) ?? $source,
+            'durée' => $duree . ' s',
+            'code HTTP' => $reponse['status'],
+            'type annoncé' => $reponse['headers']['content-type'] ?? '(aucun)',
+            'octets reçus' => $reponse['size'],
+        ];
+
+        if (!$reponse['ok'] || $reponse['body'] === '') {
+            $details['erreur réseau'] = $reponse['error'] !== '' ? $reponse['error'] : '(aucune)';
+            return ['ok' => false, 'message' => $reponse['error'] !== ''
+                ? 'Le serveur n\'a pas pu joindre le service : ' . $reponse['error']
+                : 'Le service a répondu ' . $reponse['status'] . ' sans image.', 'details' => $details];
+        }
+
+        $probe = self::probe($reponse['body']);
+        if ($probe === null) {
+            // Les premiers octets disent souvent tout : une page HTML d'erreur,
+            // une redirection, un message de quota.
+            $details['premiers octets'] = self::apercu($reponse['body']);
+            return ['ok' => false, 'message' => 'Réponse reçue, mais ce n\'est pas une image exploitable.',
+                'details' => $details];
+        }
+
+        $details['image'] = $probe['width'] . '×' . $probe['height'] . ' ' . strtoupper($probe['extension']);
+        return ['ok' => true, 'message' => 'Capture obtenue en ' . $duree . ' s.', 'details' => $details];
+    }
+
+    /** Les premiers caractères lisibles d'une réponse qui n'est pas une image. */
+    private static function apercu(string $corps): string
+    {
+        $texte = preg_replace('/\s+/', ' ', substr($corps, 0, 400)) ?? '';
+        $texte = preg_replace('/[^\P{C}\n]/u', '·', $texte) ?? $texte;
+        return trim(mb_substr($texte, 0, 220));
+    }
+
     public static function dir(string $prospectId): string
     {
         $dir = DATA_DIR . '/mockups/' . preg_replace('/[^a-z0-9]/i', '', $prospectId);

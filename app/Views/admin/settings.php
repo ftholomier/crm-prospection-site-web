@@ -957,6 +957,37 @@ $champSecret = static function (string $nom, string $valeur, string $aide, strin
 
         <div class="field-row">
             <div class="field">
+                <label for="about_phone">Téléphone affiché au prospect</label>
+                <input type="tel" name="about_phone" id="about_phone"
+                       value="<?= e((string) ($config['about']['phone'] ?? '')) ?>" placeholder="06 09 15 25 73">
+                <span class="hint muted tiny">
+                    Affiché en clair et cliquable sur la page de proposition. Vide, aucun numéro n'apparaît.
+                </span>
+            </div>
+            <div class="field">
+                <label for="about_whatsapp">Numéro WhatsApp</label>
+                <input type="tel" name="about_whatsapp" id="about_whatsapp"
+                       value="<?= e((string) ($config['about']['whatsapp'] ?? '')) ?>" placeholder="06 09 15 25 73">
+                <span class="hint muted tiny">
+                    Ouvre une conversation avec un message pré-rempli nommant l'entreprise du prospect.
+                    Le format n'a pas d'importance : il est converti en international.
+                </span>
+            </div>
+        </div>
+
+        <div class="field">
+            <label for="about_zone">Zone d'intervention</label>
+            <input type="text" name="about_zone" id="about_zone"
+                   value="<?= e((string) ($config['about']['zone'] ?? '')) ?>"
+                   placeholder="Franche-Comté et Alsace">
+            <span class="hint muted tiny">
+                Dire d'où vous venez vaut mieux que dire que vous êtes proche : le prospect vérifie
+                en un coup d'œil que vous êtes de sa région.
+            </span>
+        </div>
+
+        <div class="field-row">
+            <div class="field">
                 <label for="about_site_url">Adresse de votre site</label>
                 <input type="url" name="about_site_url" id="about_site_url" value="<?= e((string) $config['about']['site_url']) ?>" placeholder="https://mondomaine.fr">
             </div>
@@ -1051,11 +1082,31 @@ $champSecret = static function (string $nom, string $valeur, string $aide, strin
                     </button>
                 <?php endforeach; ?>
             </form>
+            <form method="post" action="<?= e(url('test_shot')) ?>">
+                <?= Csrf::field() ?>
+                <button class="btn" type="submit">Tester la capture d'écran</button>
+            </form>
             <form method="post" action="<?= e(url('models_refresh')) ?>">
                 <?= Csrf::field() ?>
                 <button class="btn" type="submit">Recharger la liste des modèles</button>
             </form>
         </div>
+        <form method="post" action="<?= e(url('test_shot')) ?>" class="stack" id="capture">
+            <?= Csrf::field() ?>
+            <div class="field">
+                <label for="shot_test_url">Capture d'écran — essai sur une adresse</label>
+                <input type="url" name="url" id="shot_test_url" placeholder="https://example.com/">
+                <span class="hint muted tiny">
+                    La capture échouait sans rien dire : il ne restait qu'une image manquante sur la page
+                    de proposition. Cet essai rapporte ce que le serveur a réellement reçu — code HTTP,
+                    type annoncé, poids, et les premiers octets quand ce n'est pas une image. Les trois
+                    causes habituelles : le service refuse ou limite, l'hébergement bloque les connexions
+                    sortantes, ou la réponse est une page d'erreur déguisée en image.
+                </span>
+            </div>
+            <div><button class="btn" type="submit">Lancer l'essai de capture</button></div>
+        </form>
+
         <form method="post" action="<?= e(url('test_smtp')) ?>" class="stack">
             <?= Csrf::field() ?>
             <div class="field">

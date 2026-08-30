@@ -27,6 +27,20 @@ $bioParagraphs = array_values(array_filter(array_map(
 ), static fn (string $p): bool => $p !== ''));
 $points = array_values(array_filter((array) ($about['points'] ?? [])));
 
+// Le contact direct. Un numéro français se ramène au format international pour
+// wa.me ; sans indicatif, WhatsApp ouvre une conversation vide.
+$tel = trim((string) ($about['phone'] ?? ''));
+$telLien = $tel === '' ? '' : 'tel:' . preg_replace('/[^0-9+]/', '', $tel);
+$zone = trim((string) ($about['zone'] ?? ''));
+
+$whatsapp = preg_replace('/\D/', '', (string) ($about['whatsapp'] ?? '')) ?? '';
+if ($whatsapp !== '' && str_starts_with($whatsapp, '0')) {
+    $whatsapp = '33' . substr($whatsapp, 1);
+}
+$whatsappLien = $whatsapp === '' ? '' : 'https://wa.me/' . $whatsapp . '?text=' . rawurlencode(
+    'Bonjour, je suis ' . $company . '. J\'ai vu la maquette de mon site et je voudrais en parler.'
+);
+
 $audit = $prospect['audit'] ?? [];
 $findings = array_slice($audit['findings'] ?? [], 0, 5);
 $score = isset($audit['score']) ? (int) $audit['score'] : null;
@@ -109,7 +123,10 @@ $palette = is_array($palette ?? null) && isset($palette['marque'], $palette['mar
 
 /* Sans capture, le volet « aujourd'hui » énonce le diagnostic. Il nomme les
    problèmes au lieu de les montrer, ce qui sert tout aussi bien. */
-.diagnostic { height: auto; min-height: clamp(300px, 40vw, 500px); padding: clamp(1.4rem, 3vw, 2.2rem); overflow-y: auto; }
+.diagnostic { height: auto; min-height: clamp(300px, 40vw, 500px); max-height: none; padding: clamp(1.4rem, 3vw, 2.2rem); }
+/* Sans capture, les deux volets n'ont plus à faire la même hauteur : le
+   diagnostic est un texte, il doit se lire en entier, pas dans une lucarne. */
+.comparatif:has(.diagnostic) .volet__cadre { height: auto; }
 .diagnostic__score { display: flex; align-items: center; gap: 1rem; padding-bottom: 1.2rem; border-bottom: 1px solid var(--ligne); }
 .diagnostic__note { width: 58px; height: 58px; flex: 0 0 58px; display: grid; place-items: center; background: var(--sombre); color: #fff; font-size: 1.35rem; font-weight: 300; }
 .diagnostic__niveau { display: block; font-weight: 500; color: var(--encre); }
@@ -118,7 +135,14 @@ $palette = is_array($palette ?? null) && isset($palette['marque'], $palette['mar
 .constats li { padding-left: 1.6rem; position: relative; }
 .constats li::before { content: ""; position: absolute; left: 0; top: .55em; width: 8px; height: 1px; background: var(--marque); }
 .constats strong { display: block; font-weight: 500; color: var(--encre); font-size: .98rem; }
-.constats span { color: var(--texte-doux); font-size: .9rem; }
+.constats span { display: block; color: var(--texte-doux); font-size: .9rem; }
+/* La réponse porte la couleur de marque et un filet : elle se distingue du
+   constat sans qu'on ait besoin de la lire pour comprendre que c'en est une. */
+.constats__reponse {
+    margin-top: .45rem; padding-left: .8rem;
+    border-left: 2px solid var(--marque);
+    color: var(--texte) !important;
+}
 
 /* Le prix et ce qu'il comprend, côte à côte. */
 .tarif { display: grid; grid-template-columns: minmax(240px, 1fr) 1.6fr; gap: clamp(2rem, 5vw, 4rem); align-items: start; }
@@ -139,6 +163,49 @@ $palette = is_array($palette ?? null) && isset($palette['marque'], $palette['mar
     .entete__logo span { display: none; }
 }
 
+/* --------------------------------------------------------------------------
+   La proposition, en deux colonnes : la promesse à gauche, la personne à
+   droite. C'est une démarche humaine, et cela doit se voir avant d'avoir
+   défilé — un « qui suis-je » relégué en bas de page se lit comme une mention
+   légale.
+   -------------------------------------------------------------------------- */
+.proposition { display: grid; grid-template-columns: 1.25fr .75fr; gap: clamp(2rem, 5vw, 4rem); align-items: center; }
+.proposition__promesse { color: #fff; }
+.proposition__promesse .heros__titre { margin-bottom: 1.2rem; }
+
+.carte-humaine {
+    background: rgba(255, 255, 255, .07);
+    border: 1px solid rgba(255, 255, 255, .16);
+    backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+    padding: clamp(1.4rem, 2.6vw, 2rem);
+    display: grid; gap: 1.1rem;
+}
+.carte-humaine__tete { display: flex; align-items: center; gap: 1.1rem; }
+.carte-humaine__portrait { width: 92px; height: 92px; flex: 0 0 92px; object-fit: cover; }
+.carte-humaine__nom { color: #fff; font-size: 1.15rem; font-weight: 600; line-height: 1.25; }
+.carte-humaine__role { color: rgba(255, 255, 255, .78); font-size: .86rem; margin-top: .3rem; }
+.carte-humaine__mot { color: rgba(255, 255, 255, .88); font-size: .95rem; line-height: 1.6; }
+/* Le libellé ne se coupe pas en deux : « SUR / PLACE » sur deux lignes se lit
+   comme une erreur de mise en page, et c'est la ligne qui dit la proximité. */
+.carte-humaine__zone {
+    display: flex; align-items: baseline; gap: .55rem;
+    color: var(--marque-claire); font-size: .78rem; letter-spacing: .12em; text-transform: uppercase; font-weight: 600;
+    white-space: nowrap;
+}
+.carte-humaine__zone span { color: rgba(255, 255, 255, .82); letter-spacing: 0; text-transform: none; font-weight: 400; font-size: .9rem; white-space: normal; }
+.carte-humaine__contacts { display: flex; flex-wrap: wrap; gap: .6rem; }
+
+/* Le bouton WhatsApp porte sa couleur propre : c'est un service que le
+   prospect reconnaît, et le reconnaître fait la moitié du clic. */
+.btn--whatsapp { background: #25d366; border-color: #25d366; color: #0b3d20; }
+.btn--whatsapp:hover { background: #1ebe5b; border-color: #1ebe5b; color: #0b3d20; }
+
+/* Le détail de l'accompagnement, sous le prix. */
+.accompagnement { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: clamp(1.4rem, 3vw, 2.2rem); margin-top: clamp(2rem, 4vw, 3rem); }
+.accompagnement__bloc { border-top: 1px solid var(--ligne); padding-top: 1.2rem; }
+.accompagnement__titre { font-size: 1.05rem; font-weight: 500; color: var(--encre); margin-bottom: .5rem; }
+.accompagnement__texte { font-size: .94rem; color: var(--texte-doux); line-height: 1.65; }
+
 .portrait { width: 100%; aspect-ratio: 1 / 1; object-fit: cover; }
 .portrait--initiales { display: grid; place-items: center; background: var(--sombre); color: #fff; font-size: clamp(3rem, 7vw, 5rem); font-weight: 200; letter-spacing: .05em; }
 .mention { text-align: center; font-size: .86rem; color: var(--texte-doux); padding: 2.4rem 0 3rem; }
@@ -146,6 +213,7 @@ $palette = is_array($palette ?? null) && isset($palette['marque'], $palette['mar
 @media (max-width: 900px) {
     .comparatif { grid-template-columns: minmax(0, 1fr); }
     .tarif { grid-template-columns: minmax(0, 1fr); }
+    .proposition { grid-template-columns: minmax(0, 1fr); }
 }
 </style>
 </head>
@@ -170,17 +238,67 @@ $palette = is_array($palette ?? null) && isset($palette['marque'], $palette['mar
 
 <section class="heros heros--page heros--proposition">
     <div class="conteneur">
-        <div class="heros__contenu">
-            <p class="surtitre surtitre--clair">Préparé pour <?= e($company) ?></p>
-            <h1 class="heros__titre">Voici à quoi pourrait ressembler votre site.</h1>
-            <p class="heros__texte">
-                Trois pages réelles, écrites à partir de votre activité et de vos prestations.
-                Pas une démonstration générique : votre nom, vos métiers, vos photos.
-            </p>
-            <div class="heros__actions">
-                <a class="btn btn--plein" href="<?= e($mockupUrl) ?>" target="_blank" rel="noopener">Parcourir les trois pages</a>
-                <a class="btn btn--clair" href="<?= e($interestUrl) ?>">Ça m'intéresse</a>
+        <div class="proposition">
+            <div class="proposition__promesse">
+                <p class="surtitre surtitre--clair">Préparé pour <?= e($company) ?></p>
+                <h1 class="heros__titre">Voici à quoi pourrait ressembler votre site.</h1>
+                <p class="heros__texte">
+                    Trois pages réelles, écrites à partir de votre activité et de vos prestations.
+                    Pas une démonstration générique : votre nom, vos métiers, vos photos.
+                </p>
+                <p class="heros__texte">
+                    Pourquoi cette page ? Parce qu'un devis ne montre rien. Vous voyez d'abord,
+                    vous décidez ensuite — et vous ne payez que si vous décidez.
+                </p>
+                <div class="heros__actions">
+                    <a class="btn btn--plein" href="<?= e($mockupUrl) ?>" target="_blank" rel="noopener">Parcourir les trois pages</a>
+                    <a class="btn btn--clair" href="<?= e($interestUrl) ?>">Ça m'intéresse</a>
+                </div>
             </div>
+
+            <?php if ($showAbout): ?>
+                <?php /* La personne, dès la première page vue. Une refonte de site
+                          se décide sur la confiance faite à quelqu'un, pas sur une
+                          grille de fonctionnalités. */ ?>
+                <aside class="carte-humaine">
+                    <div class="carte-humaine__tete">
+                        <?php if (Portrait::exists()): ?>
+                            <img class="portrait carte-humaine__portrait" src="<?= e(Router::publicUrl('portrait')) ?>"
+                                 alt="<?= e((string) $about['name']) ?>">
+                        <?php else: ?>
+                            <span class="portrait portrait--initiales carte-humaine__portrait"><?= e(Portrait::initials((string) $about['name'])) ?></span>
+                        <?php endif; ?>
+                        <div>
+                            <p class="carte-humaine__nom"><?= e((string) $about['name']) ?></p>
+                            <?php if (trim((string) ($about['role'] ?? '')) !== ''): ?>
+                                <p class="carte-humaine__role"><?= e((string) $about['role']) ?></p>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+
+                    <?php if ($bioParagraphs !== []): ?>
+                        <p class="carte-humaine__mot"><?= e($bioParagraphs[0]) ?></p>
+                    <?php endif; ?>
+
+                    <?php if ($zone !== ''): ?>
+                        <p class="carte-humaine__zone">
+                            Sur place
+                            <span><?= e($zone) ?> — je me déplace, on se rencontre.</span>
+                        </p>
+                    <?php endif; ?>
+
+                    <?php if ($telLien !== '' || $whatsappLien !== ''): ?>
+                        <div class="carte-humaine__contacts">
+                            <?php if ($whatsappLien !== ''): ?>
+                                <a class="btn btn--petit btn--whatsapp" href="<?= e($whatsappLien) ?>" target="_blank" rel="noopener">WhatsApp</a>
+                            <?php endif; ?>
+                            <?php if ($telLien !== ''): ?>
+                                <a class="btn btn--petit btn--clair" href="<?= e($telLien) ?>"><?= e($tel) ?></a>
+                            <?php endif; ?>
+                        </div>
+                    <?php endif; ?>
+                </aside>
+            <?php endif; ?>
         </div>
     </div>
 </section>
@@ -221,11 +339,18 @@ $palette = is_array($palette ?? null) && isset($palette['marque'], $palette['mar
                             </div>
                         <?php endif; ?>
                         <?php if ($findings !== []): ?>
+                            <?php /* Faute de capture, le volet « aujourd'hui » énonce le
+                                     diagnostic. Chaque constat est suivi de ce que la
+                                     refonte y change : une liste de reproches sans
+                                     réponse braque, une liste de réponses convainc. */ ?>
                             <ul class="constats">
                                 <?php foreach ($findings as $finding): ?>
                                     <li>
                                         <strong><?= e((string) $finding['label']) ?></strong>
                                         <span><?= e((string) $finding['detail']) ?></span>
+                                        <?php if (trim((string) ($finding['fix'] ?? '')) !== ''): ?>
+                                            <span class="constats__reponse"><?= e((string) $finding['fix']) ?></span>
+                                        <?php endif; ?>
                                     </li>
                                 <?php endforeach; ?>
                             </ul>
@@ -260,8 +385,16 @@ $palette = is_array($palette ?? null) && isset($palette['marque'], $palette['mar
             <h2 class="titre-section">Si ces trois pages vous plaisent, c'est tout le site qui est refait</h2>
             <p class="section__chapo">
                 Accueil, à propos, prestations : de quoi juger sur pièces plutôt que sur promesse.
-                Si cette direction vous convient, l'intégralité de votre site est reprise ainsi —
-                toutes vos pages, tous vos contenus, la même exigence de lisibilité et de rendu sur téléphone.
+                Ces trois pages ont été composées de manière semi-automatique à partir de votre site
+                actuel — c'est ce qui permet de vous les montrer sans rien vous facturer. Elles ne sont
+                pas figées : tout ce que vous y voyez se change.
+            </p>
+            <p class="section__chapo">
+                Si cette direction vous convient, l'intégralité de votre site est reprise ainsi :
+                <strong>toutes vos pages</strong>, tous vos contenus, vos mentions légales, votre
+                formulaire de contact, la même exigence de lisibilité et de rendu sur téléphone.
+                Et ce qui manque aujourd'hui — une page prestation par métier, une galerie de
+                réalisations, un formulaire de devis détaillé — se construit à ce moment-là.
             </p>
         </div>
 
@@ -290,6 +423,10 @@ $palette = is_array($palette ?? null) && isset($palette['marque'], $palette['mar
         <div class="section__tete reveler">
             <p class="surtitre">Le tarif</p>
             <h2 class="titre-section">Tout compris, sans facture de création</h2>
+            <p class="section__chapo">
+                Un seul montant mensuel. Pas de frais de création, pas de supplément à chaque
+                modification, pas de facture surprise à la première mise à jour.
+            </p>
         </div>
         <div class="tarif reveler">
             <div>
@@ -304,6 +441,46 @@ $palette = is_array($palette ?? null) && isset($palette['marque'], $palette['mar
                 </ul>
             <?php endif; ?>
         </div>
+
+        <div class="accompagnement reveler">
+            <div class="accompagnement__bloc">
+                <h3 class="accompagnement__titre">Les mises à jour, c'est moi</h3>
+                <p class="accompagnement__texte">
+                    Un texte à corriger, une photo à remplacer, une prestation à ajouter, vos horaires
+                    d'été : vous le demandez, je le fais. Vous n'avez aucun outil à apprendre et rien
+                    à administrer. La sécurité, les sauvegardes et l'hébergement sont compris.
+                </p>
+            </div>
+            <div class="accompagnement__bloc">
+                <h3 class="accompagnement__titre">Un expert au bout de WhatsApp</h3>
+                <p class="accompagnement__texte">
+                    <?php if ($whatsappLien !== ''): ?>
+                        Vous m'écrivez directement, en temps réel. Pas de ticket, pas de standard :
+                    <?php else: ?>
+                        Vous m'écrivez directement, en temps réel :
+                    <?php endif; ?>
+                    une question sur Google, sur une campagne, sur ce que l'intelligence artificielle
+                    change à votre métier — vous avez un interlocuteur en webmarketing, en IA et en
+                    digital, pas seulement un site web.
+                </p>
+                <?php if ($whatsappLien !== ''): ?>
+                    <p class="mt">
+                        <a class="btn btn--petit btn--whatsapp" href="<?= e($whatsappLien) ?>" target="_blank" rel="noopener">
+                            Ouvrir WhatsApp
+                        </a>
+                    </p>
+                <?php endif; ?>
+            </div>
+            <div class="accompagnement__bloc">
+                <h3 class="accompagnement__titre">Et au-delà du site</h3>
+                <p class="accompagnement__texte">
+                    Tout est possible ensuite : un espace client, une prise de rendez-vous en ligne,
+                    un devis automatisé, un outil interne à votre métier. Ce sont des développements
+                    sur mesure, chiffrés à part — mais vous savez à qui les demander, et cette
+                    personne connaît déjà votre entreprise.
+                </p>
+            </div>
+        </div>
     </div>
 </section>
 
@@ -314,68 +491,36 @@ $palette = is_array($palette ?? null) && isset($palette['marque'], $palette['mar
     </div>
 </section>
 
-<?php if ($showAbout): ?>
-    <section class="section" id="qui-suis-je">
-        <div class="conteneur">
-            <div class="duo reveler">
-                <div class="duo__media">
-                    <?php if (Portrait::exists()): ?>
-                        <img class="portrait" src="<?= e(Router::publicUrl('portrait')) ?>" alt="<?= e((string) $about['name']) ?>">
-                    <?php else: ?>
-                        <span class="portrait portrait--initiales"><?= e(Portrait::initials((string) $about['name'])) ?></span>
-                    <?php endif; ?>
-                </div>
-                <div class="duo__texte">
-                    <p class="surtitre"><?= e((string) ($about['title'] ?? 'Qui suis-je')) ?></p>
-                    <h2 class="titre-section"><?= e((string) $about['name']) ?></h2>
-                    <?php if (trim((string) ($about['role'] ?? '')) !== ''): ?>
-                        <p class="section__chapo"><?= e((string) $about['role']) ?></p>
-                    <?php endif; ?>
-                    <?php foreach ($bioParagraphs as $paragraph): ?>
-                        <p><?= nl2br(e($paragraph)) ?></p>
-                    <?php endforeach; ?>
-
-                    <?php if ($points !== []): ?>
-                        <div class="points">
-                            <?php foreach ($points as $rang => $point): ?>
-                                <div class="point">
-                                    <span class="point__numero"><?= sprintf('%02d', $rang + 1) ?></span>
-                                    <div>
-                                        <p class="point__texte"><?= e((string) $point) ?></p>
-                                    </div>
-                                </div>
-                            <?php endforeach; ?>
-                        </div>
-                    <?php endif; ?>
-
-                    <?php if (trim((string) ($about['site_url'] ?? '')) !== ''): ?>
-                        <p>
-                            <a class="lien-fleche" href="<?= e((string) $about['site_url']) ?>" target="_blank" rel="noopener noreferrer">
-                                <?= e(trim((string) ($about['site_label'] ?? '')) !== '' ? (string) $about['site_label'] : (string) $about['site_url']) ?>
-                            </a>
-                        </p>
-                    <?php endif; ?>
-                </div>
-            </div>
-        </div>
-    </section>
-<?php endif; ?>
-
 <section class="bande-cta">
     <div class="conteneur">
         <h2 class="titre-section">On en parle ?</h2>
         <p>
-            Dites-moi simplement si la direction vous plaît. Je vous rappelle, on ajuste ce qui doit l'être,
+            Dites-moi simplement si la direction vous plaît. On ajuste ce qui doit l'être,
             et vous décidez ensuite — pas avant.
+            <?php if ($zone !== ''): ?>
+                Je suis en <?= e($zone) ?> : on peut aussi se voir.
+            <?php endif; ?>
         </p>
         <div class="bande-cta__actions">
+            <?php if ($whatsappLien !== ''): ?>
+                <a class="btn btn--whatsapp" href="<?= e($whatsappLien) ?>" target="_blank" rel="noopener">
+                    M'écrire sur WhatsApp
+                </a>
+            <?php endif; ?>
+            <?php if ($telLien !== ''): ?>
+                <a class="btn btn--plein" href="<?= e($telLien) ?>">Appeler le <?= e($tel) ?></a>
+            <?php endif; ?>
             <a class="btn btn--clair" href="<?= e($interestUrl) ?>">Discutons de mon site complet</a>
-            <a class="btn btn--plein" href="<?= e($mockupUrl) ?>" target="_blank" rel="noopener">Revoir les trois pages</a>
+            <a class="btn btn--clair" href="<?= e($mockupUrl) ?>" target="_blank" rel="noopener">Revoir les trois pages</a>
         </div>
     </div>
 </section>
 
-<p class="mention">Cette page est privée, elle ne vous engage à rien, et personne d'autre n'y a accès.</p>
+<p class="mention">
+    Cette page est privée, elle ne vous engage à rien, et personne d'autre n'y a accès.
+    Les trois pages ont été composées de manière semi-automatique à partir de votre site actuel,
+    puis relues — tout s'y modifie.
+</p>
 
 </main>
 

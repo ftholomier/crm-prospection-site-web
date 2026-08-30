@@ -54,18 +54,29 @@ final class Assets
      * ce qu'il attend. La mise en page du gabarit est ainsi préservée, et il
      * suffit de déposer une image depuis l'éditeur pour que le bloc s'anime.
      */
-    public static function placeholderSvg(): string
+    /**
+     * L'emplacement d'une photo qui manque.
+     *
+     * La mention en toutes lettres n'apparaît que dans l'aperçu de
+     * l'administration. Dans la maquette envoyée au prospect, l'emplacement
+     * reste muet : « PHOTO À FOURNIR » lui annonçait un travail inachevé au
+     * lieu de lui montrer un projet. Le hachurage suffit à signaler la place
+     * à pourvoir, et l'éditeur en donne la liste côté agence.
+     */
+    public static function placeholderSvg(bool $avecMention = false): string
     {
+        $mention = $avecMention
+            ? '<text x="400" y="300" text-anchor="middle" dominant-baseline="middle" '
+                . 'font-family="system-ui, sans-serif" font-size="26" letter-spacing="4" fill="#8a7f75">'
+                . 'PHOTO À FOURNIR</text>'
+            : '';
         return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" role="img" '
-            . 'aria-label="Photo à fournir">'
+            . 'aria-label="' . ($avecMention ? 'Photo à fournir' : '') . '">'
             . '<defs><pattern id="h" width="24" height="24" patternTransform="rotate(45)" '
             . 'patternUnits="userSpaceOnUse">'
             . '<rect width="24" height="24" fill="#faf7f3"/><rect width="12" height="24" fill="#f1ebe4"/>'
             . '</pattern></defs>'
-            . '<rect width="800" height="600" fill="url(#h)"/>'
-            . '<text x="400" y="300" text-anchor="middle" dominant-baseline="middle" '
-            . 'font-family="system-ui, sans-serif" font-size="26" letter-spacing="4" fill="#8a7f75">'
-            . 'PHOTO À FOURNIR</text></svg>';
+            . '<rect width="800" height="600" fill="url(#h)"/>' . $mention . '</svg>';
     }
 
     public static function dir(string $prospectId): string

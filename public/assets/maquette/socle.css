@@ -59,10 +59,12 @@
 
   --transition: .38s cubic-bezier(.25, .8, .25, 1);
 
-  /* Diaporama du bandeau : la pause sur chaque vue et la durée du fondu.
-     Réglables par prospect comme les couleurs, dans le même bloc. */
-  --pause: 6s;
-  --fondu: 1.8s;
+  /* Diaporama du bandeau. « pause » est le temps pendant lequel une photo
+     reste pleinement nette ; « fondu » s'y ajoute pour passer à la suivante.
+     Une vue occupe donc l'écran 4,2 s en tout, dont 3 s parfaitement stables.
+     Réglables par prospect, comme les couleurs. */
+  --pause: 3s;
+  --fondu: 1.2s;
   --ombre-carte: 0 2px 6px rgba(43, 39, 36, .05), 0 14px 40px rgba(43, 39, 36, .09);
   --ombre-active: 0 4px 14px rgba(180, 87, 58, .16), 0 24px 60px rgba(43, 39, 36, .14);
 }
@@ -369,8 +371,12 @@ p:last-child { margin-bottom: 0; }
 /* --------------------------------------------------------------------------
    7. INDICATEURS
    -------------------------------------------------------------------------- */
+/* Quatre colonnes fixes laissaient une colonne vide dès qu'il y avait trois
+   indicateurs — et il y en a rarement quatre, puisqu'on n'invente pas de
+   chiffre. La bande paraissait alors décalée vers la gauche. Les colonnes se
+   comptent donc sur les indicateurs réellement présents. */
 .indicateurs {
-  display: grid; grid-template-columns: repeat(4, 1fr);
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
   background: var(--sombre); color: #fff;
 }
 .indicateur { padding: clamp(1.6rem, 3vw, 2.4rem) 1.2rem; text-align: center; }
@@ -476,10 +482,14 @@ p:last-child { margin-bottom: 0; }
   padding: clamp(3.4rem, 7vw, 5.6rem) 0;
   text-align: center;
 }
+/* « text-wrap: balance » égalise les lignes au lieu de laisser la dernière
+   presque vide : c'est ce qui évitait le guillemet fermant seul sur sa ligne.
+   L'espace fine insécable posée par la passe typographique fait le reste. */
 .citation__texte {
   font-size: clamp(1.35rem, 2.6vw, 2rem);
   font-weight: 300; line-height: 1.5;
-  max-width: 24ch; margin: 0 auto 1.6rem;
+  max-width: 30ch; margin: 0 auto 1.6rem;
+  text-wrap: balance;
   color: #fff;
 }
 .citation__auteur { font-size: .76rem; letter-spacing: .2em; text-transform: uppercase; color: var(--marque-claire); }
@@ -679,19 +689,31 @@ p:last-child { margin-bottom: 0; }
    -------------------------------------------------------------------------- */
 .heros--diaporama { min-height: min(100svh, 940px); }
 
-.heros__fond { position: absolute; inset: 0; z-index: 0; overflow: hidden; }
+/* Le fond porte l'encre : si jamais une image tardait d'une image à l'autre,
+   c'est du sombre qui apparaîtrait, pas le blanc de la page. */
+.heros__fond { position: absolute; inset: 0; z-index: 0; overflow: hidden; background: var(--sombre); }
 .heros__fond .heros__photo { position: absolute; inset: 0; }
 
+/* Le fondu ne se fait PAS en croisant les deux opacités.
+   Croiser deux fondus fait passer les deux vues par 50 % au même instant : le
+   fond de page transparaît entre elles, et cela se voit comme un voile clair
+   au milieu de chaque transition. Ici la vue entrante monte seule, posée
+   au-dessus de la sortante restée pleinement opaque. Il n'y a donc jamais
+   d'instant où quelque chose d'autre que la photo est visible.
+   La courbe démarre franchement puis s'adoucit : un fondu linéaire se lit
+   comme un fondu, un fondu accéléré au départ se lit comme un enchaînement. */
 .heros__fond--diaporama .heros__photo {
   opacity: 0;
   transform: scale(1.005);
-  transition: opacity var(--fondu, 1.8s) cubic-bezier(.45, 0, .3, 1);
+  transition: opacity var(--fondu, 1.2s) cubic-bezier(.33, 0, .2, 1);
   will-change: opacity, transform;
   backface-visibility: hidden;
 }
 .heros__fond--diaporama .heros__photo.est-visible { opacity: 1; }
+/* La sortante attend sous la nouvelle, opaque, le temps du fondu. */
+.heros__fond--diaporama .heros__photo.sortante { opacity: 1; transition: none; }
 .heros__fond--diaporama .heros__photo.se-rapproche {
-  animation: derive-avant calc(var(--pause, 6s) + var(--fondu, 1.8s) + 1.4s) linear forwards;
+  animation: derive-avant calc(var(--pause, 3s) + var(--fondu, 1.2s) + 1.4s) linear forwards;
 }
 .heros__fond--diaporama .heros__photo:nth-child(even).se-rapproche { animation-name: derive-arriere; }
 @keyframes derive-avant {
@@ -720,7 +742,7 @@ p:last-child { margin-bottom: 0; }
 /* La durée couvre la pause ET le fondu qui suit : sinon le trait arrive au
    bout puis attend, et l'attente se lit comme un blocage. */
 .heros__jauge-trait.court {
-  transition: transform calc(var(--pause, 6s) + var(--fondu, 1.8s)) linear;
+  transition: transform calc(var(--pause, 3s) + var(--fondu, 1.2s)) linear;
   transform: scaleX(1);
 }
 
@@ -844,8 +866,13 @@ body.menu-ouvert .panneau {
    pour que le prospect essaie les deux dispositions et tranche. Discrète, en
    bas à droite, elle ne recouvre aucun contenu.
    -------------------------------------------------------------------------- */
+/* La bande de proposition est posée en bas de la page servie au prospect :
+   sans cette réserve, elle recouvrait exactement la bascule, et le prospect
+   ne pouvait plus essayer la seconde disposition de menu. La hauteur est
+   annoncée par la bande elle-même, et vaut zéro quand il n'y en a pas. */
 .bascule-menu {
-  position: fixed; right: clamp(.8rem, 2vw, 1.6rem); bottom: clamp(.8rem, 2vw, 1.6rem);
+  position: fixed; right: clamp(.8rem, 2vw, 1.6rem);
+  bottom: calc(clamp(.8rem, 2vw, 1.6rem) + var(--bande-basse, 0px));
   z-index: 220;
   display: inline-flex; align-items: center; gap: .5rem;
   padding: .55rem .8rem;

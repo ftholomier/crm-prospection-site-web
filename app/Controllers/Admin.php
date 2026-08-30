@@ -713,7 +713,7 @@ final class Admin
         if (Assets::isPlaceholder($fichier)) {
             header('Content-Type: image/svg+xml');
             header('Cache-Control: public, max-age=86400');
-            echo Assets::placeholderSvg();
+            echo Assets::placeholderSvg(true);
             exit;
         }
 
@@ -1345,6 +1345,9 @@ final class Admin
                     'trim',
                     preg_split('/\r\n|\r|\n/', (string) ($post['about_points'] ?? '')) ?: []
                 ), static fn (string $line): bool => $line !== '')),
+                'phone' => trim((string) ($post['about_phone'] ?? '')),
+                'whatsapp' => trim((string) ($post['about_whatsapp'] ?? '')),
+                'zone' => trim((string) ($post['about_zone'] ?? '')),
                 'site_url' => trim((string) ($post['about_site_url'] ?? '')),
                 'site_label' => trim((string) ($post['about_site_label'] ?? '')),
             ],
@@ -1640,6 +1643,25 @@ final class Admin
             $liste[] = Ai::CLAUDE;
         }
         return $liste;
+    }
+
+    /** Essai réel du service de capture, avec tout ce que le serveur a vu. */
+    public static function testShot(): void
+    {
+        Auth::requireLogin();
+        Csrf::requireValid();
+
+        $cible = trim((string) ($_POST['url'] ?? ''));
+        $cible = $cible !== '' ? (Util::normalizeUrl($cible) ?? 'https://example.com/') : 'https://example.com/';
+
+        $result = Screenshot::test($cible);
+        $lignes = [];
+        foreach ($result['details'] as $cle => $valeur) {
+            $lignes[] = $cle . ' : ' . $valeur;
+        }
+        $texte = $result['message'] . ' — ' . implode(' · ', $lignes);
+        $result['ok'] ? Flash::success($texte) : Flash::error($texte);
+        Util::redirect(Router::url('settings') . '#capture');
     }
 
     /** Essai de la clé du fournisseur actif. */

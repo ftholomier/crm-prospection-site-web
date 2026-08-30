@@ -57,8 +57,8 @@
       var brut = parseFloat(getComputedStyle(scene).getPropertyValue(nom));
       return (brut > 0 ? brut : defaut) * 1000;
     };
-    var FONDU = lire("--fondu", 1.8);
-    var pause = lire("--pause", 6);
+    var FONDU = lire("--fondu", 1.2);
+    var pause = lire("--pause", 3);
     var courant = 0;
     var minuteur = null;
 
@@ -68,20 +68,28 @@
       element.classList.add(classe);
     };
 
+    /* La vue entrante monte SEULE, posée au-dessus de la sortante qui reste
+       pleinement opaque jusqu'au bout. Croiser les deux fondus ferait passer
+       les deux par la moitié au même instant, et le fond de page se verrait
+       entre elles — c'est le voile clair qu'on observait à chaque changement.
+       La sortante n'est effacée qu'une fois le fondu terminé. */
+    var rangZ = 1;
     var afficher = function (rang) {
       var sortante = vues[courant];
       var entrante = vues[rang];
 
+      sortante.classList.add("sortante");
+      entrante.style.zIndex = String(++rangZ);
       relancer(entrante, "se-rapproche");
       entrante.classList.add("est-visible");
-      sortante.classList.remove("est-visible");
 
-      // couper le mouvement de la sortante trop tôt la ferait sauter à vue
       window.setTimeout(function () {
-        if (!sortante.classList.contains("est-visible")) {
-          sortante.classList.remove("se-rapproche");
+        // « courant » a pu changer si l'on a sauté une vue entre-temps
+        if (sortante !== vues[courant]) {
+          sortante.classList.remove("sortante", "est-visible", "se-rapproche");
+          sortante.style.zIndex = "";
         }
-      }, FONDU + 60);
+      }, FONDU + 40);
 
       courant = rang;
       if (trait) { relancer(trait, "court"); }
@@ -93,6 +101,9 @@
     var lancer = function () {
       arreter();
       if (doux.matches) { return; }
+      // « pause » est le temps pendant lequel une vue reste pleinement
+      // visible ; le fondu vient s'y ajouter. Compter le fondu dans la pause
+      // reviendrait à ne montrer la photo nette qu'un peu plus d'une seconde.
       minuteur = window.setInterval(function () {
         afficher((courant + 1) % vues.length);
       }, pause + FONDU);

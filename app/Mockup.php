@@ -121,6 +121,10 @@ final class Mockup
         if (($ressources['palette'] ?? []) !== []) {
             $html = self::applyCharte($html, (array) $ressources['palette']);
         }
+        // La ponctuation française se corrige ici, au moment de servir : le
+        // modèle écrit du texte, pas de la typographie, et le résultat vaut
+        // pour toutes les versions déjà produites sans rien régénérer.
+        $html = self::typographie($html);
         $html = self::rewriteResources($html, $ressources);
 
         // Tout JavaScript est retiré, sauf le socle : c'est notre fichier, servi
@@ -224,6 +228,38 @@ final class Mockup
      * qui est servie. Une couleur corrigée s'applique donc immédiatement, sans
      * regénérer quoi que ce soit.
      */
+    /**
+     * Ponctuation française : les espaces qui ne doivent jamais couper.
+     *
+     * Le guillemet fermant se retrouvait seul sur sa ligne — « … se sent bien.
+     * » — parce qu'une espace ordinaire le précédait. La règle française veut
+     * une espace fine insécable avant » ! ? : ; et après « ; elle règle le
+     * problème à la source plutôt que de bricoler la largeur du bloc.
+     *
+     * Seul le texte est touché : la réécriture saute tout ce qui se trouve
+     * entre chevrons, donc les balises, les attributs et les adresses. Une
+     * entité HTML n'a pas d'espace avant son point-virgule et reste donc
+     * intacte, tout comme un « ? » d'adresse, qui n'en a pas non plus.
+     */
+    public static function typographie(string $html): string
+    {
+        // U+202F, espace fine insécable. Le point-virgule des entités HTML est
+        // épargné : « &amp; » ne doit pas devenir « &amp ; ».
+        return preg_replace_callback(
+            '~>([^<]+)<~u',
+            static function (array $m): string {
+                $texte = $m[1];
+                // Le point-virgule est traité avec les autres : une entité HTML
+                // — &amp; &nbsp; — n'a jamais d'espace avant son point-virgule,
+                // elle ne peut donc pas être touchée.
+                $texte = preg_replace('~\s+([»!?:;])~u', "\u{202F}$1", $texte) ?? $texte;
+                $texte = preg_replace('~«\s+~u', "«\u{202F}", $texte) ?? $texte;
+                return '>' . $texte . '<';
+            },
+            $html
+        ) ?? $html;
+    }
+
     /** Dispositions de menu proposées, et leur libellé. */
     public const MENUS = [
         'lateral' => 'Panneau latéral (burger)',

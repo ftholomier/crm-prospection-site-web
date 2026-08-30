@@ -101,6 +101,7 @@ $routes = [
     'settings_save' => [Admin::settingsSave(...), true],
     'test_smtp' => [Admin::testSmtp(...), true],
     'test_claude' => [Admin::testClaude(...), true],
+    'test_shot' => [Admin::testShot(...), true],
     'models_refresh' => [Admin::modelsRefresh(...), true],
     'deepseek_refresh' => [Admin::deepseekRefresh(...), true],
     'gemini_refresh' => [Admin::geminiRefresh(...), true],

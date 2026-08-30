@@ -21,9 +21,11 @@ $price = price((float) ($prospect['monthly_price'] ?? Config::get('offer.monthly
 .ps-bar a:hover{background:rgba(255,255,255,.09);color:#fff}
 .ps-bar a.ps-bar__cta{background:#2563eb;border-color:#2563eb;color:#fff;font-weight:600}
 .ps-bar a.ps-bar__cta:hover{background:#1d4ed8}
-body{padding-bottom:82px!important}
+/* La hauteur est annoncée au socle de la maquette : la bascule de menu, posée
+   elle aussi en bas à droite, s'élève d'autant au lieu de disparaître dessous. */
+body{padding-bottom:82px!important;--bande-basse:82px}
 @media (max-width:700px){.ps-bar{padding:10px 14px;gap:10px}.ps-bar__links{margin-left:0;width:100%}
-    .ps-bar a{flex:1;text-align:center}body{padding-bottom:132px!important}}
+    .ps-bar a{flex:1;text-align:center}body{padding-bottom:132px!important;--bande-basse:132px}}
 </style>
 <div class="ps-bar" role="complementary" aria-label="Proposition de refonte">
     <div class="ps-bar__label">
