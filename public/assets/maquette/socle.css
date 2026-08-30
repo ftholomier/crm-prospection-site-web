@@ -269,8 +269,14 @@ p:last-child { margin-bottom: 0; }
   transition: color var(--transition), border-color var(--transition);
 }
 .navbar a:hover, .navbar a[aria-current] { color: #fff; border-bottom-color: var(--marque-claire); }
-.entete__droite { display: flex; align-items: center; gap: clamp(.7rem, 1.6vw, 1.5rem); }
-.entete__tel { color: #fff; font-weight: 700; letter-spacing: .04em; font-size: .92rem; }
+.entete__droite { display: flex; align-items: center; gap: clamp(.7rem, 1.6vw, 1.5rem); flex: 0 0 auto; }
+/* Sans cette insécabilité, la barre serrée coupait le numéro à chaque espace :
+   « 03 / 81 / 49 / 21 / 60 » sur cinq lignes, et l'en-tête doublait de hauteur. */
+.entete__tel { color: #fff; font-weight: 700; letter-spacing: .04em; font-size: .92rem; white-space: nowrap; }
+.entete__droite .btn { white-space: nowrap; }
+/* L'intérieur ne se met jamais sur deux lignes : c'est une barre, pas un bloc. */
+.entete__interieur { flex-wrap: nowrap; min-width: 0; }
+.entete__logo { min-width: 0; }
 
 /* Le faisceau : le filet qui ferme la barre collante. Plein au centre,
    éteint sur les côtés — un filet d'un bord à l'autre est un trait, celui-ci
@@ -640,7 +646,32 @@ p:last-child { margin-bottom: 0; }
 @media (max-width: 1000px) {
   .cartes, .etapes, .galerie { grid-template-columns: repeat(2, 1fr); }
   .pied__haut { grid-template-columns: repeat(2, 1fr); }
-  .navbar { display: none; }         /* remplacé par un panneau latéral */
+}
+
+/* --------------------------------------------------------------------------
+   L'EN-TÊTE SUR PETIT ÉCRAN
+   Repris du site de référence, seuil par seuil. Rien n'est perdu en chemin :
+   le téléphone et l'appel à l'action retirés de la barre figurent tous deux
+   dans le panneau qui glisse, ouvert par le burger.
+   -------------------------------------------------------------------------- */
+@media (max-width: 860px) {
+  /* Le numéro tient encore, mais plus à côté du bouton. */
+  .entete__tel { display: none; }
+}
+
+@media (max-width: 640px) {
+  /* À cette largeur la droite de la barre est vide ou serrée : la garder dans
+     le flux décalerait le logo. Burger et logo, rien d'autre. */
+  .entete__droite { display: none; }
+  .entete__logo--image img { height: 38px; max-width: 180px; }
+  .entete--pleine .entete__logo--image img { height: 30px; }
+  .entete__logo { font-size: 1rem; }
+}
+
+@media (max-width: 380px) {
+  .entete__logo--image img { height: 32px; max-width: 150px; }
+  .entete--pleine .entete__logo--image img { height: 26px; }
+  .entete__logo span { display: none; }
 }
 
 @media (max-width: 780px) {

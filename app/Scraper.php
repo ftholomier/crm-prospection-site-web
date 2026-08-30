@@ -14,9 +14,20 @@ final class Scraper
      * Attributs pouvant porter l'adresse d'une image, du plus standard au plus
      * spécifique à un thème. Le premier renseigné gagne.
      */
+    /**
+     * Attributs où peut se cacher l'adresse d'une image, dans l'ordre où on
+     * les interroge.
+     *
+     * « src » vient EN DERNIER, et ce n'est pas un détail. Les plugins de
+     * chargement différé — Smush, Lazy Load, WP Rocket, Cloudflare — laissent
+     * dans src un SVG transparent d'un pixel et rangent la vraie adresse dans
+     * data-src. Interroger src en premier revenait à ne trouver que le
+     * placeholder sur la moitié des sites WordPress du marché.
+     */
     private const ATTRIBUTS_IMAGE = [
-        'src', 'data-src', 'data-lazy-src', 'data-original', 'data-lazy',
-        'data-echo', 'data-url', 'data-full-url',
+        'data-src', 'data-lazy-src', 'data-original', 'data-original-src',
+        'data-lazy', 'data-echo', 'data-url', 'data-full-url', 'data-cfsrc',
+        'data-thumb', 'data-image-src', 'src',
     ];
 
     private const MAX_PAGES = 5;
@@ -449,10 +460,16 @@ final class Scraper
     {
         $images = [];
         $vues = [];
-        $ajoute = static function (string $src, string $alt) use (&$images, &$vues, $base): void {
+        // Rend vrai quand l'adresse a réellement été retenue : c'est ce qui
+        // permet à l'appelant de continuer à chercher au lieu de s'arrêter sur
+        // un placeholder refusé.
+        $ajoute = static function (string $src, string $alt) use (&$images, &$vues, $base): bool {
             $abs = Util::absoluteUrl(trim($src), $base);
-            if ($abs === null || str_contains($abs, 'data:image') || isset($vues[$abs])) {
-                return;
+            // Le rejet se fait sur le schéma, pas sur un morceau de texte :
+            // une adresse ordinaire peut contenir « data:image » dans un
+            // paramètre sans être une image en ligne.
+            if ($abs === null || preg_match('~^\s*data:~i', $abs) || isset($vues[$abs])) {
+                return false;
             }
             $vues[$abs] = true;
             $images[] = [
@@ -460,6 +477,7 @@ final class Scraper
                 'alt' => Util::truncate($alt, 120),
                 'modern' => (bool) preg_match('/\.(webp|avif)(\?|$)/i', $abs),
             ];
+            return true;
         };
 
         // Le plus grand candidat d'un srcset : c'est celui qui sert de photo,
@@ -486,14 +504,17 @@ final class Scraper
 
         foreach ($doc->getElementsByTagName('img') as $img) {
             $alt = $img->getAttribute('alt');
-            $srcset = $img->getAttribute('srcset') ?: $img->getAttribute('data-srcset');
+            $srcset = $img->getAttribute('srcset')
+                ?: $img->getAttribute('data-srcset')
+                ?: $img->getAttribute('data-lazy-srcset');
             if ($srcset !== '') {
                 $ajoute($meilleurDuSrcset($srcset), $alt);
             }
             foreach (self::ATTRIBUTS_IMAGE as $attribut) {
                 $valeur = $img->getAttribute($attribut);
-                if ($valeur !== '') {
-                    $ajoute($valeur, $alt);
+                // On ne s'arrête que sur une adresse RETENUE. S'arrêter sur un
+                // attribut simplement non vide laissait gagner le placeholder.
+                if ($valeur !== '' && $ajoute($valeur, $alt)) {
                     break;
                 }
             }
@@ -604,22 +625,44 @@ final class Scraper
         return array_slice(array_keys($fonts), 0, 6);
     }
 
+    /**
+     * Le logo du site.
+     *
+     * Deux pièges, tous deux rencontrés sur des sites réels : le nom « logo »
+     * ne figure que dans data-src quand le chargement est différé, et le src
+     * porte alors un SVG transparent qu'il ne faut surtout pas retenir — il
+     * serait pris pour le logo et la maquette afficherait un pixel vide.
+     */
     private static function logo(\DOMDocument $doc, string $base): string
     {
         $xpath = new \DOMXPath($doc);
+        $minuscules = 'translate(%s,"ABCDEFGHIJKLMNOPQRSTUVWXYZ","abcdefghijklmnopqrstuvwxyz")';
+        $contient = static fn (string $attribut): string
+            => 'contains(' . sprintf($minuscules, $attribut) . ',"logo")';
+
         $queries = [
-            '//img[contains(translate(@class,"LOGO","logo"),"logo")]',
-            '//img[contains(translate(@src,"LOGO","logo"),"logo")]',
-            '//img[contains(translate(@alt,"LOGO","logo"),"logo")]',
+            '//img[' . $contient('@class') . ']',
+            '//img[' . $contient('@src') . ' or ' . $contient('@data-src') . ' or ' . $contient('@data-srcset') . ']',
+            '//img[' . $contient('@alt') . ' or ' . $contient('@title') . ']',
             '//header//img',
+            '//*[' . $contient('@class') . ']//img',
         ];
+
         foreach ($queries as $query) {
             $nodes = $xpath->query($query);
-            if ($nodes && $nodes->length > 0) {
-                $src = $nodes->item(0)->getAttribute('src') ?: $nodes->item(0)->getAttribute('data-src');
-                $abs = Util::absoluteUrl($src, $base);
-                if ($abs !== null) {
-                    return $abs;
+            foreach ($nodes ?? [] as $node) {
+                if (!$node instanceof \DOMElement) {
+                    continue;
+                }
+                foreach (self::ATTRIBUTS_IMAGE as $attribut) {
+                    $valeur = trim($node->getAttribute($attribut));
+                    if ($valeur === '' || preg_match('~^\s*data:~i', $valeur)) {
+                        continue;
+                    }
+                    $abs = Util::absoluteUrl($valeur, $base);
+                    if ($abs !== null && !preg_match('~^\s*data:~i', $abs)) {
+                        return $abs;
+                    }
                 }
             }
         }

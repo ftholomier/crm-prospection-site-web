@@ -47,7 +47,20 @@ $logoUrl = $logo === null ? null : (str_starts_with($logo, 'assets/')
       data-editeur
       data-media="<?= e(url('mockup_media')) ?>"
       data-id="<?= e($id) ?>"
-      data-actifs="<?= e($assetPattern) ?>">
+      data-actifs="<?= e($assetPattern) ?>"
+      <?php
+      // Les liens entre pages, dans les deux sens : l'adresse d'aperçu pour
+      // reposer un href sans casser la navigation du cadre, et l'adresse
+      // d'édition pour qu'un clic dans la maquette change de page ici.
+      $liensPages = [];
+      foreach (array_keys(App\Mockup::PAGES) as $clePage) {
+          $liensPages[$clePage . '.html'] = [
+              'apercu' => url('mockup_preview', ['id' => $id, 'v' => $version, 'p' => $clePage]),
+              'edition' => url('mockup_edit', ['id' => $id, 'v' => $version, 'p' => $clePage]),
+          ];
+      }
+      ?>
+      data-pages="<?= e(json_encode($liensPages, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)) ?>">
     <?= Csrf::field() ?>
     <input type="hidden" name="id" value="<?= e($id) ?>">
     <input type="hidden" name="v" value="<?= e($version) ?>">

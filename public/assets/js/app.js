@@ -408,12 +408,30 @@
             return (m && motif) ? motif.replace('{f}', encodeURIComponent(m[1])) : valeur;
         }
 
+        /* Les liens entre pages subissent le même sort que les images.
+           Le fichier enregistré porte « a-propos.html » ; la page servie dans
+           le cadre reçoit une adresse de notre domaine. Reposer le href brut
+           du formulaire — ce que faisait la réapplication au chargement —
+           rendait le lien inerte : cliqué, il sortait du cadre et chargeait le
+           back-office à la place de la maquette. */
+        var pages = {};
+        try { pages = JSON.parse(form.getAttribute('data-pages') || '{}'); } catch (e) { pages = {}; }
+
+        function pageCible(valeur) {
+            var v = String(valeur).trim().replace(/^\.?\//, '');
+            return Object.prototype.hasOwnProperty.call(pages, v) ? pages[v] : null;
+        }
+        function lienServi(valeur) {
+            var p = pageCible(valeur);
+            return p ? p.apercu : valeur;
+        }
+
         function appliquer(champ) {
             var cible = noeud(champ.getAttribute('data-champ'));
             if (!cible) { return; }
             var type = champ.getAttribute('data-type');
             if (type === 'texte') { cible.textContent = champ.value; }
-            else if (type === 'lien') { cible.setAttribute('href', champ.value); }
+            else if (type === 'lien') { cible.setAttribute('href', lienServi(champ.value)); }
             else if (type === 'image') { cible.setAttribute('src', servie(champ.value)); }
             else if (type === 'alt') { cible.setAttribute('alt', champ.value); }
         }
@@ -548,9 +566,35 @@
 
         /* Au premier chargement du cadre, on repose les saisies déjà faites :
            un rechargement de l'aperçu ne doit pas effacer le travail en cours. */
+        /* Un clic sur la navigation de la maquette doit changer de page dans
+           l'éditeur, pas seulement dans le cadre : sinon le formulaire continue
+           d'éditer l'ancienne page pendant qu'on en regarde une autre, et les
+           chemins d'éléments ne correspondent plus à rien. */
+        function suivreLaNavigation(d) {
+            d.addEventListener('click', function (event) {
+                var lien = event.target && event.target.closest ? event.target.closest('a[href]') : null;
+                if (!lien) { return; }
+
+                var brut = lien.getAttribute('href') || '';
+                var p = pageCible(brut);
+                if (!p) {
+                    // Un lien d'aperçu déjà réécrit : on retrouve la page dans
+                    // son paramètre, ce qui couvre les liens venus du serveur.
+                    var m = /[?&]p=([a-z0-9-]+)/i.exec(brut);
+                    if (m) { p = pageCible(m[1] + '.html'); }
+                }
+                if (!p) { return; }
+
+                event.preventDefault();
+                window.location.href = p.edition;
+            }, true);
+        }
+
         cadre.addEventListener('load', function () {
+            var d = doc();
             Array.prototype.forEach.call(form.querySelectorAll('[data-champ]'), appliquer);
             rafraichirCharte();
+            if (d) { suivreLaNavigation(d); }
         });
     }
 
