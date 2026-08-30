@@ -126,9 +126,9 @@ final class Compare
         @file_put_contents(self::dir($id) . '/' . $slug . '.html', $result['html']);
 
         $usage = $result['usage'] ?? [];
-        $entree = (int) ($usage['input_tokens'] ?? 0);
+        $cache = (int) ($usage['cache_read_input_tokens'] ?? 0);
+        $entree = (int) ($usage['input_tokens'] ?? 0) + $cache;
         $sortie = (int) ($usage['output_tokens'] ?? 0);
-        $prix = Models::priceOf($candidat['model']);
 
         return ['ok' => true, 'error' => '', 'mesure' => [
             'slug' => $slug,
@@ -139,7 +139,7 @@ final class Compare
             'entree' => $entree,
             'sortie' => $sortie,
             // Le coût d'une page, pas d'une maquette : c'est ce qui a été produit.
-            'cout' => $prix === null ? null : $entree / 1e6 * $prix[0] + $sortie / 1e6 * $prix[1],
+            'cout' => Models::cost($candidat['model'], $entree - $cache, $cache, $sortie),
             'ecarts' => $controle['ecarts'],
             'conforme' => $controle['ok'],
             'chiffres_inventes' => $inventes,

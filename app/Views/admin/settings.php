@@ -75,10 +75,12 @@ $secretPlaceholder = static fn (string $value): string => $value !== '' ? 'Valeu
                 <option value="deepseek" <?= $fournisseur === 'deepseek' ? 'selected' : '' ?>>DeepSeek</option>
             </select>
             <span class="hint muted tiny">
-                DeepSeek coûte nettement moins cher, mais deux fonctions n'existent que chez Anthropic et
-                sont désactivées si vous le choisissez : <strong>la lecture d'un site bloqué par l'IA</strong>,
-                qui repose sur un outil exécuté chez eux, et <strong>la lecture de la capture du site actuel</strong>,
-                DeepSeek ne traitant pas les images. Le reste — brief, pages, retouches — fonctionne à l'identique.
+                DeepSeek coûte nettement moins cher. Une seule fonction n'existe que chez Anthropic et se
+                désactive si vous le choisissez : <strong>la lecture d'un site bloqué par l'IA</strong>, qui
+                repose sur un outil exécuté chez eux. La capture du site, elle, peut être lue par le modèle
+                <span class="mono">deepseek-v4-flash-vision-exp</span>, au tarif de Flash — choisissez-le
+                pour l'étape « Direction artistique » si vous voulez que le modèle voie le site actuel.
+                Le reste — brief, pages, retouches — fonctionne à l'identique.
             </span>
         </div>
 
@@ -283,6 +285,9 @@ $secretPlaceholder = static fn (string $value): string => $value !== '' ? 'Valeu
                                     <input type="number" step="0.0001" min="0" name="tarif[<?= e($modele) ?>][1]"
                                            value="<?= e(number_format($fourchette['creuse'][1], 4, '.', '')) ?>"
                                            aria-label="Sortie, heure creuse"> ↑
+                                    <input type="number" step="0.0001" min="0" name="tarif[<?= e($modele) ?>][4]"
+                                           value="<?= e(number_format($fourchette['creuse'][2] ?? 0, 4, '.', '')) ?>"
+                                           aria-label="Entrée déjà en cache, heure creuse"> ⟳
                                 </span>
                             </td>
                             <td class="right nowrap" data-label="Heure pleine">
@@ -293,6 +298,9 @@ $secretPlaceholder = static fn (string $value): string => $value !== '' ? 'Valeu
                                     <input type="number" step="0.0001" min="0" name="tarif[<?= e($modele) ?>][3]"
                                            value="<?= e(number_format($fourchette['pleine'][1], 4, '.', '')) ?>"
                                            aria-label="Sortie, heure pleine"> ↑
+                                    <input type="number" step="0.0001" min="0" name="tarif[<?= e($modele) ?>][5]"
+                                           value="<?= e(number_format($fourchette['pleine'][2] ?? 0, 4, '.', '')) ?>"
+                                           aria-label="Entrée déjà en cache, heure pleine"> ⟳
                                 </span>
                             </td>
                         </tr>
@@ -306,14 +314,16 @@ $secretPlaceholder = static fn (string $value): string => $value !== '' ? 'Valeu
                 appel est chiffré au tarif de l'heure où il a lieu, pas de l'heure où on le regarde —
                 générer vos maquettes en dehors de ces sept heures divise la facture par deux.
                 <br>
-                <strong>Ces tarifs sont modifiables, et c'est volontaire.</strong> Ils ne viennent pas de la
-                documentation de DeepSeek — elle est bloquée par la politique réseau de l'hébergement où
-                cette application a été développée — mais de trois sources concordantes relevées le
-                <?= e(date('d/m/Y', strtotime(App\Models::DEEPSEEK_PRICING_DATE))) ?>. Ouvrez
-                <a href="<?= e(App\Models::DEEPSEEK_PRICING_SOURCE) ?>" target="_blank" rel="noopener noreferrer">leur page tarifs</a>
-                ou votre facture, corrigez les quatre nombres, et c'est votre chiffre qui fera foi partout :
-                relevé de consommation, estimation par étape, comparaison de modèles. En dollars par million
-                de jetons. Videz une ligne pour revenir aux valeurs livrées.
+                Trois colonnes par tranche : ↓ entrée, ↑ sortie, ⟳ entrée déjà en cache. Cette dernière vaut
+                le trentième de l'entrée neuve — DeepSeek met en cache tout seul, et une génération qui
+                renvoie le même gabarit à chaque page est précisément le cas où ça compte. La part relue est
+                comptée séparément dans le relevé.
+                <br>
+                Grille relevée sur
+                <a href="<?= e(App\Models::DEEPSEEK_PRICING_SOURCE) ?>" target="_blank" rel="noopener noreferrer">la page « Modèles et prix » de DeepSeek</a>
+                le <?= e(date('d/m/Y', strtotime(App\Models::DEEPSEEK_PRICING_DATE))) ?>. Elle reste
+                modifiable : DeepSeek se réserve le droit de la changer, et c'est votre facture qui fait foi.
+                En dollars par million de jetons ; videz une ligne pour revenir aux valeurs livrées.
             </p>
             <p class="tiny muted">
                 La liste des modèles se met à jour seule une fois par jour.

@@ -80,12 +80,16 @@ final class Ai
     /**
      * La capture du site peut-elle être jointe ?
      *
-     * Elle n'accompagne que le brief : c'est donc le fournisseur de cette
-     * étape-là qui décide, pas le principal.
+     * Elle n'accompagne que le brief : c'est le modèle de cette étape-là qui
+     * décide. Tous les modèles Claude la lisent ; côté DeepSeek, seul le
+     * modèle vision — au même tarif que Flash.
      */
     public static function readsImages(): bool
     {
-        return self::for('brief')['provider'] === self::CLAUDE;
+        if (self::for('brief')['provider'] === self::CLAUDE) {
+            return true;
+        }
+        return DeepSeek::readsImages(self::modelFor('brief'));
     }
 
     /** Étapes dont le modèle se règle séparément. */

@@ -1397,8 +1397,10 @@ final class Admin
             if (!in_array($modele, Models::modelesTarifables(), true) || !is_array($valeurs)) {
                 continue;
             }
+            // Six nombres : entrée, sortie et entrée en cache, pour chacune
+            // des deux tranches horaires.
             $nombres = [];
-            foreach ([0, 1, 2, 3] as $rang) {
+            foreach ([0, 1, 2, 3, 4, 5] as $rang) {
                 $nombres[$rang] = max(0.0, (float) str_replace(',', '.', (string) ($valeurs[$rang] ?? 0)));
             }
             if (max($nombres) <= 0) {
@@ -1406,7 +1408,9 @@ final class Admin
             }
             $livre = Models::priceRangeLivre($modele);
             if ($livre !== null && $nombres === [
-                $livre['creuse'][0], $livre['creuse'][1], $livre['pleine'][0], $livre['pleine'][1],
+                $livre['creuse'][0], $livre['creuse'][1],
+                $livre['pleine'][0], $livre['pleine'][1],
+                $livre['creuse'][2] ?? 0.0, $livre['pleine'][2] ?? 0.0,
             ]) {
                 continue;
             }

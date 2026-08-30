@@ -39,9 +39,28 @@ final class Models
     public const DEEPSEEK_PRICING_DATE = '2026-08-30';
     public const DEEPSEEK_PRICING_SOURCE = 'https://api-docs.deepseek.com/quick_start/pricing';
 
+    /**
+     * Grille officielle, relevée sur la page « Modèles et prix » de DeepSeek.
+     * Chaque tranche : [entrée cache manqué, sortie, entrée cache atteint].
+     *
+     * Le tarif de cache n'est pas un détail : il vaut le trentième du tarif
+     * plein. Une génération qui renvoie le même gabarit à chaque page est
+     * précisément le cas où il s'applique.
+     */
     private const PRICING_HORAIRE = [
-        'deepseek-v4-flash' => ['creuse' => [0.22, 0.66], 'pleine' => [0.44, 1.32]],
-        'deepseek-v4-pro' => ['creuse' => [0.66, 1.98], 'pleine' => [1.32, 3.96]],
+        'deepseek-v4-flash' => [
+            'creuse' => [0.22, 0.66, 0.007],
+            'pleine' => [0.44, 1.32, 0.014],
+        ],
+        'deepseek-v4-pro' => [
+            'creuse' => [0.66, 1.98, 0.022],
+            'pleine' => [1.32, 3.96, 0.044],
+        ],
+        // Même tarif que Flash, et il lit les images.
+        'deepseek-v4-flash-vision-exp' => [
+            'creuse' => [0.22, 0.66, 0.007],
+            'pleine' => [0.44, 1.32, 0.014],
+        ],
     ];
 
     /**
@@ -348,6 +367,28 @@ final class Models
         return self::PRICING_HORAIRE[$model] ?? null;
     }
 
+    /**
+     * Coût d'un appel, en dollars.
+     *
+     * Le troisième tarif — l'entrée déjà en cache — existait dans la table
+     * depuis le début et n'était utilisé nulle part : tout était facturé au
+     * prix fort. L'écart va de un à dix chez Anthropic, de un à trente et un
+     * chez DeepSeek, ce qui suffit à rendre un relevé mensonger.
+     */
+    public static function cost(string $model, int $entreeNeuve, int $entreeCache, int $sortie, ?int $at = null): ?float
+    {
+        $prix = self::priceOf($model, $at);
+        if ($prix === null) {
+            return null;
+        }
+        // Sans tarif de cache connu, l'entrée mise en cache est comptée plein
+        // tarif : mieux vaut surestimer que présenter une facture trop basse.
+        $tarifCache = $prix[2] ?? $prix[0];
+        return $entreeNeuve / 1e6 * $prix[0]
+            + $entreeCache / 1e6 * $tarifCache
+            + $sortie / 1e6 * $prix[1];
+    }
+
     /** Grille livrée avec l'application, sans les corrections. */
     public static function priceRangeLivre(string $model): ?array
     {
@@ -373,9 +414,12 @@ final class Models
         if (max($nombres) <= 0) {
             return null;
         }
+        // Le tarif de cache, s'il n'a pas été saisi, reste celui de la grille
+        // livrée : le corriger n'est pas obligatoire pour corriger le reste.
+        $livre = self::PRICING_HORAIRE[$model] ?? null;
         return [
-            'creuse' => [$nombres[0], $nombres[1]],
-            'pleine' => [$nombres[2], $nombres[3]],
+            'creuse' => [$nombres[0], $nombres[1], $nombres[4] ?? $livre['creuse'][2] ?? $nombres[0]],
+            'pleine' => [$nombres[2], $nombres[3], $nombres[5] ?? $livre['pleine'][2] ?? $nombres[2]],
         ];
     }
 
@@ -398,9 +442,9 @@ final class Models
             $profil = self::stepProfile($etape);
             $modele = Ai::modelFor($etape);
             $prix = self::priceOf($modele);
-            $cout = $prix === null
-                ? null
-                : $profil['input'] / 1e6 * $prix[0] + $profil['output'] / 1e6 * $prix[1];
+            // L'estimation ne suppose aucun cache : c'est le coût du premier
+            // passage, celui qu'on paie toujours au moins une fois.
+            $cout = $prix === null ? null : self::cost($modele, $profil['input'], 0, $profil['output']);
 
             if ($cout === null) {
                 $complet = false;

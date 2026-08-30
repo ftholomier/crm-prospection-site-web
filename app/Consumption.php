@@ -42,21 +42,28 @@ final class Consumption
         self::$contexte = [];
     }
 
-    /** Enregistre un appel abouti. */
+    /**
+     * Enregistre un appel abouti.
+     *
+     * L'entrée est scindée : ce qui a été lu depuis le cache du fournisseur
+     * coûte une fraction du reste — le dixième chez Anthropic, le trentième
+     * chez DeepSeek. Les confondre gonflerait la facture d'un facteur dix sur
+     * une génération qui renvoie le même gabarit à chaque page.
+     */
     public static function record(string $provider, string $model, array $usage): void
     {
-        $entree = (int) ($usage['input_tokens'] ?? 0)
-            + (int) ($usage['cache_creation_input_tokens'] ?? 0)
-            + (int) ($usage['cache_read_input_tokens'] ?? 0);
+        $cache = (int) ($usage['cache_read_input_tokens'] ?? 0);
+        $neuve = (int) ($usage['input_tokens'] ?? 0)
+            + (int) ($usage['cache_creation_input_tokens'] ?? 0);
         $sortie = (int) ($usage['output_tokens'] ?? 0);
-        if ($entree === 0 && $sortie === 0) {
+        if ($neuve === 0 && $cache === 0 && $sortie === 0) {
             return;
         }
 
         // Le tarif est celui de l'instant : certains modèles coûtent le double
         // en heure pleine, et le prix d'un appel ne se relit pas plus tard.
         $maintenant = time();
-        $prix = Models::priceOf($model, $maintenant);
+        $cout = Models::cost($model, $neuve, $cache, $sortie, $maintenant);
         Store::append(self::path(), [
             'ts' => $maintenant,
             'prospect' => (string) (self::$contexte['prospect'] ?? ''),
@@ -64,9 +71,10 @@ final class Consumption
             'etape' => (string) (self::$contexte['etape'] ?? ''),
             'provider' => $provider,
             'model' => $model,
-            'in' => $entree,
+            'in' => $neuve + $cache,
+            'cache' => $cache,
             'out' => $sortie,
-            'usd' => $prix === null ? null : round($entree / 1e6 * $prix[0] + $sortie / 1e6 * $prix[1], 6),
+            'usd' => $cout === null ? null : round($cout, 6),
         ]);
     }
 
@@ -97,10 +105,11 @@ final class Consumption
      */
     public static function sum(array $lignes): array
     {
-        $total = ['in' => 0, 'out' => 0, 'usd' => 0.0, 'appels' => 0, 'sans_tarif' => 0, 'modeles' => []];
+        $total = ['in' => 0, 'cache' => 0, 'out' => 0, 'usd' => 0.0, 'appels' => 0, 'sans_tarif' => 0, 'modeles' => []];
         $chiffres = 0;
         foreach ($lignes as $ligne) {
             $total['in'] += (int) ($ligne['in'] ?? 0);
+            $total['cache'] += (int) ($ligne['cache'] ?? 0);
             $total['out'] += (int) ($ligne['out'] ?? 0);
             $total['appels']++;
             if (($ligne['usd'] ?? null) === null) {

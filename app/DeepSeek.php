@@ -151,10 +151,20 @@ final class DeepSeek
      * Modèles connus, servis tant que l'API n'a jamais répondu. La liste reste
      * modifiable à la main : le champ accepte n'importe quel identifiant.
      */
+    /** Modèle qui sait lire une image, au tarif de Flash. */
+    public const VISION = 'deepseek-v4-flash-vision-exp';
+
     private const FALLBACK = [
         ['id' => 'deepseek-v4-flash', 'label' => 'deepseek-v4-flash'],
         ['id' => 'deepseek-v4-pro', 'label' => 'deepseek-v4-pro'],
+        ['id' => self::VISION, 'label' => self::VISION],
     ];
+
+    /** Ce modèle accepte-t-il une image dans la requête ? */
+    public static function readsImages(string $model): bool
+    {
+        return str_contains($model, 'vision');
+    }
 
     /**
      * Interroge l'API et met la liste en cache.
@@ -392,10 +402,19 @@ final class DeepSeek
     /** Normalise la sortie vers la forme attendue par le reste de l'application. */
     private static function finish(string $text, array $usage, string $stopReason): array
     {
-        // Les compteurs sont nommés autrement qu'chez Anthropic : on les traduit
-        // pour que le suivi des coûts et des jetons reste homogène.
+        // Les compteurs sont nommés autrement que chez Anthropic : on les
+        // traduit pour que le suivi des coûts reste homogène. DeepSeek met en
+        // cache tout seul et rapporte la part relue — elle coûte le trentième
+        // du reste, la confondre avec l'entrée neuve fausserait la facture.
+        $cache = (int) ($usage['prompt_cache_hit_tokens'] ?? 0);
+        $total = (int) ($usage['prompt_tokens'] ?? 0);
+        $neuve = isset($usage['prompt_cache_miss_tokens'])
+            ? (int) $usage['prompt_cache_miss_tokens']
+            : max(0, $total - $cache);
+
         $normalise = [
-            'input_tokens' => (int) ($usage['prompt_tokens'] ?? 0),
+            'input_tokens' => $neuve,
+            'cache_read_input_tokens' => $cache,
             'output_tokens' => (int) ($usage['completion_tokens'] ?? 0),
         ];
         Models::recordUsage($normalise);
