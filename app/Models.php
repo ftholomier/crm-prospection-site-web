@@ -339,16 +339,18 @@ final class Models
         });
     }
 
-    /** Dépense cumulée estimée depuis la mise en service. */
+    /**
+     * Dépense cumulée, somme des coûts arrêtés appel par appel.
+     *
+     * Elle était jusqu'ici recalculée en multipliant tous les jetons par le
+     * tarif du modèle actuellement configuré : ce chiffre devenait faux dès
+     * qu'un modèle changeait, et davantage encore depuis qu'ils se règlent par
+     * étape. Le relevé, lui, garde le prix du jour de l'appel.
+     */
     public static function spentSoFar(): ?float
     {
-        $usage = Store::read(self::usagePath());
-        $price = self::PRICING[(string) Config::get('claude.model', '')] ?? null;
-        if ($price === null || ($usage['calls'] ?? 0) < 1) {
-            return null;
-        }
-        return (int) ($usage['input'] ?? 0) / 1e6 * $price[0]
-            + (int) ($usage['output'] ?? 0) / 1e6 * $price[1];
+        $total = Consumption::sum(Consumption::lines());
+        return $total['appels'] < 1 ? null : $total['usd'];
     }
 
     // ------------------------------------------------- Rafraîchissement

@@ -2,7 +2,7 @@
 /**
  * @var array $p @var array $versions @var string $currentVersion @var array $timeline
  * @var array $sends @var array $schedule @var string $mockupUrl @var bool $hasShot @var string $shotUrl
- * @var array $palette @var array $actifs
+ * @var array $palette @var array $actifs @var array $consommation
  */
 use App\Assets;
 use App\Palette;
@@ -704,6 +704,71 @@ $mailable = Prospect::isMailable($p);
                         </li>
                     <?php endforeach; ?>
                 </ul>
+            </div>
+        <?php endif; ?>
+
+        <?php if ($consommation !== []): ?>
+            <div class="card">
+                <div class="card-head">
+                    <h2>Consommation réelle</h2>
+                    <?php
+                    $totalGeneral = App\Consumption::sum(array_merge(
+                        ...array_map(static fn (array $v): array => $v['lignes'], array_values($consommation))
+                    ));
+                    ?>
+                    <span class="badge"><?= e(App\Consumption::money($totalGeneral['usd'])) ?></span>
+                </div>
+                <p class="muted small">
+                    Chaque appel est chiffré au tarif du modèle qui a répondu, au moment où il répond.
+                    Deux versions générées avec des modèles différents se comparent donc ligne à ligne.
+                </p>
+
+                <?php foreach ($consommation as $version => $bloc): ?>
+                    <details class="conso"<?= $version === array_key_first($consommation) ? ' open' : '' ?>>
+                        <summary>
+                            <span class="conso__version">
+                                <?= $version === 'comparaison' ? 'Comparaisons de modèles' : e($version) ?>
+                                <?= $version === (string) ($p['mockup']['current'] ?? '')
+                                    ? '<span class="badge brand">en ligne</span>' : '' ?>
+                            </span>
+                            <span class="conso__chiffres tiny">
+                                <span class="muted"><?= e(App\Consumption::tokens($bloc['in'])) ?> ↓
+                                    <?= e(App\Consumption::tokens($bloc['out'])) ?> ↑</span>
+                                <strong><?= e(App\Consumption::money($bloc['usd'])) ?></strong>
+                            </span>
+                        </summary>
+                        <ul class="conso__lignes">
+                            <?php foreach ($bloc['lignes'] as $ligne): ?>
+                                <li>
+                                    <span class="conso__etape"><?= e((string) ($ligne['etape'] ?: '—')) ?></span>
+                                    <span class="conso__jetons tiny muted">
+                                        <?= e(App\Consumption::tokens((int) $ligne['in'])) ?> ↓
+                                        <?= e(App\Consumption::tokens((int) $ligne['out'])) ?> ↑
+                                    </span>
+                                    <span class="conso__modele tiny muted mono"><?= e((string) $ligne['model']) ?></span>
+                                    <span class="conso__cout">
+                                        <?= $ligne['usd'] === null
+                                            ? '<span class="faint tiny">tarif non relevé</span>'
+                                            : e(App\Consumption::money((float) $ligne['usd'])) ?>
+                                    </span>
+                                </li>
+                            <?php endforeach; ?>
+                        </ul>
+                        <?php if ($bloc['sans_tarif'] > 0): ?>
+                            <p class="tiny muted">
+                                <?= (int) $bloc['sans_tarif'] ?> appel(s) sans tarif relevé : ce total est un minimum.
+                            </p>
+                        <?php endif; ?>
+                    </details>
+                <?php endforeach; ?>
+
+                <?php if (App\Consumption::eurRate() === null): ?>
+                    <p class="tiny muted mt">
+                        Les montants sont en dollars, comme les factures des API.
+                        <a href="<?= e(url('settings')) ?>#claude">Renseignez votre taux de conversion</a>
+                        pour voir aussi les euros.
+                    </p>
+                <?php endif; ?>
             </div>
         <?php endif; ?>
 

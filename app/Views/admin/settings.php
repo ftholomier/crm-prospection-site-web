@@ -173,7 +173,14 @@ $secretPlaceholder = static fn (string $value): string => $value !== '' ? 'Valeu
                 il s'ajustera ensuite à votre consommation réelle.
             <?php endif; ?>
             <?php if ($spent !== null): ?>
-                Dépense cumulée estimée depuis la mise en service : <strong><?= e(App\Models::formatCost($spent)) ?></strong>.
+                <?php $releve = App\Consumption::sum(App\Consumption::lines()); ?>
+                Dépense réelle depuis la mise en service :
+                <strong><?= e(App\Consumption::money($spent)) ?></strong>
+                sur <?= (int) $releve['appels'] ?> appel(s), chacun chiffré au tarif du modèle qui a répondu.
+                <?php if ($releve['sans_tarif'] > 0): ?>
+                    <?= (int) $releve['sans_tarif'] ?> appel(s) ne sont pas chiffrés, faute de tarif relevé
+                    pour leur modèle : le total affiché est donc un minimum.
+                <?php endif; ?>
             <?php endif; ?>
         </p>
 
@@ -324,6 +331,26 @@ $secretPlaceholder = static fn (string $value): string => $value !== '' ? 'Valeu
             <span class="mono">deepseek-chat</span> — et la répartition des jetons s'ajuste à votre
             consommation réelle après quelques maquettes.
         </p>
+
+        <div class="field-row">
+            <div class="field">
+                <label for="eur_rate">Taux de conversion dollar → euro</label>
+                <input type="number" name="eur_rate" id="eur_rate" step="0.0001" min="0" max="10"
+                       value="<?= e((string) (($config['billing']['eur_rate'] ?? 0) ?: '')) ?>" placeholder="0,9200">
+                <span class="hint muted tiny">
+                    Les API facturent en dollars : c'est le seul montant certain, et il reste affiché.
+                    Renseignez votre taux — celui de votre relevé bancaire, pas un cours du jour — pour voir
+                    aussi les euros. Laissé vide, rien n'est converti : un taux inventé rendrait faux ce
+                    qu'on cherche justement à rendre juste.
+                </span>
+            </div>
+            <div class="field">
+                <label for="rate_note">Origine du taux</label>
+                <input type="text" name="rate_note" id="rate_note"
+                       value="<?= e((string) ($config['billing']['rate_note'] ?? '')) ?>"
+                       placeholder="Relevé bancaire de janvier">
+            </div>
+        </div>
 
         <?php
         // Les identifiants connus des deux fournisseurs, en suggestion : le champ

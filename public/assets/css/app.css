@@ -601,3 +601,35 @@ td.right, th.right { text-align: right; }
     width: 1280px; height: 2400px; border: 0;
     transform: scale(var(--zoom, .28)); transform-origin: top left;
 }
+
+/* Relevé de consommation, une version repliable par génération. */
+.conso { border: 1px solid var(--line); border-radius: 8px; margin-top: 8px; }
+
+.conso > summary {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    padding: 9px 11px; cursor: pointer; list-style: none; flex-wrap: wrap;
+}
+.conso > summary::-webkit-details-marker { display: none; }
+.conso__version { font-weight: 600; font-size: 13px; display: flex; align-items: center; gap: 8px; }
+.conso__chiffres { display: flex; align-items: center; gap: 10px; margin-left: auto; }
+
+/* Deux lignes de deux, plutôt qu'un tableau : la carte vit dans la colonne
+   étroite, où quatre colonnes coupent les noms de modèle caractère par
+   caractère. */
+.conso__lignes {
+    list-style: none; margin: 0; padding: 0;
+    border-top: 1px solid var(--line);
+}
+
+.conso__lignes li {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 2px 10px;
+    padding: 8px 11px;
+    font-size: 13px;
+}
+.conso__lignes li + li { border-top: 1px solid var(--line); }
+
+.conso__etape { font-weight: 500; overflow-wrap: anywhere; }
+.conso__jetons, .conso__cout { text-align: right; white-space: nowrap; }
+.conso__modele { overflow-wrap: anywhere; }

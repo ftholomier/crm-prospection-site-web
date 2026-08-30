@@ -186,6 +186,13 @@ final class Config
                 // les adresses distantes, rien n'est stocké.
                 'assets_mode' => 'copie',
             ],
+            // Les API facturent en dollars. Le taux est saisi ici plutôt que
+            // deviné : un taux inventé rendrait faux ce qu'on cherche à rendre
+            // juste. Zéro veut dire « n'affiche pas d'euros ».
+            'billing' => [
+                'eur_rate' => 0.0,
+                'rate_note' => '',
+            ],
             'offer' => [
                 'monthly_price' => 79,
                 'currency' => '€',

@@ -183,10 +183,20 @@ final class Ai
             ? ($streaming ? DeepSeek::stream($options, $onDelta) : DeepSeek::message($options))
             : ($streaming ? Claude::stream($options, $onDelta) : Claude::message($options));
 
-        // La ventilation par étape se fait ici : les clients ignorent à quelle
-        // étape ils répondent, et n'ont pas à le savoir.
-        if ($etape !== null && $reponse['ok']) {
-            Models::recordStep($etape, $reponse['usage'] ?? []);
+        // La ventilation se fait ici : les clients ignorent à quelle étape ils
+        // répondent, et n'ont pas à le savoir.
+        if ($reponse['ok']) {
+            if ($etape !== null) {
+                Models::recordStep($etape, $reponse['usage'] ?? []);
+            }
+            // Le coût est arrêté maintenant, au tarif du modèle qui vient de
+            // répondre : le recalculer plus tard, quand les réglages auront
+            // changé, donnerait un chiffre faux.
+            Consumption::record(
+                $choix['provider'],
+                $choix['model'] !== '' ? $choix['model'] : self::modelFor($etape),
+                $reponse['usage'] ?? []
+            );
         }
         return $reponse;
     }

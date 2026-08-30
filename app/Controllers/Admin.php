@@ -9,6 +9,7 @@ use App\Auth;
 use App\Claude;
 use App\Compare;
 use App\Config;
+use App\Consumption;
 use App\Ai;
 use App\Csrf;
 use App\DeepSeek;
@@ -239,6 +240,7 @@ final class Admin
             'shotUrl' => Router::url('shot_admin', ['id' => $id, 'v' => time()]),
             'palette' => $prospect['palette'] ?? [],
             'actifs' => Assets::catalogue($id),
+            'consommation' => Consumption::byVersion($id),
         ]);
     }
 
@@ -1181,6 +1183,10 @@ final class Admin
                 'allow_google_fonts' => !empty($post['allow_google_fonts']),
                 'use_site_images' => !empty($post['use_site_images']),
                 'assets_mode' => ($post['assets_mode'] ?? '') === 'copie' ? 'copie' : 'liens',
+            ],
+            'billing' => [
+                'eur_rate' => max(0.0, min(10.0, (float) str_replace(',', '.', (string) ($post['eur_rate'] ?? 0)))),
+                'rate_note' => trim((string) ($post['rate_note'] ?? '')),
             ],
             'offer' => [
                 'monthly_price' => (float) str_replace(',', '.', (string) ($post['monthly_price'] ?? 79)),

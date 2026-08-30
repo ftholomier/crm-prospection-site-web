@@ -9,6 +9,7 @@ use App\Assets;
 use App\Auth;
 use App\Compare;
 use App\Config;
+use App\Consumption;
 use App\Events;
 use App\Generator;
 use App\Mockup;
@@ -243,7 +244,13 @@ final class Stream
             $nom = Ai::label($candidat['provider']) . ' · ' . $candidat['model'];
             self::emit('step', ['message' => 'Génération ' . ($rang + 1) . '/' . count($candidats) . ' — ' . $nom]);
 
+            Consumption::setContext([
+                'prospect' => $id,
+                'version' => 'comparaison',
+                'etape' => $page,
+            ]);
             $resultat = Compare::run($prospect, $brief, $page, $candidat);
+            Consumption::clearContext();
             if (!$resultat['ok']) {
                 self::emit('step', ['message' => $nom . ' : ' . $resultat['error'], 'state' => 'error']);
                 $mesures[] = [
@@ -367,6 +374,7 @@ final class Stream
         }
 
         self::emit('step', ['message' => 'Lecture du site et cadrage de la direction artistique']);
+        Consumption::setContext(['prospect' => $id, 'version' => $version, 'etape' => 'brief']);
 
         // L'analyse stockée est allégée : on relit la page pour disposer du
         // HTML et du CSS au moment de générer.
@@ -419,6 +427,7 @@ final class Stream
         }
 
         self::emit('step', ['message' => ($mode === 'revise' ? 'Retouche' : 'Génération') . ' de la page ' . $label]);
+        Consumption::setContext(['prospect' => $id, 'version' => $version, 'etape' => $page]);
 
         $lastPing = microtime(true);
         $result = Generator::page(
