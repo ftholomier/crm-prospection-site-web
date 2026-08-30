@@ -24,14 +24,21 @@ namespace App;
 final class Assets
 {
     /**
-     * Photos retenues au catalogue.
+     * Photos retenues au catalogue, selon le mode.
      *
-     * Douze suffisaient quand l'analyse ne lisait que la page d'accueil. Depuis
-     * qu'elle suit le menu, un site de métier en propose quarante ou plus : en
-     * garder seize laisse de quoi choisir dans le catalogue sans pour autant
-     * télécharger tout le site.
+     * La limite existe pour ne pas recopier tout le site — mais en mode
+     * « liens », justement, rien n'est recopié : l'adresse est reprise telle
+     * quelle et ne coûte ni disque ni temps. S'y limiter à seize revenait à
+     * jeter la moitié du choix sans aucune contrepartie. En mode « copie »,
+     * chaque photo est un fichier téléchargé et la borne garde son sens.
      */
-    private const MAX_PHOTOS = 16;
+    private const MAX_PHOTOS_COPIE = 16;
+    private const MAX_PHOTOS_LIENS = 40;
+
+    public static function maxPhotos(): int
+    {
+        return self::mode() === self::MODE_LIENS ? self::MAX_PHOTOS_LIENS : self::MAX_PHOTOS_COPIE;
+    }
     private const MAX_FICHIER = 3145728;   // 3 Mo par image
     private const MAX_TOTAL = 26214400;    // 25 Mo par prospect
     private const MAX_EDGE = 1800;         // au-delà, inutile pour une maquette
@@ -188,17 +195,35 @@ final class Assets
             }
         }
 
+        $plafond = self::maxPhotos();
         $sources = self::selectPhotos($analysis, $ecartees);
         if ($sources !== []) {
-            $say('Récupération de ' . count($sources) . ' photo(s)');
+            // Ce sont des CANDIDATES, pas un résultat. Annoncer leur nombre
+            // comme un acquis faisait attendre trente-deux photos pour en
+            // trouver seize au catalogue, sans que rien n'explique l'écart.
+            $say(count($sources) . ' photo(s) repérée(s) — ' . $plafond . ' au maximum seront retenues'
+                . ($mode === self::MODE_LIENS ? ' (mode liens : rien n\'est téléchargé)' : ''));
         }
+
         $rang = 0;
+        $refusees = 0;
+        $auDela = 0;
+        $troplourd = false;
         foreach ($sources as $image) {
-            if (count($catalogue['photos']) >= self::MAX_PHOTOS || $total >= self::MAX_TOTAL) {
-                break;
+            if (count($catalogue['photos']) >= $plafond) {
+                $auDela++;
+                continue;
+            }
+            if ($total >= self::MAX_TOTAL) {
+                $troplourd = true;
+                $auDela++;
+                continue;
             }
             $stored = self::store($prospectId, (string) $image['url'], 'photo-' . sprintf('%02d', ++$rang), $total);
             if ($stored === null) {
+                // Le site a refusé le téléchargement, ou le fichier n'est pas
+                // une image exploitable. Les deux se comptent.
+                $refusees++;
                 continue;
             }
             $stored['alt'] = (string) ($image['alt'] ?? '');
@@ -210,12 +235,27 @@ final class Assets
 
         $nb = count($catalogue['photos']);
         $poids = $mode === self::MODE_COPIE
-            ? ' (' . Scraper::humanSize($total) . ' copiés)'
-            : ' (liens conservés, rien de stocké)';
+            ? Scraper::humanSize($total) . ' copiés'
+            : 'liens conservés, rien de stocké';
+
+        // Le compte rendu dit ce qu'il est advenu de CHAQUE candidate : ce qui
+        // manque au catalogue s'explique alors sans avoir à le deviner.
+        $details = [$poids];
+        if ($auDela > 0) {
+            $details[] = $troplourd
+                ? $auDela . ' au-delà du volume maximum par prospect'
+                : $auDela . ' au-delà de la limite de ' . $plafond;
+        }
+        if ($refusees > 0) {
+            $details[] = $refusees . ' refusée(s) par le site ou illisible(s)';
+        }
+
         $say(
             $nb > 0
-                ? $nb . ' photo(s) retenue(s)' . $poids
-                : 'Aucune photo exploitable retenue',
+                ? $nb . ' photo(s) retenue(s) sur ' . count($sources) . ' repérée(s) — '
+                    . implode(', ', $details)
+                : 'Aucune photo exploitable retenue sur ' . count($sources) . ' repérée(s)'
+                    . ($refusees > 0 ? ' — toutes refusées par le site' : ''),
             $nb > 0 ? 'done' : 'warn'
         );
 
@@ -251,7 +291,7 @@ final class Assets
             $vues[$cle] = true;
             $retenues[] = $image;
         }
-        return array_slice($retenues, 0, self::MAX_PHOTOS * 2);
+        return array_slice($retenues, 0, self::maxPhotos() * 2);
     }
 
     /**

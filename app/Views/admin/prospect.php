@@ -787,6 +787,15 @@ $servirActif = static fn (string $src): string => str_starts_with($src, 'assets/
                 Écartez ce qui ne vous convient pas, ajoutez ce qui manque, <strong>puis relancez la
                 génération</strong> — c'est ainsi qu'on pilote ce que montrera la maquette suivante.
             </p>
+            <p class="tiny muted">
+                L'analyse repère souvent bien plus d'images qu'elle n'en retient : elle s'arrête à
+                <strong><?= (int) App\Assets::maxPhotos() ?></strong><?= App\Assets::mode() === 'liens'
+                    ? ' — en mode « liens », rien n\'est téléchargé, la limite est donc large'
+                    : ' pour ne pas recopier tout le site' ?>.
+                Le compte rendu de l'analyse dit ce qu'il est advenu de chacune — retenue, au-delà de la
+                limite, ou refusée par le site. Une image laissée de côté se rattrape en collant son
+                adresse ci-dessous.
+            </p>
 
             <?php if ($photos === [] && empty($actifs['logo'])): ?>
                 <div class="empty">
