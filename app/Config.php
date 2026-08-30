@@ -166,7 +166,7 @@ final class Config
             'deepseek' => [
                 'api_key' => '',
                 'base_url' => '',
-                'model' => 'deepseek-chat',
+                'model' => 'deepseek-v4-flash',
                 'max_tokens' => 8000,
                 'timeout' => 600,
             ],

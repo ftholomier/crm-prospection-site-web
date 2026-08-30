@@ -241,9 +241,60 @@ $secretPlaceholder = static fn (string $value): string => $value !== '' ? 'Valeu
                            value="<?= (int) ($config['deepseek']['max_tokens'] ?? 8000) ?>">
                 </div>
             </div>
+            <?php
+            $modeleDs = (string) ($config['deepseek']['model'] ?? '');
+            $tarifsDs = ['deepseek-v4-flash', 'deepseek-v4-pro'];
+            ?>
+            <?php if (App\DeepSeek::isRetired($modeleDs)): ?>
+                <p class="flash error small">
+                    « <?= e($modeleDs) ?> » a été retiré par DeepSeek le 24 juillet 2026 : ce nom n'est plus
+                    routé et l'API répond par une erreur. Les appels sont redirigés vers
+                    <span class="mono"><?= e(App\DeepSeek::DEFAUT) ?></span> — les deux anciens noms ne
+                    désignaient que ses deux modes. Enregistrez pour figer le nouveau nom.
+                </p>
+            <?php endif; ?>
+
+            <div class="table-wrap">
+                <table class="table">
+                    <thead>
+                    <tr>
+                        <th>Modèle</th>
+                        <th class="right nowrap">Heure creuse</th>
+                        <th class="right nowrap">Heure pleine</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <?php foreach ($tarifsDs as $modele): ?>
+                        <?php $fourchette = App\Models::priceRange($modele); ?>
+                        <?php if ($fourchette === null) { continue; } ?>
+                        <tr>
+                            <td data-label="Modèle">
+                                <span class="mono"><?= e($modele) ?></span>
+                                <?php if ($modeleDs === $modele): ?><span class="badge brand">Actif</span><?php endif; ?>
+                            </td>
+                            <td class="right nowrap" data-label="Heure creuse">
+                                <?= e(number_format($fourchette['creuse'][0], 2, ',', ' ')) ?> $ ↓
+                                <?= e(number_format($fourchette['creuse'][1], 2, ',', ' ')) ?> $ ↑
+                            </td>
+                            <td class="right nowrap" data-label="Heure pleine">
+                                <?= e(number_format($fourchette['pleine'][0], 2, ',', ' ')) ?> $ ↓
+                                <?= e(number_format($fourchette['pleine'][1], 2, ',', ' ')) ?> $ ↑
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
             <p class="tiny muted">
-                Le suivi des coûts ne s'applique qu'aux modèles Claude : les tarifs DeepSeek ne sont pas relevés
-                ici, et le tableau ci-dessus reste celui d'Anthropic.
+                DeepSeek facture au double en heure pleine depuis le 16 août 2026 : du lundi au vendredi,
+                01:00–04:00 et 06:00–10:00 UTC. Le reste, week-ends compris, est en heure creuse. Chaque
+                appel est chiffré au tarif de l'heure où il a lieu, pas de l'heure où on le regarde —
+                générer vos maquettes en dehors de ces sept heures divise la facture par deux.
+                <br>
+                Ces tarifs ne viennent pas de la documentation de DeepSeek, qui n'est pas joignable depuis
+                cet hébergement, mais de trois sources concordantes relevées le
+                <?= e(date('d/m/Y', strtotime(App\Models::DEEPSEEK_PRICING_DATE))) ?> —
+                <a href="<?= e(App\Models::DEEPSEEK_PRICING_SOURCE) ?>" target="_blank" rel="noopener noreferrer">à confronter à votre première facture</a>.
             </p>
             <p class="tiny muted">
                 La liste des modèles se met à jour seule une fois par jour.

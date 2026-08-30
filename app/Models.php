@@ -25,6 +25,41 @@ final class Models
      * Tarifs publics en dollars par million de tokens.
      * [entrée, sortie, lecture de cache]
      */
+    /**
+     * Tarifs DeepSeek, en dollars par million de jetons.
+     *
+     * Ils dépendent de l'heure depuis le 16 août 2026 : les heures pleines
+     * coûtent le double. Un tarif unique donnerait donc un chiffre faux la
+     * moitié du temps, ce qui est exactement ce que ce relevé cherche à éviter.
+     *
+     * Ces valeurs ne viennent pas de la documentation de DeepSeek — elle n'est
+     * pas joignable depuis l'hébergement — mais de trois sources secondaires
+     * concordantes. À confronter à votre première facture.
+     */
+    public const DEEPSEEK_PRICING_DATE = '2026-08-30';
+    public const DEEPSEEK_PRICING_SOURCE = 'https://api-docs.deepseek.com/quick_start/pricing';
+
+    private const PRICING_HORAIRE = [
+        'deepseek-v4-flash' => ['creuse' => [0.22, 0.66], 'pleine' => [0.44, 1.32]],
+        'deepseek-v4-pro' => ['creuse' => [0.66, 1.98], 'pleine' => [1.32, 3.96]],
+    ];
+
+    /**
+     * L'appel a-t-il eu lieu en heure pleine ?
+     *
+     * Du lundi au vendredi, 01:00–04:00 et 06:00–10:00 UTC. Tout le reste,
+     * week-ends compris, est en heure creuse.
+     */
+    public static function heurePleine(int $ts): bool
+    {
+        $jour = (int) gmdate('N', $ts);
+        if ($jour >= 6) {
+            return false;
+        }
+        $heure = (int) gmdate('G', $ts);
+        return ($heure >= 1 && $heure < 4) || ($heure >= 6 && $heure < 10);
+    }
+
     private const PRICING = [
         'claude-fable-5' => [10.0, 50.0, 1.0],
         'claude-mythos-5' => [10.0, 50.0, 1.0],
@@ -280,10 +315,26 @@ final class Models
         ];
     }
 
-    /** Tarif d'un modèle, en dollars par million de jetons. */
-    public static function priceOf(string $model): ?array
+    /**
+     * Tarif d'un modèle, en dollars par million de jetons.
+     *
+     * L'horodatage compte pour les modèles facturés par tranche horaire : le
+     * prix d'un appel est celui de l'heure où il a eu lieu, pas celui de
+     * l'heure où on le regarde.
+     */
+    public static function priceOf(string $model, ?int $at = null): ?array
     {
+        if (isset(self::PRICING_HORAIRE[$model])) {
+            $tranche = self::heurePleine($at ?? time()) ? 'pleine' : 'creuse';
+            return self::PRICING_HORAIRE[$model][$tranche];
+        }
         return self::PRICING[$model] ?? null;
+    }
+
+    /** Fourchette d'un modèle facturé à l'heure, pour l'afficher honnêtement. */
+    public static function priceRange(string $model): ?array
+    {
+        return self::PRICING_HORAIRE[$model] ?? null;
     }
 
     /**

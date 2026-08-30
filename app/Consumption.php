@@ -53,9 +53,12 @@ final class Consumption
             return;
         }
 
-        $prix = Models::priceOf($model);
+        // Le tarif est celui de l'instant : certains modèles coûtent le double
+        // en heure pleine, et le prix d'un appel ne se relit pas plus tard.
+        $maintenant = time();
+        $prix = Models::priceOf($model, $maintenant);
         Store::append(self::path(), [
-            'ts' => time(),
+            'ts' => $maintenant,
             'prospect' => (string) (self::$contexte['prospect'] ?? ''),
             'version' => (string) (self::$contexte['version'] ?? ''),
             'etape' => (string) (self::$contexte['etape'] ?? ''),
@@ -174,8 +177,10 @@ final class Consumption
         if ($usd === null) {
             return 'tarif non relevé';
         }
-        $dollars = $usd < 0.01 && $usd > 0
-            ? '< 0,01 $'
+        // Trois décimales sous le dollar : un appel coûte souvent quelques
+        // millièmes, et « < 0,01 $ » masquerait justement ce qu'on compare.
+        $dollars = $usd < 0.001 && $usd > 0
+            ? '< 0,001 $'
             : number_format($usd, $usd < 1 ? 3 : 2, ',', ' ') . ' $';
 
         $taux = self::eurRate();
@@ -183,8 +188,8 @@ final class Consumption
             return $dollars;
         }
         $euros = $usd * $taux;
-        $euros = $euros < 0.01 && $euros > 0
-            ? '< 0,01 €'
+        $euros = $euros < 0.001 && $euros > 0
+            ? '< 0,001 €'
             : number_format($euros, $euros < 1 ? 3 : 2, ',', ' ') . ' €';
 
         return $court ? $euros : $dollars . ' · ' . $euros;

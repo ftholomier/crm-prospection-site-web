@@ -38,10 +38,36 @@ final class DeepSeek
         return trim((string) Config::get('deepseek.api_key', '')) !== '';
     }
 
+    /** Modèle par défaut, et cible de reprise des anciens noms. */
+    public const DEFAUT = 'deepseek-v4-flash';
+
+    /**
+     * Noms retirés le 24 juillet 2026, et ce vers quoi ils pointaient.
+     *
+     * Les deux se rabattaient sur v4-flash — « reasoner » n'était que son mode
+     * réflexion, pas le modèle Pro. Rediriger vers Pro triplerait la facture
+     * pour rien.
+     */
+    private const RETIRES = [
+        'deepseek-chat' => self::DEFAUT,
+        'deepseek-reasoner' => self::DEFAUT,
+    ];
+
     public static function model(): string
     {
         $model = trim((string) Config::get('deepseek.model', ''));
-        return $model !== '' ? $model : 'deepseek-chat';
+        if ($model === '') {
+            return self::DEFAUT;
+        }
+        // Un nom retiré n'est plus routé : l'API répond par une erreur. On le
+        // remplace plutôt que de laisser la génération échouer.
+        return self::RETIRES[$model] ?? $model;
+    }
+
+    /** Le modèle configuré porte-t-il un nom retiré ? */
+    public static function isRetired(string $model): bool
+    {
+        return isset(self::RETIRES[$model]);
     }
 
     /** @return array{ok:bool,error:string,text:string,json:?array,usage:array,stop_reason:string} */
@@ -126,8 +152,8 @@ final class DeepSeek
      * modifiable à la main : le champ accepte n'importe quel identifiant.
      */
     private const FALLBACK = [
-        ['id' => 'deepseek-chat', 'label' => 'deepseek-chat'],
-        ['id' => 'deepseek-reasoner', 'label' => 'deepseek-reasoner'],
+        ['id' => 'deepseek-v4-flash', 'label' => 'deepseek-v4-flash'],
+        ['id' => 'deepseek-v4-pro', 'label' => 'deepseek-v4-pro'],
     ];
 
     /**

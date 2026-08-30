@@ -76,7 +76,7 @@ final class Compare
             }
         }
         if (DeepSeek::isConfigured()) {
-            $candidats[] = ['provider' => Ai::DEEPSEEK, 'model' => 'deepseek-chat', 'note' => ''];
+            $candidats[] = ['provider' => Ai::DEEPSEEK, 'model' => DeepSeek::DEFAUT, 'note' => ''];
         }
 
         // Le réglage actuel figure déjà en tête : on ne le propose pas deux fois.
