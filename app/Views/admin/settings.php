@@ -1006,6 +1006,13 @@ $champSecret = static function (string $nom, string $valeur, string $aide, strin
                 <?php endif; ?>
                 <input type="file" name="portrait" id="portrait" accept="image/png,image/jpeg,image/webp" style="width:auto;flex:1;min-width:200px">
             </div>
+            <?php if (!$hasPortrait): ?>
+                <p class="flash small">
+                    Aucune photo déposée : la page de proposition affiche vos initiales dans un carré.
+                    C'est la première chose que voit le prospect à côté de votre nom — une vraie photo
+                    est ce qui fait passer la démarche pour humaine.
+                </p>
+            <?php endif; ?>
             <span class="hint muted tiny">Facultative. Réduite automatiquement à 800 pixels. Sans photo, vos initiales sont affichées.</span>
             <?php if ($hasPortrait): ?>
                 <label class="check mt">

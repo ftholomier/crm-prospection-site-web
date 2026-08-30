@@ -30,7 +30,7 @@ final class Analyzer
         // pour que les événements soient toujours rattachés à la bonne fiche.
         $prospectId = (string) $prospect['id'];
 
-        $analysis = Scraper::analyze((string) $prospect['url'], static fn (string $m) => $notify($m));
+        $analysis = Scraper::analyze((string) $prospect['url'], static fn (string $m, string $etat = "running") => $notify($m, $etat));
         if (!$analysis['ok']) {
             Events::log($prospectId, 'error', ['step' => 'analyse', 'message' => $analysis['error']]);
             return ['ok' => false, 'error' => $analysis['error'], 'prospect' => $prospect];

@@ -30,7 +30,15 @@ final class Scraper
         'data-thumb', 'data-image-src', 'src',
     ];
 
-    private const MAX_PAGES = 5;
+    /**
+     * Pages internes visitées, page d'accueil comprise.
+     *
+     * Cinq ne suffisaient pas : sur un site de métier, les photos vivent dans
+     * les pages de réalisations, pas sur l'accueil. Le parcours suit désormais
+     * le menu, et un budget de temps l'arrête avant qu'il ne fasse attendre.
+     */
+    private const MAX_PAGES = 12;
+    private const BUDGET_CRAWL = 45.0;   // secondes, toutes pages confondues
     private const MAX_CSS = 3;
 
     /** Mots-clés servant à repérer les pages internes utiles. */
@@ -47,9 +55,9 @@ final class Scraper
      */
     public static function analyze(string $url, ?callable $progress = null): array
     {
-        $notify = static function (string $message) use ($progress): void {
+        $notify = static function (string $message, string $etat = 'running') use ($progress): void {
             if ($progress !== null) {
-                $progress($message);
+                $progress($message, $etat);
             }
         };
 
@@ -70,18 +78,32 @@ final class Scraper
         $pages = ['accueil' => ['url' => $finalUrl, 'html' => $home['body'], 'title' => self::title($doc)]];
 
         $links = self::internalLinks($doc, $finalUrl);
-        $targets = self::pickPages($links);
+        $targets = self::pagesASuivre($doc, $links, $finalUrl);
+
+        // Chaque page est conservée avec son document analysé ET son adresse :
+        // les images d'une page interne se résolvent contre l'adresse de CETTE
+        // page, pas contre celle de l'accueil.
+        $documents = [$finalUrl => $doc];
+        $debut = microtime(true);
 
         foreach ($targets as $kind => $target) {
             if (count($pages) >= self::MAX_PAGES) {
                 break;
             }
-            $notify('Lecture de la page ' . $kind);
-            $page = Http::get($target, 15);
+            if (microtime(true) - $debut > self::BUDGET_CRAWL) {
+                $notify('Parcours interrompu : ' . count($pages) . ' page(s) lue(s) en '
+                    . (int) self::BUDGET_CRAWL . ' s', 'warn');
+                break;
+            }
+            $notify('Lecture de ' . self::cheminCourt($target));
+            $page = Http::get($target, 12);
             if ($page['ok'] && trim($page['body']) !== '') {
-                $pages[$kind] = ['url' => $page['url'], 'html' => $page['body'], 'title' => self::title(self::parse($page['body']))];
+                $docPage = self::parse($page['body']);
+                $pages[$kind] = ['url' => $page['url'], 'html' => $page['body'], 'title' => self::title($docPage)];
+                $documents[$page['url']] = $docPage;
             }
         }
+        $notify(count($pages) . ' page(s) lue(s) au total');
 
         $notify('Extraction du contenu et de l\'identité visuelle');
         $css = self::fetchStylesheets($doc, $finalUrl);
@@ -106,7 +128,9 @@ final class Scraper
             'headings' => self::headings($doc),
             'navigation' => self::navigation($doc),
             'texts' => self::texts($pages),
-            'images' => self::images($doc, $finalUrl, $css),
+            // Toutes les pages, pas seulement l'accueil : c'est dans les pages
+            // de réalisations que se trouvent les photos qui font une maquette.
+            'images' => self::imagesDeToutesLesPages($documents, $css),
             'colors' => self::colors($home['body'], $css),
             'fonts' => self::fonts($home['body'], $css),
             'logo' => self::logo($doc, $finalUrl),
@@ -357,6 +381,130 @@ final class Scraper
             $links[$href] = trim($anchor->textContent);
         }
         return $links;
+    }
+
+    /**
+     * Les pages à visiter, dans l'ordre où elles méritent de l'être.
+     *
+     * Le menu passe en premier : c'est le plan du site tel que son propriétaire
+     * l'a voulu, et c'est là que se trouvent les pages de réalisations — donc
+     * les photos. Les catégories utiles complètent ensuite ce que le menu
+     * n'aurait pas donné : mentions légales et contact y sont souvent relégués
+     * en pied de page.
+     *
+     * @return array<string,string> clé de page => adresse
+     */
+    private static function pagesASuivre(\DOMDocument $doc, array $links, string $base): array
+    {
+        $cibles = [];
+        $vues = [rtrim($base, '/') => true];
+
+        foreach (self::liensDuMenu($doc, $base) as $href => $label) {
+            $cle = rtrim($href, '/');
+            if (isset($vues[$cle])) {
+                continue;
+            }
+            $vues[$cle] = true;
+            $cibles[self::cleDePage($href, $label, $cibles)] = $href;
+        }
+
+        // Les catégories utiles, pour ce que le menu ne montre pas.
+        foreach (self::pickPages($links) as $genre => $href) {
+            $cle = rtrim($href, '/');
+            if (isset($vues[$cle])) {
+                continue;
+            }
+            $vues[$cle] = true;
+            $cibles[$genre] = $href;
+        }
+
+        return $cibles;
+    }
+
+    /**
+     * Les liens de navigation, dans l'ordre du document.
+     *
+     * On interroge les endroits où un menu se trouve réellement : la balise
+     * nav, l'en-tête, et les conteneurs dont la classe le dit. Un site sans
+     * balise nav — il y en a — reste ainsi couvert.
+     */
+    private static function liensDuMenu(\DOMDocument $doc, string $base): array
+    {
+        $xpath = new \DOMXPath($doc);
+        $minuscules = 'translate(@class,"ABCDEFGHIJKLMNOPQRSTUVWXYZ","abcdefghijklmnopqrstuvwxyz")';
+        $requete = '//nav//a | //header//a'
+            . ' | //*[contains(' . $minuscules . ',"menu")]//a'
+            . ' | //*[contains(' . $minuscules . ',"nav")]//a';
+
+        $domaine = Util::domain($base);
+        $liens = [];
+        foreach ($xpath->query($requete) ?? [] as $ancre) {
+            if (!$ancre instanceof \DOMElement) {
+                continue;
+            }
+            $href = Util::absoluteUrl($ancre->getAttribute('href'), $base);
+            if ($href === null || Util::domain($href) !== $domaine) {
+                continue;
+            }
+            $href = strtok($href, '#');
+            if ($href === false
+                || preg_match('/\.(pdf|zip|jpe?g|png|gif|webp|docx?|xlsx?)$/i', $href)
+                || isset($liens[$href])) {
+                continue;
+            }
+            $liens[$href] = trim($ancre->textContent);
+        }
+        return $liens;
+    }
+
+    /** Une clé lisible et unique pour une page, tirée de son adresse ou de son libellé. */
+    private static function cleDePage(string $href, string $label, array $deja): string
+    {
+        $chemin = trim((string) parse_url($href, PHP_URL_PATH), '/');
+        $base = $chemin !== '' ? $chemin : Util::slug($label);
+        $base = Util::slug($base) ?: 'page';
+        $cle = $base;
+        $rang = 2;
+        while (isset($deja[$cle])) {
+            $cle = $base . '-' . $rang++;
+        }
+        return $cle;
+    }
+
+    /** Le chemin d'une adresse, pour l'annoncer sans afficher l'URL entière. */
+    private static function cheminCourt(string $url): string
+    {
+        $chemin = trim((string) parse_url($url, PHP_URL_PATH), '/');
+        return $chemin === '' ? 'la page d\'accueil' : '« ' . $chemin . ' »';
+    }
+
+    /**
+     * Les images de toutes les pages parcourues, sans doublon.
+     *
+     * Elles n'étaient relevées que sur l'accueil : sur un site de travaux
+     * publics, cela revenait à ignorer les pages de chantiers, c'est-à-dire
+     * l'essentiel des photos exploitables.
+     *
+     * @param array<string,\DOMDocument> $documents adresse => document
+     */
+    private static function imagesDeToutesLesPages(array $documents, array $css): array
+    {
+        $toutes = [];
+        $vues = [];
+        $premier = true;
+        foreach ($documents as $url => $doc) {
+            // La feuille de style n'est dépouillée qu'une fois : ses fonds sont
+            // les mêmes pour tout le site.
+            foreach (self::images($doc, (string) $url, $premier ? $css : []) as $image) {
+                if (isset($vues[$image['url']])) {
+                    continue;
+                }
+                $vues[$image['url']] = true;
+                $toutes[] = $image;
+            }
+            $premier = false;
+        }
+        return array_slice($toutes, 0, 60);
     }
 
     /** Choisit une page par catégorie utile, sur la base de l'URL et du libellé. */

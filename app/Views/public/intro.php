@@ -193,6 +193,17 @@ $palette = is_array($palette ?? null) && isset($palette['marque'], $palette['mar
     white-space: nowrap;
 }
 .carte-humaine__zone span { color: rgba(255, 255, 255, .82); letter-spacing: 0; text-transform: none; font-weight: 400; font-size: .9rem; white-space: normal; }
+.carte-humaine__points { list-style: none; margin: 0; padding: 0; display: grid; gap: .5rem; }
+.carte-humaine__points li {
+    position: relative; padding-left: 1.1rem;
+    color: rgba(255, 255, 255, .86); font-size: .88rem; line-height: 1.5;
+}
+.carte-humaine__points li::before {
+    content: ""; position: absolute; left: 0; top: .55em;
+    width: 8px; height: 4px;
+    border-left: 1px solid var(--marque-claire); border-bottom: 1px solid var(--marque-claire);
+    transform: rotate(-45deg);
+}
 .carte-humaine__contacts { display: flex; flex-wrap: wrap; gap: .6rem; }
 
 /* Le bouton WhatsApp porte sa couleur propre : c'est un service que le
@@ -278,6 +289,14 @@ $palette = is_array($palette ?? null) && isset($palette['marque'], $palette['mar
 
                     <?php if ($bioParagraphs !== []): ?>
                         <p class="carte-humaine__mot"><?= e($bioParagraphs[0]) ?></p>
+                    <?php endif; ?>
+
+                    <?php if ($points !== []): ?>
+                        <ul class="carte-humaine__points">
+                            <?php foreach (array_slice($points, 0, 3) as $point): ?>
+                                <li><?= e((string) $point) ?></li>
+                            <?php endforeach; ?>
+                        </ul>
                     <?php endif; ?>
 
                     <?php if ($zone !== ''): ?>
@@ -490,6 +509,75 @@ $palette = is_array($palette ?? null) && isset($palette['marque'], $palette['mar
         <p class="citation__auteur">C'est à moi de vous donner envie de rester</p>
     </div>
 </section>
+
+<?php if ($showAbout): ?>
+    <?php /* La présentation entière. La carte du bandeau ne dit que qui je suis ;
+             ici on lit pourquoi ça compte. C'est la section qui décide, pour un
+             dirigeant qui hésite entre une agence et quelqu'un. */ ?>
+    <section class="section section--teinte" id="qui-suis-je">
+        <div class="conteneur">
+            <div class="duo reveler">
+                <div class="duo__media">
+                    <?php if (Portrait::exists()): ?>
+                        <img class="portrait" src="<?= e(Router::publicUrl('portrait')) ?>" alt="<?= e((string) $about['name']) ?>">
+                    <?php else: ?>
+                        <span class="portrait portrait--initiales"><?= e(Portrait::initials((string) $about['name'])) ?></span>
+                    <?php endif; ?>
+                </div>
+                <div class="duo__texte">
+                    <p class="surtitre"><?= e((string) ($about['title'] ?? 'Qui suis-je')) ?></p>
+                    <h2 class="titre-section"><?= e((string) $about['name']) ?></h2>
+                    <?php if (trim((string) ($about['role'] ?? '')) !== ''): ?>
+                        <p class="section__chapo"><?= e((string) $about['role']) ?></p>
+                    <?php endif; ?>
+
+                    <?php foreach ($bioParagraphs as $paragraph): ?>
+                        <p><?= nl2br(e($paragraph)) ?></p>
+                    <?php endforeach; ?>
+
+                    <?php if ($zone !== ''): ?>
+                        <p>
+                            <strong>Je travaille en <?= e($zone) ?>.</strong>
+                            Je me déplace, on se rencontre, et vous savez à qui vous parlez — ce n'est
+                            pas un centre d'appel ni un prestataire à qui je sous-traite.
+                        </p>
+                    <?php endif; ?>
+
+                    <?php if ($points !== []): ?>
+                        <div class="points">
+                            <?php foreach ($points as $rang => $point): ?>
+                                <div class="point">
+                                    <span class="point__numero"><?= sprintf('%02d', $rang + 1) ?></span>
+                                    <div>
+                                        <p class="point__texte"><?= e((string) $point) ?></p>
+                                    </div>
+                                </div>
+                            <?php endforeach; ?>
+                        </div>
+                    <?php endif; ?>
+
+                    <?php if (trim((string) ($about['quote'] ?? '')) !== ''): ?>
+                        <blockquote class="citation-libre"><?= e((string) $about['quote']) ?></blockquote>
+                    <?php endif; ?>
+
+                    <div class="row mt">
+                        <?php if ($whatsappLien !== ''): ?>
+                            <a class="btn btn--petit btn--whatsapp" href="<?= e($whatsappLien) ?>" target="_blank" rel="noopener">WhatsApp</a>
+                        <?php endif; ?>
+                        <?php if ($telLien !== ''): ?>
+                            <a class="btn btn--petit btn--plein" href="<?= e($telLien) ?>"><?= e($tel) ?></a>
+                        <?php endif; ?>
+                        <?php if (trim((string) ($about['site_url'] ?? '')) !== ''): ?>
+                            <a class="lien-fleche" href="<?= e((string) $about['site_url']) ?>" target="_blank" rel="noopener noreferrer">
+                                <?= e(trim((string) ($about['site_label'] ?? '')) !== '' ? (string) $about['site_label'] : (string) $about['site_url']) ?>
+                            </a>
+                        <?php endif; ?>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+<?php endif; ?>
 
 <section class="bande-cta">
     <div class="conteneur">

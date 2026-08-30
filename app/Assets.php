@@ -23,7 +23,15 @@ namespace App;
  */
 final class Assets
 {
-    private const MAX_PHOTOS = 12;
+    /**
+     * Photos retenues au catalogue.
+     *
+     * Douze suffisaient quand l'analyse ne lisait que la page d'accueil. Depuis
+     * qu'elle suit le menu, un site de métier en propose quarante ou plus : en
+     * garder seize laisse de quoi choisir dans le catalogue sans pour autant
+     * télécharger tout le site.
+     */
+    private const MAX_PHOTOS = 16;
     private const MAX_FICHIER = 3145728;   // 3 Mo par image
     private const MAX_TOTAL = 26214400;    // 25 Mo par prospect
     private const MAX_EDGE = 1800;         // au-delà, inutile pour une maquette
