@@ -222,6 +222,7 @@ final class Generator
 
         $send = static function (array $blocks) use ($prospect): array {
             return Ai::message([
+                'etape' => 'brief',
                 'system' => self::systemPrompt($prospect),
                 'messages' => [['role' => 'user', 'content' => $blocks]],
                 'schema' => self::briefSchema(),
@@ -359,6 +360,7 @@ final class Generator
         }
 
         $result = Ai::stream([
+            'etape' => 'pages',
             'system' => self::systemPrompt($prospect),
             'messages' => [['role' => 'user', 'content' => $task]],
             'max_tokens' => (int) Config::get(Ai::provider() === Ai::DEEPSEEK ? 'deepseek.max_tokens' : 'claude.max_tokens', 24000),

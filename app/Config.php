@@ -153,6 +153,15 @@ final class Config
             // Fournisseur d'IA : « claude » ou « deepseek ».
             'ai' => [
                 'provider' => 'claude',
+                // Un modèle par étape. Le brief décide de ce qu'on garde et de
+                // ce qu'on s'interdit d'inventer : c'est là qu'un modèle faible
+                // coûte cher en crédibilité. Les pages ne font que remplir un
+                // gabarit, et pèsent l'essentiel des jetons. Laisser vide pour
+                // suivre le fournisseur principal.
+                'steps' => [
+                    'brief' => ['provider' => '', 'model' => ''],
+                    'pages' => ['provider' => '', 'model' => ''],
+                ],
             ],
             'deepseek' => [
                 'api_key' => '',

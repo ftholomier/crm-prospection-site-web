@@ -246,6 +246,101 @@ $secretPlaceholder = static fn (string $value): string => $value !== '' ? 'Valeu
             </p>
         </div>
 
+        <?php $estimation = App\Models::estimateByStep(); ?>
+        <div class="divider"></div>
+        <h3>Un modèle par étape</h3>
+        <p class="small muted">
+            Les trois pages ne font que remplir un gabarit dont la structure et le style sont déjà imposés,
+            et elles produisent l'essentiel des jetons : un petit modèle y suffit, et le contrôle de
+            conformité rattrape ses écarts. Le brief, lui, décide de ce qu'on garde et de ce qu'on refuse
+            d'inventer — un modèle faible y écrit un chiffre qu'aucune page du site n'atteste, et rien
+            ne peut le voir à votre place.
+        </p>
+
+        <div class="table-wrap">
+            <table class="table">
+                <thead>
+                <tr>
+                    <th>Étape</th>
+                    <th>Fournisseur</th>
+                    <th>Modèle</th>
+                    <th class="right nowrap">Jetons / maquette</th>
+                    <th class="right nowrap">Coût estimé</th>
+                </tr>
+                </thead>
+                <tbody>
+                <?php foreach (App\Ai::ETAPES as $etape => $labelEtape): ?>
+                    <?php
+                    $reglageEtape = (array) ($config['ai']['steps'][$etape] ?? []);
+                    $fEtape = (string) ($reglageEtape['provider'] ?? '');
+                    $mEtape = (string) ($reglageEtape['model'] ?? '');
+                    $ligne = $estimation['lignes'][$etape];
+                    ?>
+                    <tr>
+                        <td data-label="Étape">
+                            <strong><?= e($labelEtape) ?></strong>
+                            <div class="tiny muted">
+                                <?= $etape === 'brief'
+                                    ? 'Le contenu réel : prestations, textes, ce qu\'on retire faute de matière.'
+                                    : 'Le remplissage des trois gabarits.' ?>
+                            </div>
+                        </td>
+                        <td data-label="Fournisseur">
+                            <select name="step_<?= e($etape) ?>_provider">
+                                <option value="" <?= $fEtape === '' ? 'selected' : '' ?>>Comme le principal</option>
+                                <option value="claude" <?= $fEtape === 'claude' ? 'selected' : '' ?>>Claude</option>
+                                <option value="deepseek" <?= $fEtape === 'deepseek' ? 'selected' : '' ?>>DeepSeek</option>
+                            </select>
+                        </td>
+                        <td data-label="Modèle">
+                            <input type="text" class="mono" name="step_<?= e($etape) ?>_model"
+                                   value="<?= e($mEtape) ?>" placeholder="modèle par défaut" spellcheck="false"
+                                   list="modeles-connus">
+                        </td>
+                        <td class="right nowrap tiny muted" data-label="Jetons / maquette">
+                            <?= number_format($ligne['input'], 0, ',', ' ') ?> ↓
+                            <?= number_format($ligne['output'], 0, ',', ' ') ?> ↑
+                            <?= $ligne['measured'] ? '' : '<span class="faint">(estimé)</span>' ?>
+                        </td>
+                        <td class="right nowrap strong" data-label="Coût estimé">
+                            <?= $ligne['cost'] === null ? '<span class="faint">tarif non relevé</span>'
+                                : e(App\Models::formatCost($ligne['cost'])) ?>
+                        </td>
+                    </tr>
+                <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
+
+        <p class="tiny muted">
+            <?php if ($estimation['total'] !== null): ?>
+                Total estimé : <strong><?= e(App\Models::formatCost($estimation['total'])) ?></strong> par maquette complète.
+            <?php else: ?>
+                Le total n'est pas calculable : au moins un modèle retenu n'a pas de tarif relevé ici
+                (les grilles DeepSeek ne le sont pas).
+            <?php endif; ?>
+            Laissez les deux champs vides pour que tout suive le fournisseur principal.
+            Le nom du modèle s'écrit tel quel — <span class="mono">claude-haiku-4-5</span>,
+            <span class="mono">deepseek-chat</span> — et la répartition des jetons s'ajuste à votre
+            consommation réelle après quelques maquettes.
+        </p>
+
+        <?php
+        // Les identifiants connus des deux fournisseurs, en suggestion : le champ
+        // reste libre, un modèle sorti après cette version doit rester saisissable.
+        $suggestions = array_merge(
+            array_column($models, 'id'),
+            array_column(App\DeepSeek::catalog(), 'id')
+        );
+        ?>
+        <datalist id="modeles-connus">
+            <?php foreach (array_unique($suggestions) as $suggestion): ?>
+                <option value="<?= e((string) $suggestion) ?>"></option>
+            <?php endforeach; ?>
+        </datalist>
+
+        <div class="divider"></div>
+
         <div class="field">
             <label for="design_prompt">Prompt global — rédaction et contenu</label>
             <textarea class="code" name="design_prompt" id="design_prompt" rows="18"><?= e((string) $config['design']['global_prompt']) ?></textarea>

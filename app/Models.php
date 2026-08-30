@@ -225,6 +225,110 @@ final class Models
         });
     }
 
+    /**
+     * Répartition par défaut de la consommation entre les deux étapes.
+     *
+     * Le brief est court ; les trois pages produisent l'essentiel des jetons.
+     * C'est ce déséquilibre qui rend un modèle par étape intéressant, et ces
+     * valeurs servent tant que rien n'a encore été mesuré.
+     */
+    private const PROFIL_ETAPES = [
+        'brief' => ['input' => 6000, 'output' => 3000],
+        'pages' => ['input' => 12000, 'output' => 21000],
+    ];
+
+    /** Comptabilise la consommation d'une étape, pour ventiler le coût. */
+    public static function recordStep(string $etape, array $usage): void
+    {
+        $input = (int) ($usage['input_tokens'] ?? 0)
+            + (int) ($usage['cache_creation_input_tokens'] ?? 0)
+            + (int) ($usage['cache_read_input_tokens'] ?? 0);
+        $output = (int) ($usage['output_tokens'] ?? 0);
+        if (($input === 0 && $output === 0) || !isset(self::PROFIL_ETAPES[$etape])) {
+            return;
+        }
+
+        Store::mutate(self::usagePath(), static function (array $store) use ($etape, $input, $output): array {
+            $bloc = $store['steps'][$etape] ?? ['input' => 0, 'output' => 0, 'calls' => 0];
+            $store['steps'][$etape] = [
+                'input' => (int) $bloc['input'] + $input,
+                'output' => (int) $bloc['output'] + $output,
+                'calls' => (int) $bloc['calls'] + 1,
+            ];
+            return $store;
+        });
+    }
+
+    /**
+     * Consommation d'une étape, ramenée à une maquette.
+     * @return array{input:int,output:int,measured:bool}
+     */
+    public static function stepProfile(string $etape): array
+    {
+        $defaut = self::PROFIL_ETAPES[$etape] ?? ['input' => 0, 'output' => 0];
+        $usage = Store::read(self::usagePath());
+        $maquettes = (int) ($usage['mockups'] ?? 0);
+        $bloc = $usage['steps'][$etape] ?? null;
+
+        if ($maquettes < 1 || $bloc === null || (int) $bloc['calls'] < 1) {
+            return $defaut + ['measured' => false];
+        }
+        return [
+            'input' => (int) round((int) $bloc['input'] / $maquettes),
+            'output' => (int) round((int) $bloc['output'] / $maquettes),
+            'measured' => true,
+        ];
+    }
+
+    /** Tarif d'un modèle, en dollars par million de jetons. */
+    public static function priceOf(string $model): ?array
+    {
+        return self::PRICING[$model] ?? null;
+    }
+
+    /**
+     * Coût estimé d'une maquette selon le réglage par étape.
+     *
+     * Un tarif inconnu — un modèle DeepSeek, dont la grille n'est pas relevée
+     * ici — rend le total incalculable : on le dit plutôt que d'additionner ce
+     * qu'on ne sait pas.
+     *
+     * @return array{total:?float,lignes:array}
+     */
+    public static function estimateByStep(): array
+    {
+        $lignes = [];
+        $total = 0.0;
+        $complet = true;
+
+        foreach (Ai::ETAPES as $etape => $label) {
+            $profil = self::stepProfile($etape);
+            $modele = Ai::modelFor($etape);
+            $prix = self::priceOf($modele);
+            $cout = $prix === null
+                ? null
+                : $profil['input'] / 1e6 * $prix[0] + $profil['output'] / 1e6 * $prix[1];
+
+            if ($cout === null) {
+                $complet = false;
+            } else {
+                $total += $cout;
+            }
+
+            $lignes[$etape] = [
+                'label' => $label,
+                'provider' => Ai::label(Ai::for($etape)['provider']),
+                'model' => $modele,
+                'input' => $profil['input'],
+                'output' => $profil['output'],
+                'measured' => $profil['measured'],
+                'cost' => $cout,
+            ];
+        }
+
+        return ['total' => $complet ? $total : null, 'lignes' => $lignes];
+    }
+
     /** Signale qu'une maquette complète vient d'être produite. */
     public static function countMockup(): void
     {

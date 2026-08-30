@@ -1118,6 +1118,10 @@ final class Admin
             ],
             'ai' => [
                 'provider' => ($post['ai_provider'] ?? '') === 'deepseek' ? 'deepseek' : 'claude',
+                'steps' => [
+                    'brief' => self::stepChoice($post, 'brief'),
+                    'pages' => self::stepChoice($post, 'pages'),
+                ],
             ],
             'deepseek' => [
                 'model' => trim((string) ($post['deepseek_model'] ?? 'deepseek-chat')) ?: 'deepseek-chat',
@@ -1311,6 +1315,20 @@ final class Admin
             ? Flash::success($result['count'] . ' modèle(s) récupéré(s) depuis l\'API.')
             : Flash::error('Liste des modèles : ' . $result['error']);
         Util::redirect(Router::url('settings') . '#claude');
+    }
+
+    /**
+     * Réglage d'une étape. Un champ vide veut dire « comme le principal » :
+     * on ne le remplace pas par une valeur, sinon le réglage cesserait de
+     * suivre le fournisseur quand on en change.
+     */
+    private static function stepChoice(array $post, string $etape): array
+    {
+        $fournisseur = (string) ($post['step_' . $etape . '_provider'] ?? '');
+        return [
+            'provider' => in_array($fournisseur, ['claude', 'deepseek'], true) ? $fournisseur : '',
+            'model' => trim((string) ($post['step_' . $etape . '_model'] ?? '')),
+        ];
     }
 
     /** Rafraîchit la liste des modèles DeepSeek depuis le compte. */

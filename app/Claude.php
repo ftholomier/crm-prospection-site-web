@@ -40,7 +40,11 @@ final class Claude
      */
     private static function payload(array $options): array
     {
-        $modelId = (string) Config::get('claude.model', 'claude-opus-5');
+        // Le modèle peut être imposé par l'appelant : c'est ainsi qu'une étape
+        // bon marché tourne sur un petit modèle sans changer le réglage global.
+        $modelId = trim((string) ($options['model'] ?? '')) !== ''
+            ? (string) $options['model']
+            : (string) Config::get('claude.model', 'claude-opus-5');
         $model = Models::find($modelId);
         $system = (string) ($options['system'] ?? '');
 

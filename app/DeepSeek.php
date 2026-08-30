@@ -208,7 +208,9 @@ final class DeepSeek
         }
 
         $payload = [
-            'model' => self::model(),
+            'model' => trim((string) ($options['model'] ?? '')) !== ''
+                ? (string) $options['model']
+                : self::model(),
             'messages' => $messages,
             'max_tokens' => (int) ($options['max_tokens'] ?? Config::get('deepseek.max_tokens', 8000)),
         ];
