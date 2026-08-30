@@ -59,13 +59,32 @@ $secretPlaceholder = static fn (string $value): string => $value !== '' ? 'Valeu
         </div>
     </div>
 
+    <?php $fournisseur = ($config['ai']['provider'] ?? 'claude') === 'deepseek' ? 'deepseek' : 'claude'; ?>
     <div class="card" id="claude">
         <div class="card-head">
             <h2>Génération des maquettes</h2>
-            <div class="actions"><span class="badge <?= $config['claude']['api_key'] !== '' ? 'ok' : 'warn' ?>">API Claude</span></div>
+            <div class="actions">
+                <span class="badge <?= App\Ai::isConfigured() ? 'ok' : 'warn' ?>"><?= e(App\Ai::label($fournisseur)) ?></span>
+            </div>
         </div>
+
         <div class="field">
-            <label for="claude_api_key">Clé API</label>
+            <label for="ai_provider">Fournisseur</label>
+            <select name="ai_provider" id="ai_provider" data-fournisseur>
+                <option value="claude" <?= $fournisseur === 'claude' ? 'selected' : '' ?>>Claude (Anthropic)</option>
+                <option value="deepseek" <?= $fournisseur === 'deepseek' ? 'selected' : '' ?>>DeepSeek</option>
+            </select>
+            <span class="hint muted tiny">
+                DeepSeek coûte nettement moins cher, mais deux fonctions n'existent que chez Anthropic et
+                sont désactivées si vous le choisissez : <strong>la lecture d'un site bloqué par l'IA</strong>,
+                qui repose sur un outil exécuté chez eux, et <strong>la lecture de la capture du site actuel</strong>,
+                DeepSeek ne traitant pas les images. Le reste — brief, pages, retouches — fonctionne à l'identique.
+            </span>
+        </div>
+
+        <div data-bloc-fournisseur="claude"<?= $fournisseur === 'claude' ? '' : ' hidden' ?>>
+        <div class="field">
+            <label for="claude_api_key">Clé API Claude</label>
             <input type="password" name="claude_api_key" id="claude_api_key" autocomplete="off" placeholder="<?= e($secretPlaceholder((string) $config['claude']['api_key'])) ?>">
             <span class="hint muted tiny">À créer sur console.anthropic.com. La clé est stockée dans data/config.json, hors de la racine web.</span>
         </div>
@@ -173,6 +192,60 @@ $secretPlaceholder = static fn (string $value): string => $value !== '' ? 'Valeu
                 <input type="number" name="claude_max_tokens" id="claude_max_tokens" min="4000" max="64000" step="1000" value="<?= (int) $config['claude']['max_tokens'] ?>">
             </div>
         </div>
+        </div><!-- /bloc claude -->
+
+        <div data-bloc-fournisseur="deepseek"<?= $fournisseur === 'deepseek' ? '' : ' hidden' ?>>
+            <div class="field">
+                <label for="deepseek_api_key">Clé API DeepSeek</label>
+                <input type="password" name="deepseek_api_key" id="deepseek_api_key" autocomplete="off"
+                       placeholder="<?= e($secretPlaceholder((string) ($config['deepseek']['api_key'] ?? ''))) ?>">
+                <span class="hint muted tiny">
+                    À créer sur platform.deepseek.com. Stockée dans data/config.json, hors de la racine web.
+                </span>
+            </div>
+            <div class="field-row">
+                <div class="field">
+                    <label for="deepseek_model">Modèle</label>
+                    <?php $modelesDs = App\DeepSeek::catalog(); ?>
+                    <?php if ($modelesDs !== []): ?>
+                        <select name="deepseek_model" id="deepseek_model">
+                            <?php foreach ($modelesDs as $modele): ?>
+                                <option value="<?= e($modele['id']) ?>" <?= ($config['deepseek']['model'] ?? '') === $modele['id'] ? 'selected' : '' ?>>
+                                    <?= e($modele['label']) ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                        <span class="hint muted tiny">
+                            Liste renvoyée par votre compte DeepSeek<?= App\DeepSeek::fetchedAt() > 0
+                                ? ', relevée ' . e(ago(App\DeepSeek::fetchedAt())) : '' ?>.
+                        </span>
+                    <?php else: ?>
+                        <input type="text" name="deepseek_model" id="deepseek_model" class="mono"
+                               value="<?= e((string) ($config['deepseek']['model'] ?? 'deepseek-chat')) ?>">
+                        <span class="hint muted tiny">
+                            « deepseek-chat » pour le modèle courant, « deepseek-reasoner » pour le modèle de
+                            raisonnement. La liste s'affichera d'elle-même une fois la clé enregistrée.
+                        </span>
+                    <?php endif; ?>
+                </div>
+                <div class="field">
+                    <label for="deepseek_max_tokens">Tokens maximum par page</label>
+                    <input type="number" name="deepseek_max_tokens" id="deepseek_max_tokens" min="2000" max="64000" step="1000"
+                           value="<?= (int) ($config['deepseek']['max_tokens'] ?? 8000) ?>">
+                </div>
+            </div>
+            <p class="tiny muted">
+                Le suivi des coûts ne s'applique qu'aux modèles Claude : les tarifs DeepSeek ne sont pas relevés
+                ici, et le tableau ci-dessus reste celui d'Anthropic.
+            </p>
+            <p class="tiny muted">
+                La liste des modèles se met à jour seule une fois par jour.
+                <button class="btn small ghost" type="submit" formaction="<?= e(url('deepseek_refresh')) ?>" formnovalidate>
+                    Rafraîchir maintenant
+                </button>
+            </p>
+        </div>
+
         <div class="field">
             <label for="design_prompt">Prompt global — rédaction et contenu</label>
             <textarea class="code" name="design_prompt" id="design_prompt" rows="18"><?= e((string) $config['design']['global_prompt']) ?></textarea>
@@ -194,15 +267,15 @@ $secretPlaceholder = static fn (string $value): string => $value !== '' ? 'Valeu
         <div class="field">
             <label for="assets_mode">Ces photos, on les copie ou on les pointe ?</label>
             <select name="assets_mode" id="assets_mode">
-                <option value="copie" <?= ($config['design']['assets_mode'] ?? 'copie') !== 'liens' ? 'selected' : '' ?>>Copier les fichiers sur le serveur (recommandé)</option>
-                <option value="liens" <?= ($config['design']['assets_mode'] ?? 'copie') === 'liens' ? 'selected' : '' ?>>Garder les adresses du site d'origine</option>
+                <option value="liens" <?= ($config['design']['assets_mode'] ?? 'liens') !== 'copie' ? 'selected' : '' ?>>Pointer les adresses du site, copier si le lien ne tient pas (recommandé)</option>
+                <option value="copie" <?= ($config['design']['assets_mode'] ?? 'liens') === 'copie' ? 'selected' : '' ?>>Copier les fichiers, pointer l'adresse si la copie échoue</option>
             </select>
             <span class="hint muted tiny">
-                Copier coûte quelques mégaoctets par prospect et règle trois problèmes d'un coup : les sites
-                protégés contre le vol d'images refusent l'affichage depuis un autre domaine, une refonte
-                ou une simple réorganisation de dossiers casse les adresses, et un site en HTTP est bloqué
-                dans une page servie en HTTPS. Garder les liens ne stocke rien, mais la maquette dépend
-                alors du site que vous cherchez justement à remplacer.
+                Les deux mécanismes se complètent, et l'un rattrape l'autre : on ne repart jamais sans image.
+                Pointer ne stocke rien, mais la maquette dépend du site que vous cherchez à remplacer — un
+                site protégé contre le vol d'images, une refonte, ou une simple adresse en HTTP dans une page
+                servie en HTTPS, et l'image disparaît. Copier coûte quelques mégaoctets par prospect et règle
+                les trois. Dans les deux cas, chaque image reste remplaçable à la main depuis l'éditeur.
             </span>
         </div>
     </div>
@@ -541,7 +614,7 @@ $secretPlaceholder = static fn (string $value): string => $value !== '' ? 'Valeu
         <div class="row mb">
             <form method="post" action="<?= e(url('test_claude')) ?>">
                 <?= Csrf::field() ?>
-                <button class="btn" type="submit">Tester la clé API Claude</button>
+                <button class="btn" type="submit">Tester la clé API <?= e(App\Ai::label()) ?></button>
             </form>
             <form method="post" action="<?= e(url('models_refresh')) ?>">
                 <?= Csrf::field() ?>

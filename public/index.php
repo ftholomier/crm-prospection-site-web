@@ -99,6 +99,7 @@ $routes = [
     'test_smtp' => [Admin::testSmtp(...), true],
     'test_claude' => [Admin::testClaude(...), true],
     'models_refresh' => [Admin::modelsRefresh(...), true],
+    'deepseek_refresh' => [Admin::deepseekRefresh(...), true],
 
     // Traitements longs en flux
     'analyze_stream' => [Stream::analyze(...), true],

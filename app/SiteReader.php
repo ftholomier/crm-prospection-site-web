@@ -22,6 +22,12 @@ final class SiteReader
     /** Variantes de l'outil, de la plus récente à la plus ancienne. */
     private const TOOL_VERSIONS = ['web_fetch_20260209', 'web_fetch_20250910'];
 
+    /**
+     * Cette lecture passe toujours par Claude, quel que soit le fournisseur
+     * choisi pour la génération : elle repose sur un outil serveur propre à
+     * Anthropic. Une clé Claude renseignée suffit donc, même si les maquettes
+     * sont produites par DeepSeek.
+     */
     public static function isAvailable(): bool
     {
         return Claude::isConfigured();

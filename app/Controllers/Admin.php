@@ -8,7 +8,9 @@ use App\Assets;
 use App\Auth;
 use App\Claude;
 use App\Config;
+use App\Ai;
 use App\Csrf;
+use App\DeepSeek;
 use App\Editor;
 use App\Enrich;
 use App\Events;
@@ -1114,6 +1116,13 @@ final class Admin
                 'timezone' => (string) ($post['timezone'] ?? 'Europe/Paris'),
                 'signature' => (string) ($post['signature'] ?? ''),
             ],
+            'ai' => [
+                'provider' => ($post['ai_provider'] ?? '') === 'deepseek' ? 'deepseek' : 'claude',
+            ],
+            'deepseek' => [
+                'model' => trim((string) ($post['deepseek_model'] ?? 'deepseek-chat')) ?: 'deepseek-chat',
+                'max_tokens' => Util::clamp((int) ($post['deepseek_max_tokens'] ?? 8000), 2000, 64000),
+            ],
             'claude' => [
                 'model' => self::chosenModel($post),
                 'effort' => (string) ($post['claude_effort'] ?? 'high'),
@@ -1123,7 +1132,7 @@ final class Admin
                 'global_prompt' => (string) ($post['design_prompt'] ?? ''),
                 'allow_google_fonts' => !empty($post['allow_google_fonts']),
                 'use_site_images' => !empty($post['use_site_images']),
-                'assets_mode' => ($post['assets_mode'] ?? '') === 'liens' ? 'liens' : 'copie',
+                'assets_mode' => ($post['assets_mode'] ?? '') === 'copie' ? 'copie' : 'liens',
             ],
             'offer' => [
                 'monthly_price' => (float) str_replace(',', '.', (string) ($post['monthly_price'] ?? 79)),
@@ -1201,6 +1210,7 @@ final class Admin
         // formulaire n'affiche jamais la valeur en clair.
         foreach ([
             'claude_api_key' => 'claude.api_key',
+            'deepseek_api_key' => 'deepseek.api_key',
             'smtp_pass' => 'smtp.pass',
             'pappers_key' => 'enrichment.pappers_api_key',
             'shot_key' => 'screenshot.api_key',
@@ -1303,13 +1313,27 @@ final class Admin
         Util::redirect(Router::url('settings') . '#claude');
     }
 
+    /** Rafraîchit la liste des modèles DeepSeek depuis le compte. */
+    public static function deepseekRefresh(): void
+    {
+        Auth::requireLogin();
+        Csrf::requireValid();
+        $result = DeepSeek::refresh();
+        $result['ok']
+            ? Flash::success($result['count'] . ' modèle(s) DeepSeek récupéré(s).')
+            : Flash::error('Modèles DeepSeek : ' . $result['error']);
+        Util::redirect(Router::url('settings') . '#claude');
+    }
+
+    /** Essai de la clé du fournisseur actif. */
     public static function testClaude(): void
     {
         Auth::requireLogin();
         Csrf::requireValid();
-        $result = Claude::test();
-        $result['ok'] ? Flash::success('Clé API valide, le modèle répond.')
-            : Flash::error('API Claude : ' . $result['error']);
+        $result = Ai::test();
+        $result['ok']
+            ? Flash::success('Clé API ' . Ai::label() . ' valide, le modèle répond.')
+            : Flash::error('API ' . Ai::label() . ' : ' . $result['error']);
         Util::redirect(Router::url('settings') . '#claude');
     }
 
@@ -1369,8 +1393,8 @@ final class Admin
             'hint' => 'Sans adresse email, la récupération du mot de passe est impossible.',
         ];
         $checks[] = [
-            'label' => 'Clé API Claude',
-            'ok' => Claude::isConfigured(),
+            'label' => 'Clé API ' . Ai::label(),
+            'ok' => Ai::isConfigured(),
             'hint' => 'Nécessaire pour générer les maquettes.',
         ];
         $checks[] = [

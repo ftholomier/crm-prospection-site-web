@@ -150,6 +150,17 @@ final class Config
                 'signature' => '',
                 'cron_key' => '',
             ],
+            // Fournisseur d'IA : « claude » ou « deepseek ».
+            'ai' => [
+                'provider' => 'claude',
+            ],
+            'deepseek' => [
+                'api_key' => '',
+                'base_url' => '',
+                'model' => 'deepseek-chat',
+                'max_tokens' => 8000,
+                'timeout' => 600,
+            ],
             'claude' => [
                 'api_key' => '',
                 'model' => 'claude-opus-5',

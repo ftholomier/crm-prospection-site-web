@@ -6,7 +6,7 @@ namespace App\Controllers;
 use App\Analyzer;
 use App\Assets;
 use App\Auth;
-use App\Claude;
+use App\Ai;
 use App\Config;
 use App\Events;
 use App\Generator;
@@ -173,7 +173,7 @@ final class Stream
         }
         self::startJournal($id, 'Lecture du site par l\'IA');
         if (!\App\SiteReader::isAvailable()) {
-            self::fail('Renseignez la clé API Claude dans les Réglages : la lecture par l\'IA en dépend.');
+            self::fail('La lecture d\'un site bloqué passe toujours par Claude — elle repose sur un outil exécuté chez Anthropic, que DeepSeek n\'a pas. Renseignez la clé Claude dans les Réglages, même si la génération est confiée à un autre fournisseur.');
         }
 
         $result = Analyzer::runFromAi($id, static function (string $message, string $state = 'running'): void {
@@ -214,8 +214,8 @@ final class Stream
         if ($prospect === null) {
             self::fail('Prospect introuvable.');
         }
-        if (!Claude::isConfigured()) {
-            self::fail('Renseignez la clé API Claude dans les Réglages avant de générer.');
+        if (!Ai::isConfigured()) {
+            self::fail(Ai::missingKeyMessage());
         }
 
         $step = (string) ($_GET['step'] ?? 'brief');

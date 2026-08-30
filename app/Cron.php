@@ -84,8 +84,8 @@ final class Cron
     /** Génère les maquettes manquantes pour les prospects déjà analysés. */
     private static function generatePending(int $limit, array &$lines): int
     {
-        if (!Claude::isConfigured()) {
-            $lines[] = 'Génération automatique ignorée : aucune clé API Claude.';
+        if (!Ai::isConfigured()) {
+            $lines[] = 'Génération automatique ignorée : ' . Ai::missingKeyMessage();
             return 0;
         }
 

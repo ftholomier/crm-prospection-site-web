@@ -540,7 +540,22 @@
         });
     }
 
+    /* Les réglages du fournisseur non retenu sont masqués : afficher deux clés
+       d'API côte à côte laisse toujours penser qu'il faut renseigner les deux. */
+    function bindFournisseur() {
+        var choix = document.querySelector('[data-fournisseur]');
+        if (!choix) { return; }
+        function afficher() {
+            Array.prototype.forEach.call(document.querySelectorAll('[data-bloc-fournisseur]'), function (bloc) {
+                bloc.hidden = bloc.getAttribute('data-bloc-fournisseur') !== choix.value;
+            });
+        }
+        choix.addEventListener('change', afficher);
+        afficher();
+    }
+
     document.addEventListener('DOMContentLoaded', function () {
+        bindFournisseur();
         bindAnalyze();
         bindCouleurs();
         bindEditeur();

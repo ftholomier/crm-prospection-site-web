@@ -186,7 +186,7 @@ final class Generator
         $actifs = Assets::forPrompt((string) $prospect['id']);
 
         $content = [];
-        $shot = Config::get('screenshot.send_to_model', true)
+        $shot = (Config::get('screenshot.send_to_model', true) && Ai::readsImages())
             ? Screenshot::toImageBlock((string) $prospect['id'])
             : null;
         if ($shot !== null) {
@@ -221,7 +221,7 @@ final class Generator
         $content[] = ['type' => 'text', 'text' => $task];
 
         $send = static function (array $blocks) use ($prospect): array {
-            return Claude::message([
+            return Ai::message([
                 'system' => self::systemPrompt($prospect),
                 'messages' => [['role' => 'user', 'content' => $blocks]],
                 'schema' => self::briefSchema(),
@@ -358,10 +358,10 @@ final class Generator
             }
         }
 
-        $result = Claude::stream([
+        $result = Ai::stream([
             'system' => self::systemPrompt($prospect),
             'messages' => [['role' => 'user', 'content' => $task]],
-            'max_tokens' => (int) Config::get('claude.max_tokens', 24000),
+            'max_tokens' => (int) Config::get(Ai::provider() === Ai::DEEPSEEK ? 'deepseek.max_tokens' : 'claude.max_tokens', 24000),
         ], $onDelta);
 
         if (!$result['ok']) {

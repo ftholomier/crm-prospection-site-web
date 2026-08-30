@@ -159,8 +159,17 @@ $mailable = Prospect::isMailable($p);
                 La lecture part alors de l'infrastructure d'Anthropic, pas de votre serveur : le pare-feu
                 qui filtre l'adresse IP de votre hébergement ne s'y applique pas. Le modèle parcourt la page
                 d'accueil <strong>et les pages internes</strong> — contact, mentions légales, à propos,
-                prestations — et en rapporte le contenu. Consomme des crédits API, environ le tiers d'une maquette.
+                prestations — et en rapporte le contenu, avec ses photos, son logo et ses couleurs.
+                Consomme des crédits API, environ le tiers d'une maquette.
             </p>
+            <?php if (!App\Ai::canReadSites()): ?>
+                <p class="small muted">
+                    <span class="badge warn">Claude requis</span>
+                    Cette étape passe toujours par Claude : elle repose sur un outil exécuté chez Anthropic,
+                    que DeepSeek n'a pas. Une clé Claude renseignée suffit, même si vos maquettes sont
+                    générées par DeepSeek.
+                </p>
+            <?php endif; ?>
             <button class="btn primary" type="button"
                     data-analyze="<?= e(url('read_site_stream', ['id' => $id])) ?>"
                     data-busy="Lecture du site en cours…"
