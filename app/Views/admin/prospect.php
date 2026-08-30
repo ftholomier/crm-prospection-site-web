@@ -27,6 +27,13 @@ $sequence = $p['sequence'] ?? [];
 $previewPage = Mockup::safePage((string) ($_GET['page'] ?? 'accueil'));
 $autorun = ($_GET['autorun'] ?? '') === 'analyze' && !$hasAnalysis;
 $mailable = Prospect::isMailable($p);
+
+/* Un actif copié chez nous se sert par une route de l'administration ; un actif
+   pointé à distance garde son adresse. Les deux cartes qui affichent des images
+   — les rôles et le catalogue — s'en servent, d'où la définition ici. */
+$servirActif = static fn (string $src): string => str_starts_with($src, 'assets/')
+    ? url('mockup_asset', ['id' => $id, 'f' => basename($src)])
+    : $src;
 ?>
 
 <div class="page-head">
@@ -690,43 +697,73 @@ $mailable = Prospect::isMailable($p);
                 </p>
             </div>
 
-            <?php $logo = Assets::src($actifs['logo'] ?? null); ?>
-            <div class="card">
+            <div class="card" id="roles">
                 <div class="card-head">
-                    <h2>Logo</h2>
-                    <?php if ($logo !== null): ?>
-                        <span class="badge <?= (($actifs['logo']['source'] ?? '') === 'dépôt manuel') ? 'ok' : '' ?>">
-                            <?= (($actifs['logo']['source'] ?? '') === 'dépôt manuel') ? 'déposé à la main' : 'trouvé sur le site' ?>
-                        </span>
-                    <?php endif; ?>
+                    <h2>Logo et favicon</h2>
                 </div>
+                <p class="muted small">
+                    Deux images à part, que la maquette n'emploie qu'à leur place. Vous pouvez les déposer
+                    ici, ou <strong>désigner n'importe quelle photo du catalogue</strong> plus bas : la
+                    lecture automatique se trompe souvent entre le logo, le favicon et une photo de
+                    chantier.
+                </p>
 
-                <?php if ($logo !== null): ?>
-                    <div class="logo-apercu">
-                        <img src="<?= e(str_starts_with($logo, 'assets/')
-                            ? url('mockup_asset', ['id' => $id, 'f' => basename($logo)])
-                            : $logo) ?>" alt="Logo de <?= e(Prospect::displayName($p)) ?>">
-                    </div>
-                <?php else: ?>
-                    <p class="muted small">
-                        Aucun logo récupéré. C'est fréquent : beaucoup de sites le posent en fond CSS, où
-                        aucune lecture automatique ne va le chercher. Déposez-le, il sera repris dans les
-                        maquettes générées ensuite.
-                    </p>
-                <?php endif; ?>
+                <div class="field-row">
+                    <?php foreach (Assets::ROLES as $roleCle => $roleLabel): ?>
+                        <?php
+                        $src = Assets::src($actifs[$roleCle] ?? null);
+                        $source = (string) ($actifs[$roleCle]['source'] ?? '');
+                        ?>
+                        <div class="field">
+                            <label><?= e($roleLabel) ?>
+                                <?php if ($src !== null && $source !== ''): ?>
+                                    <span class="badge <?= $source === 'site' ? '' : 'ok' ?>"><?= e($source) ?></span>
+                                <?php endif; ?>
+                            </label>
 
-                <form method="post" action="<?= e(url('prospect_logo')) ?>" enctype="multipart/form-data" class="row mt">
-                    <?= Csrf::field() ?>
-                    <input type="hidden" name="id" value="<?= e($id) ?>">
-                    <label class="btn small<?= $logo === null ? ' primary' : ' ghost' ?>" style="margin:0">
-                        <?= $logo === null ? 'Déposer le logo' : 'Remplacer' ?>
-                        <input type="file" name="logo" accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml" hidden onchange="this.form.submit()">
-                    </label>
-                    <?php if ($logo !== null): ?>
-                        <button class="btn small ghost" type="submit" name="action" value="delete">Retirer</button>
-                    <?php endif; ?>
-                </form>
-                <span class="hint muted tiny">PNG, JPEG, WebP, GIF ou SVG, 3 Mo maximum. Un logo déposé ici survit à une nouvelle analyse.</span>
+                            <?php if ($src !== null): ?>
+                                <div class="logo-apercu">
+                                    <img src="<?= e($servirActif($src)) ?>"
+                                         alt="<?= e($roleLabel) ?> de <?= e(Prospect::displayName($p)) ?>">
+                                </div>
+                            <?php else: ?>
+                                <p class="muted small">
+                                    Aucun <?= e(mb_strtolower($roleLabel)) ?> récupéré. C'est fréquent :
+                                    beaucoup de sites le posent en fond CSS, où aucune lecture automatique
+                                    ne va le chercher.
+                                </p>
+                            <?php endif; ?>
+
+                            <form method="post" action="<?= e(url('prospect_assets')) ?>"
+                                  enctype="multipart/form-data" class="row mt">
+                                <?= Csrf::field() ?>
+                                <input type="hidden" name="id" value="<?= e($id) ?>">
+                                <input type="hidden" name="action" value="deposer_role">
+                                <input type="hidden" name="role" value="<?= e($roleCle) ?>">
+                                <label class="btn small<?= $src === null ? ' primary' : ' ghost' ?>" style="margin:0">
+                                    <?= $src === null ? 'Déposer' : 'Remplacer' ?>
+                                    <input type="file" name="fichier"
+                                           accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml"
+                                           hidden onchange="this.form.submit()">
+                                </label>
+                            </form>
+                            <?php if ($src !== null): ?>
+                                <form method="post" action="<?= e(url('prospect_assets')) ?>" class="mt"
+                                      data-confirm="Retirer <?= e(mb_strtolower($roleLabel)) ?> ?">
+                                    <?= Csrf::field() ?>
+                                    <input type="hidden" name="id" value="<?= e($id) ?>">
+                                    <input type="hidden" name="action" value="retirer_role">
+                                    <input type="hidden" name="role" value="<?= e($roleCle) ?>">
+                                    <button class="btn small ghost" type="submit">Retirer</button>
+                                </form>
+                            <?php endif; ?>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+                <span class="hint muted tiny">
+                    PNG, JPEG, WebP, GIF ou SVG, 3 Mo maximum. Une image déposée ou désignée ici survit à
+                    une nouvelle analyse.
+                </span>
             </div>
         <?php endif; ?>
 
@@ -735,9 +772,6 @@ $mailable = Prospect::isMailable($p);
         $ecartees = Assets::ecartees($id);
         // La carte s'affiche même vide : c'est là qu'on ajoute une photo quand
         // la collecte n'a rien trouvé, et une carte cachée ne s'utilise pas.
-        $servir = static fn (string $src): string => str_starts_with($src, 'assets/')
-            ? url('mockup_asset', ['id' => $id, 'f' => basename($src)])
-            : $src;
         ?>
         <div class="card" id="actifs">
             <div class="card-head">
@@ -762,11 +796,11 @@ $mailable = Prospect::isMailable($p);
                 </div>
             <?php else: ?>
                 <ul class="liste-actifs">
-                    <?php foreach (['logo' => 'Logo', 'favicon' => 'Favicon'] as $cle => $label): ?>
+                    <?php foreach (Assets::ROLES as $cle => $label): ?>
                         <?php $src = Assets::src($actifs[$cle] ?? null); ?>
                         <?php if ($src !== null): ?>
                             <li>
-                                <img src="<?= e($servir($src)) ?>" alt="<?= e($label) ?>" loading="lazy">
+                                <img src="<?= e($servirActif($src)) ?>" alt="<?= e($label) ?>" loading="lazy">
                                 <span class="tiny"><?= e($label) ?></span>
                             </li>
                         <?php endif; ?>
@@ -775,14 +809,12 @@ $mailable = Prospect::isMailable($p);
                         <?php
                         $src = Assets::src($photo);
                         if ($src === null) { continue; }
-                        // Une photo pointée à distance n'a pas de fichier local :
-                        // elle s'identifie alors par son adresse.
-                        $cleRetrait = ($photo['fichier'] ?? '') !== ''
-                            ? basename((string) $photo['fichier'])
-                            : sha1((string) ($photo['distant'] ?? ''));
+                        // Identifiant stable : le fichier local, ou l'empreinte
+                        // de l'adresse pour une image simplement pointée.
+                        $cleActif = Assets::cleDe($photo);
                         ?>
                         <li>
-                            <img src="<?= e($servir($src)) ?>" alt="<?= e((string) ($photo['alt'] ?? '')) ?>" loading="lazy">
+                            <img src="<?= e($servirActif($src)) ?>" alt="<?= e((string) ($photo['alt'] ?? '')) ?>" loading="lazy">
                             <span class="tiny muted">
                                 <?= (int) $photo['largeur'] > 0
                                     ? (int) $photo['largeur'] . '×' . (int) $photo['hauteur'] . ' · ' . e((string) $photo['orientation'])
@@ -791,14 +823,33 @@ $mailable = Prospect::isMailable($p);
                                     · <?= e((string) $photo['source']) ?>
                                 <?php endif; ?>
                             </span>
-                            <form method="post" action="<?= e(url('prospect_assets')) ?>"
-                                  data-confirm="Écarter cette photo du catalogue ? Elle ne reviendra pas, même après une nouvelle analyse.">
-                                <?= Csrf::field() ?>
-                                <input type="hidden" name="id" value="<?= e($id) ?>">
-                                <input type="hidden" name="action" value="retirer">
-                                <input type="hidden" name="fichier" value="<?= e($cleRetrait) ?>">
-                                <button class="btn danger small ghost" type="submit">Écarter</button>
-                            </form>
+                            <?php /* Les trois gestes possibles sur une image : la désigner comme logo,
+                                     comme favicon, ou l'écarter. Ils n'apparaissent qu'au survol de la
+                                     vignette — alignés en permanence, ils feraient lire le catalogue
+                                     comme un écran de suppression. */ ?>
+                            <div class="actifs__gestes">
+                                <?php foreach (Assets::ROLES as $roleCle => $roleLabel): ?>
+                                    <form method="post" action="<?= e(url('prospect_assets')) ?>">
+                                        <?= Csrf::field() ?>
+                                        <input type="hidden" name="id" value="<?= e($id) ?>">
+                                        <input type="hidden" name="action" value="promouvoir">
+                                        <input type="hidden" name="role" value="<?= e($roleCle) ?>">
+                                        <input type="hidden" name="fichier" value="<?= e($cleActif) ?>">
+                                        <button class="btn small ghost" type="submit"
+                                                title="Utiliser cette image comme <?= e(mb_strtolower($roleLabel)) ?>">
+                                            <?= e($roleLabel) ?>
+                                        </button>
+                                    </form>
+                                <?php endforeach; ?>
+                                <form method="post" action="<?= e(url('prospect_assets')) ?>"
+                                      data-confirm="Écarter cette photo du catalogue ? Elle ne reviendra pas, même après une nouvelle analyse.">
+                                    <?= Csrf::field() ?>
+                                    <input type="hidden" name="id" value="<?= e($id) ?>">
+                                    <input type="hidden" name="action" value="retirer">
+                                    <input type="hidden" name="fichier" value="<?= e($cleActif) ?>">
+                                    <button class="btn danger small ghost" type="submit">Écarter</button>
+                                </form>
+                            </div>
                         </li>
                     <?php endforeach; ?>
                 </ul>

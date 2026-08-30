@@ -419,8 +419,20 @@ final class Assets
      * @param array $fichier une entrée de $_FILES
      * @return array{ok:bool,error:string}
      */
-    public static function replaceLogo(string $prospectId, array $fichier): array
+    /** Rôles qu'une image peut occuper en propre, hors galerie. */
+    public const ROLES = ['logo' => 'Logo', 'favicon' => 'Favicon'];
+
+    /**
+     * Dépose un fichier dans le rôle de logo ou de favicon.
+     *
+     * Le même mécanisme sert les deux : ce qui les distingue n'est que le nom
+     * du fichier écrit sur disque et l'emplacement occupé au catalogue.
+     */
+    public static function replaceRole(string $prospectId, string $role, array $fichier): array
     {
+        if (!isset(self::ROLES[$role])) {
+            return ['ok' => false, 'error' => 'Rôle inconnu.'];
+        }
         $erreur = (int) ($fichier['error'] ?? UPLOAD_ERR_NO_FILE);
         if ($erreur === UPLOAD_ERR_NO_FILE) {
             return ['ok' => false, 'error' => 'Aucun fichier reçu.'];
@@ -438,7 +450,8 @@ final class Assets
             return ['ok' => false, 'error' => 'Fichier introuvable après envoi.'];
         }
         if (filesize($chemin) > self::MAX_FICHIER) {
-            return ['ok' => false, 'error' => 'Le logo dépasse ' . Scraper::humanSize(self::MAX_FICHIER) . '.'];
+            return ['ok' => false, 'error' => mb_strtolower(self::ROLES[$role]) . ' dépasse '
+                . Scraper::humanSize(self::MAX_FICHIER) . '.'];
         }
 
         $binaire = (string) file_get_contents($chemin);
@@ -452,7 +465,7 @@ final class Assets
                 return ['ok' => false, 'error' => 'Ce SVG est illisible.'];
             }
             $entree = [
-                'fichier' => 'logo.svg', 'distant' => '', 'largeur' => 0, 'hauteur' => 0,
+                'fichier' => $role . '.svg', 'distant' => '', 'largeur' => 0, 'hauteur' => 0,
                 'orientation' => 'vectoriel', 'poids' => strlen($svg), 'source' => 'dépôt manuel',
             ];
             $contenu = $svg;
@@ -469,7 +482,7 @@ final class Assets
                 }
             }
             $entree = [
-                'fichier' => 'logo.' . $probe['extension'], 'distant' => '',
+                'fichier' => $role . '.' . $probe['extension'], 'distant' => '',
                 'largeur' => $probe['width'], 'hauteur' => $probe['height'],
                 'orientation' => self::orientation($probe['width'], $probe['height']),
                 'poids' => strlen($binaire), 'source' => 'dépôt manuel',
@@ -478,12 +491,12 @@ final class Assets
         }
 
         $catalogue = self::catalogue($prospectId);
-        self::removeLogoFiles($prospectId, $catalogue);
+        self::removeRoleFiles($prospectId, $catalogue, $role);
         if (@file_put_contents(self::dir($prospectId) . '/' . $entree['fichier'], $contenu) === false) {
             return ['ok' => false, 'error' => 'Écriture impossible dans data/mockups : vérifiez les droits du dossier.'];
         }
 
-        $catalogue['logo'] = $entree;
+        $catalogue[$role] = $entree;
         Store::write(self::cataloguePath($prospectId), $catalogue);
         return ['ok' => true, 'error' => '', 'nom' => $nomEnvoye];
     }
@@ -689,25 +702,141 @@ final class Assets
         return ['ok' => true, 'error' => '', 'src' => $url];
     }
 
-    /** Retire le logo du catalogue, et son fichier s'il était chez nous. */
-    public static function forgetLogo(string $prospectId): void
+    /**
+     * Efface les fichiers d'un rôle avant de le remplacer.
+     *
+     * Deux précautions : un rôle remplacé peut avoir changé d'extension, et le
+     * fichier peut être partagé — depuis qu'une photo du catalogue peut être
+     * promue logo, elle n'est plus forcément à effacer.
+     */
+    private static function removeRoleFiles(string $prospectId, array $catalogue, string $role): void
     {
-        $catalogue = self::catalogue($prospectId);
-        self::removeLogoFiles($prospectId, $catalogue);
-        $catalogue['logo'] = null;
-        Store::write(self::cataloguePath($prospectId), $catalogue);
-    }
-
-    /** Un logo remplacé peut avoir une autre extension : on efface les deux. */
-    private static function removeLogoFiles(string $prospectId, array $catalogue): void
-    {
-        $ancien = $catalogue['logo']['fichier'] ?? null;
-        if ($ancien !== null) {
+        $ancien = $catalogue[$role]['fichier'] ?? null;
+        if ($ancien !== null && !self::partageAvecUneAutreEntree($catalogue, (string) $ancien, $role)) {
             @unlink(self::dir($prospectId) . '/' . basename((string) $ancien));
         }
-        foreach (glob(self::dir($prospectId) . '/logo.*') ?: [] as $fichier) {
+        // Les fichiers portant le nom du rôle nous appartiennent en propre :
+        // ils viennent d'un dépôt, jamais d'une photo promue.
+        foreach (glob(self::dir($prospectId) . '/' . $role . '.*') ?: [] as $fichier) {
             @unlink($fichier);
         }
+    }
+
+    /** Ce fichier sert-il à une autre entrée que celle du rôle indiqué ? */
+    private static function partageAvecUneAutreEntree(array $catalogue, string $fichier, string $role): bool
+    {
+        foreach ($catalogue['photos'] ?? [] as $photo) {
+            if (($photo['fichier'] ?? '') === $fichier) {
+                return true;
+            }
+        }
+        foreach (array_keys(self::ROLES) as $autre) {
+            if ($autre !== $role && ($catalogue[$autre]['fichier'] ?? '') === $fichier) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Promeut une image du catalogue au rang de logo ou de favicon.
+     *
+     * Rien n'est recopié : l'entrée change simplement d'emplacement. Elle quitte
+     * la galerie, parce qu'un logo affiché comme photo de chantier au milieu des
+     * réalisations est une faute que le modèle ne peut pas rattraper.
+     */
+    public static function promote(string $prospectId, string $cle, string $role): array
+    {
+        if (!isset(self::ROLES[$role])) {
+            return ['ok' => false, 'error' => 'Rôle inconnu.'];
+        }
+        $cle = trim($cle);
+        if ($cle === '') {
+            return ['ok' => false, 'error' => 'Image non identifiée.'];
+        }
+
+        $catalogue = self::catalogue($prospectId);
+        $reste = [];
+        $choisie = null;
+
+        // On cherche d'abord dans la galerie, puis dans l'autre rôle : passer
+        // un favicon en logo est un geste courant quand la lecture s'est
+        // trompée entre les deux.
+        foreach ($catalogue['photos'] ?? [] as $photo) {
+            if ($choisie === null && self::cleDe($photo) === $cle) {
+                $choisie = $photo;
+                continue;
+            }
+            $reste[] = $photo;
+        }
+        $venuDe = '';
+        if ($choisie === null) {
+            foreach (array_keys(self::ROLES) as $autre) {
+                if ($autre !== $role && ($catalogue[$autre] ?? null) !== null
+                    && self::cleDe((array) $catalogue[$autre]) === $cle) {
+                    $choisie = (array) $catalogue[$autre];
+                    $venuDe = $autre;
+                }
+            }
+        }
+        if ($choisie === null) {
+            return ['ok' => false, 'error' => 'Cette image ne figure pas dans le catalogue.'];
+        }
+
+        // L'ancien occupant du rôle retourne à la galerie plutôt que d'être
+        // perdu : on vient peut-être d'échanger deux images par erreur.
+        $ancien = $catalogue[$role] ?? null;
+        if (is_array($ancien) && $ancien !== [] && self::cleDe($ancien) !== $cle) {
+            $ancien['source'] = ($ancien['source'] ?? '') !== '' ? $ancien['source'] : 'site';
+            $reste[] = $ancien;
+        }
+
+        $choisie['source'] = 'choisi à la main';
+        $catalogue[$role] = $choisie;
+        $catalogue['photos'] = array_values($reste);
+        if ($venuDe !== '') {
+            $catalogue[$venuDe] = null;
+        }
+        Store::write(self::cataloguePath($prospectId), $catalogue);
+
+        return ['ok' => true, 'error' => ''];
+    }
+
+    /** Identifiant stable d'une entrée : son fichier, ou l'empreinte de son adresse. */
+    public static function cleDe(array $entree): string
+    {
+        $fichier = (string) ($entree['fichier'] ?? '');
+        return $fichier !== '' ? basename($fichier) : sha1((string) ($entree['distant'] ?? ''));
+    }
+
+    /**
+     * Vide un rôle.
+     *
+     * Une image qui venait de la galerie y retourne au lieu d'être détruite :
+     * on retire un logo parce qu'il n'allait pas comme logo, pas pour perdre la
+     * photo. Seul ce qui a été déposé pour ce rôle-là — et ne sert donc à rien
+     * d'autre — est effacé.
+     */
+    public static function forgetRole(string $prospectId, string $role): void
+    {
+        if (!isset(self::ROLES[$role])) {
+            return;
+        }
+        $catalogue = self::catalogue($prospectId);
+        $entree = $catalogue[$role] ?? null;
+
+        $venaitDeLaGalerie = is_array($entree) && $entree !== []
+            && !str_starts_with(basename((string) ($entree['fichier'] ?? '')), $role . '.');
+
+        if ($venaitDeLaGalerie) {
+            $entree['source'] = 'site';
+            $catalogue['photos'][] = $entree;
+        } else {
+            self::removeRoleFiles($prospectId, $catalogue, $role);
+        }
+
+        $catalogue[$role] = null;
+        Store::write(self::cataloguePath($prospectId), $catalogue);
     }
 
     /** Retire scripts et gestionnaires d'événements d'un SVG. */
@@ -769,7 +898,7 @@ final class Assets
         $sortie = [];
         $logo = self::src($c['logo'] ?? null);
         if ($logo !== null) {
-            $sortie['logo'] = ['src' => $logo, 'orientation' => $c['logo']['orientation']];
+            $sortie['logo'] = ['src' => $logo, 'orientation' => (string) ($c['logo']['orientation'] ?? 'paysage')];
         }
         $favicon = self::src($c['favicon'] ?? null);
         if ($favicon !== null) {

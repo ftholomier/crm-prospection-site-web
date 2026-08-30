@@ -619,36 +619,6 @@ final class Admin
         Util::redirect(Router::url('prospect', ['id' => $id]));
     }
 
-    /** Dépôt manuel du logo, quand la lecture du site ne l'a pas trouvé. */
-    public static function prospectLogo(): void
-    {
-        Auth::requireLogin();
-        Csrf::requireValid();
-
-        $id = (string) ($_POST['id'] ?? '');
-        $prospect = Prospect::find($id);
-        if ($prospect === null) {
-            Flash::error('Prospect introuvable.');
-            Util::redirect(Router::url('prospects'));
-        }
-        $id = (string) $prospect['id'];
-
-        if (($_POST['action'] ?? '') === 'delete') {
-            Assets::forgetLogo($id);
-            Flash::success('Logo retiré.');
-            Util::redirect(Router::url('prospect', ['id' => $id]));
-        }
-
-        $result = Assets::replaceLogo($id, $_FILES['logo'] ?? []);
-        if ($result['ok']) {
-            Events::log($id, 'assets', ['message' => 'Logo déposé à la main']);
-            Flash::success('Logo enregistré. Il sera repris dans les maquettes générées ensuite.');
-        } else {
-            Flash::error($result['error']);
-        }
-        Util::redirect(Router::url('prospect', ['id' => $id]));
-    }
-
     /**
      * Gestion du catalogue d'actifs : en retirer, en ajouter.
      *
@@ -695,6 +665,41 @@ final class Admin
                 $result['ok']
                     ? Flash::success('Photo déposée. Elle survivra aux prochaines analyses.')
                     : Flash::error($result['error']);
+                break;
+
+            case 'promouvoir':
+                $role = (string) ($_POST['role'] ?? '');
+                $result = Assets::promote($id, (string) ($_POST['fichier'] ?? ''), $role);
+                if ($result['ok']) {
+                    Events::log($id, 'assets', ['message' => Assets::ROLES[$role] . ' choisi à la main']);
+                    Flash::success(Assets::ROLES[$role] . ' remplacé par l\'image choisie. Elle quitte la '
+                        . 'galerie — un logo affiché comme photo de chantier ne se rattrape pas — et sera '
+                        . 'reprise dans les maquettes générées ensuite.');
+                } else {
+                    Flash::error($result['error']);
+                }
+                break;
+
+            case 'retirer_role':
+                $role = (string) ($_POST['role'] ?? '');
+                if (isset(Assets::ROLES[$role])) {
+                    Assets::forgetRole($id, $role);
+                    Flash::success(Assets::ROLES[$role] . ' retiré.');
+                } else {
+                    Flash::error('Rôle inconnu.');
+                }
+                break;
+
+            case 'deposer_role':
+                $role = (string) ($_POST['role'] ?? '');
+                $result = Assets::replaceRole($id, $role, $_FILES['fichier'] ?? []);
+                if ($result['ok']) {
+                    Events::log($id, 'assets', ['message' => Assets::ROLES[$role] . ' déposé à la main']);
+                    Flash::success(Assets::ROLES[$role] . ' enregistré. Il sera repris dans les maquettes '
+                        . 'générées ensuite.');
+                } else {
+                    Flash::error($result['error']);
+                }
                 break;
 
             default:
