@@ -9,6 +9,43 @@ require __DIR__ . '/../partials/header.php';
 
 $days = [1 => 'Lun', 2 => 'Mar', 3 => 'Mer', 4 => 'Jeu', 5 => 'Ven', 6 => 'Sam', 7 => 'Dim'];
 $secretPlaceholder = static fn (string $value): string => $value !== '' ? 'Valeur enregistrée — laissez vide pour la conserver' : '';
+
+/**
+ * Champ de secret : verrouillé tant qu'on ne demande pas à le changer.
+ *
+ * Un champ désactivé n'est ni pré-rempli par le gestionnaire de mots de passe
+ * du navigateur, ni envoyé au serveur. C'est la seule protection fiable :
+ * autocomplete="off" est ignoré par Chrome et Firefox sur les champs de type
+ * « password », et une clé API peut ainsi être écrasée par le mot de passe du
+ * site sans que personne ait touché à quoi que ce soit.
+ */
+$champSecret = static function (string $nom, string $valeur, string $aide, string $fournisseur = '') use ($config): void {
+    $empreinte = App\Util::secretFingerprint($valeur);
+    $alerte = $fournisseur === '' ? '' : App\Util::secretShapeWarning($fournisseur, $valeur);
+    $section = explode('_', $nom)[0];
+    $saisieLe = (int) ($config[$section][str_replace($section . '_', '', $nom) . '_at'] ?? 0);
+    ?>
+    <input type="password" name="<?= e($nom) ?>" id="<?= e($nom) ?>" autocomplete="new-password"
+           data-secret placeholder="Collez la nouvelle clé" disabled hidden>
+    <div class="row tiny" data-secret-etat>
+        <?php if ($valeur === ''): ?>
+            <span class="badge warn">aucune clé enregistrée</span>
+        <?php else: ?>
+            <span class="mono"><?= e($empreinte) ?></span>
+            <?php if ($saisieLe > 0): ?>
+                <span class="muted">saisie <?= e(ago($saisieLe)) ?></span>
+            <?php endif; ?>
+        <?php endif; ?>
+        <button class="btn small ghost" type="button" data-secret-modifier="<?= e($nom) ?>">
+            <?= $valeur === '' ? 'Saisir la clé' : 'Remplacer la clé' ?>
+        </button>
+    </div>
+    <?php if ($alerte !== ''): ?>
+        <p class="flash error small"><?= e(ucfirst($alerte)) ?>.</p>
+    <?php endif; ?>
+    <span class="hint muted tiny"><?= $aide ?></span>
+    <?php
+};
 ?>
 
 <div class="page-head">
@@ -68,6 +105,43 @@ $secretPlaceholder = static fn (string $value): string => $value !== '' ? 'Valeu
             </div>
         </div>
 
+        <h3>Clés API</h3>
+        <p class="small muted">
+            Les clés ne dépendent pas du fournisseur choisi : elles restent visibles et remplaçables ici,
+            même pour un fournisseur que vous n'utilisez pas pour la génération. C'est nécessaire, car
+            <strong>la lecture d'un site bloqué passe toujours par Claude</strong> : sa clé doit rester
+            joignable quand les maquettes sont produites ailleurs.
+            <br>
+            Le champ reste verrouillé tant que vous ne demandez pas à changer la clé. Un champ verrouillé
+            n'est pas rempli par le gestionnaire de mots de passe du navigateur — qui, sans cela, remplace
+            volontiers une clé API par le mot de passe du site, et l'API répond alors 401 sur une clé
+            que vous n'avez pourtant pas touchée.
+        </p>
+
+        <div class="field">
+            <label for="claude_api_key">Clé API Claude <span class="hint">Anthropic</span></label>
+            <?php $champSecret('claude_api_key', (string) $config['claude']['api_key'],
+                'À créer sur console.anthropic.com. Stockée dans data/config.json, hors de la racine web. '
+                . 'Une clé Anthropic commence par <span class="mono">sk-ant-</span> et fait une centaine de '
+                . 'caractères : si l\'empreinte ci-dessus ne ressemble pas à cela, la clé a été remplacée '
+                . 'par autre chose.', 'claude'); ?>
+        </div>
+        <div class="field">
+            <label for="deepseek_api_key">Clé API DeepSeek</label>
+            <?php $champSecret('deepseek_api_key', (string) ($config['deepseek']['api_key'] ?? ''),
+                'À créer sur platform.deepseek.com. Stockée dans data/config.json, hors de la racine web.',
+                'deepseek'); ?>
+        </div>
+        <div class="field">
+            <label for="gemini_api_key">Clé API Gemini <span class="hint">Google</span></label>
+            <?php $champSecret('gemini_api_key', (string) ($config['gemini']['api_key'] ?? ''),
+                'À créer sur aistudio.google.com, rubrique « API keys ». Stockée dans data/config.json, '
+                . 'hors de la racine web. L\'API « Generative Language » doit être activée sur le projet '
+                . 'Google associé, sinon la clé est refusée alors qu\'elle est valide.', 'gemini'); ?>
+        </div>
+
+        <div class="divider"></div>
+
         <div class="field">
             <label for="ai_provider">Fournisseur</label>
             <select name="ai_provider" id="ai_provider" data-fournisseur>
@@ -87,11 +161,6 @@ $secretPlaceholder = static fn (string $value): string => $value !== '' ? 'Valeu
         </div>
 
         <div data-bloc-fournisseur="claude"<?= $fournisseur === 'claude' ? '' : ' hidden' ?>>
-        <div class="field">
-            <label for="claude_api_key">Clé API Claude</label>
-            <input type="password" name="claude_api_key" id="claude_api_key" autocomplete="off" placeholder="<?= e($secretPlaceholder((string) $config['claude']['api_key'])) ?>">
-            <span class="hint muted tiny">À créer sur console.anthropic.com. La clé est stockée dans data/config.json, hors de la racine web.</span>
-        </div>
         <?php
         $currentModel = (string) $config['claude']['model'];
         $known = array_column($models, 'id');
@@ -206,14 +275,6 @@ $secretPlaceholder = static fn (string $value): string => $value !== '' ? 'Valeu
         </div><!-- /bloc claude -->
 
         <div data-bloc-fournisseur="deepseek"<?= $fournisseur === 'deepseek' ? '' : ' hidden' ?>>
-            <div class="field">
-                <label for="deepseek_api_key">Clé API DeepSeek</label>
-                <input type="password" name="deepseek_api_key" id="deepseek_api_key" autocomplete="off"
-                       placeholder="<?= e($secretPlaceholder((string) ($config['deepseek']['api_key'] ?? ''))) ?>">
-                <span class="hint muted tiny">
-                    À créer sur platform.deepseek.com. Stockée dans data/config.json, hors de la racine web.
-                </span>
-            </div>
             <div class="field-row">
                 <div class="field">
                     <label for="deepseek_model">Modèle</label>
@@ -336,16 +397,6 @@ $secretPlaceholder = static fn (string $value): string => $value !== '' ? 'Valeu
         </div>
 
         <div data-bloc-fournisseur="gemini"<?= $fournisseur === 'gemini' ? '' : ' hidden' ?>>
-            <div class="field">
-                <label for="gemini_api_key">Clé API Gemini</label>
-                <input type="password" name="gemini_api_key" id="gemini_api_key" autocomplete="off"
-                       placeholder="<?= e($secretPlaceholder((string) ($config['gemini']['api_key'] ?? ''))) ?>">
-                <span class="hint muted tiny">
-                    À créer sur aistudio.google.com, rubrique « API keys ». Stockée dans data/config.json,
-                    hors de la racine web. L'API « Generative Language » doit être activée sur le projet
-                    Google associé, sinon la clé est refusée alors qu'elle est valide.
-                </span>
-            </div>
             <div class="field-row">
                 <div class="field">
                     <label for="gemini_model">Modèle</label>
@@ -958,7 +1009,7 @@ $secretPlaceholder = static fn (string $value): string => $value !== '' ? 'Valeu
             // par étape, « tester la clé » sans dire laquelle ne veut plus rien
             // dire — et c'est justement la clé de l'étape qui manque qui fait
             // échouer une génération à mi-parcours.
-            $aTester = App\Ai::providersUsed();
+            $aTester = App\Controllers\Admin::providersTestables();
             ?>
             <form method="post" action="<?= e(url('test_claude')) ?>">
                 <?= Csrf::field() ?>
@@ -967,6 +1018,8 @@ $secretPlaceholder = static fn (string $value): string => $value !== '' ? 'Valeu
                         Tester la clé API <?= e(App\Ai::label($cleTest)) ?>
                         <?php if (!App\Ai::isConfiguredFor($cleTest)): ?>
                             <span class="badge warn">absente</span>
+                        <?php elseif ($cleTest === App\Ai::CLAUDE && App\Ai::provider() !== App\Ai::CLAUDE): ?>
+                            <span class="badge">lecture des sites bloqués</span>
                         <?php endif; ?>
                     </button>
                 <?php endforeach; ?>

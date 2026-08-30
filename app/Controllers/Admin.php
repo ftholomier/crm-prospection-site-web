@@ -1296,8 +1296,19 @@ final class Admin
             ],
         ];
 
+        // Ce qui a RÉELLEMENT été écrit : une clé refusée ne doit pas être
+        // annoncée comme enregistrée deux lignes après son refus.
+        $secretsEcrits = [];
+
         // Les secrets ne sont réécrits que si un nouveau est fourni : le
         // formulaire n'affiche jamais la valeur en clair.
+        //
+        // Une valeur trop courte est refusée plutôt qu'enregistrée. Ce n'est pas
+        // de la pédanterie : les champs sont de type « password », et un
+        // gestionnaire de mots de passe du navigateur les remplit volontiers
+        // avec le mot de passe du site, malgré autocomplete="off". La clé API
+        // se trouve alors remplacée par autre chose sans que personne y ait
+        // touché, et l'API répond 401 sur une clé pourtant valide.
         foreach ([
             'claude_api_key' => 'claude.api_key',
             'deepseek_api_key' => 'deepseek.api_key',
@@ -1306,11 +1317,25 @@ final class Admin
             'pappers_key' => 'enrichment.pappers_api_key',
             'shot_key' => 'screenshot.api_key',
         ] as $field => $path) {
-            $value = (string) ($post[$field] ?? '');
-            if ($value !== '') {
-                [$section, $key] = explode('.', $path);
-                $patch[$section][$key] = trim($value);
+            $value = trim((string) ($post[$field] ?? ''));
+            if ($value === '') {
+                continue;
             }
+            [$section, $key] = explode('.', $path);
+
+            // Le mot de passe SMTP, lui, est un vrai mot de passe : il peut être
+            // court, et la garde ne s'applique pas.
+            if ($section !== 'smtp' && strlen($value) < 20) {
+                Flash::error('Clé « ' . $field . ' » NON enregistrée : ' . strlen($value)
+                    . ' caractères seulement, ce n\'est pas une clé API. La clé précédente est conservée.'
+                    . ' Si votre navigateur a rempli ce champ tout seul, videz-le avant d\'enregistrer.');
+                continue;
+            }
+            $patch[$section][$key] = $value;
+            // La date de la dernière saisie : elle dit tout de suite si un
+            // enregistrement a remplacé une clé qu'on croyait intacte.
+            $patch[$section][$key . '_at'] = time();
+            $secretsEcrits[] = $section;
         }
 
         // L'écriture peut échouer sans lever d'erreur — un dossier data/
@@ -1359,7 +1384,7 @@ final class Admin
         Config::load(true);
         $clesEnregistrees = [];
         foreach (Ai::FOURNISSEURS as $cleFournisseur => $nomFournisseur) {
-            if (self::cleEnvoyee($post, $cleFournisseur) && Ai::isConfiguredFor($cleFournisseur)) {
+            if (in_array($cleFournisseur, $secretsEcrits, true) && Ai::isConfiguredFor($cleFournisseur)) {
                 $clesEnregistrees[] = Ai::label($cleFournisseur);
             }
         }
@@ -1491,12 +1516,6 @@ final class Admin
         self::rafraichirModeles(Ai::GEMINI);
     }
 
-    /** Une clé API a-t-elle été saisie pour ce fournisseur ? */
-    private static function cleEnvoyee(array $post, string $provider): bool
-    {
-        return trim((string) ($post[$provider . '_api_key'] ?? '')) !== '';
-    }
-
     /**
      * Relit le catalogue d'un fournisseur.
      *
@@ -1531,6 +1550,28 @@ final class Admin
             ? Flash::success($result['count'] . ' modèle(s) ' . $nom . ' récupéré(s).')
             : Flash::error('Modèles ' . $nom . ' : ' . $result['error']);
         Util::redirect(Router::url('settings') . '#claude');
+    }
+
+    /**
+     * Fournisseurs pour lesquels un bouton d'essai a un sens.
+     *
+     * Pas seulement ceux qui génèrent : Claude reste requis pour la lecture
+     * d'un site bloqué, même quand les maquettes sont produites ailleurs.
+     * L'omettre privait justement de l'outil de diagnostic au moment où sa clé
+     * cessait de fonctionner.
+     */
+    public static function providersTestables(): array
+    {
+        $liste = Ai::providersUsed();
+        foreach (array_keys(Ai::FOURNISSEURS) as $fournisseur) {
+            if (!in_array($fournisseur, $liste, true) && Ai::isConfiguredFor($fournisseur)) {
+                $liste[] = $fournisseur;
+            }
+        }
+        if (!in_array(Ai::CLAUDE, $liste, true)) {
+            $liste[] = Ai::CLAUDE;
+        }
+        return $liste;
     }
 
     /** Essai de la clé du fournisseur actif. */

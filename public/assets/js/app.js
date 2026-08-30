@@ -639,6 +639,26 @@
         return dollars.toFixed(decimales).replace('.', ',') + ' $';
     }
 
+    /* Les champs de clé API restent désactivés jusqu'à ce qu'on demande à les
+       changer. Un champ désactivé n'est ni rempli par le gestionnaire de mots de
+       passe du navigateur, ni envoyé au serveur : c'est la seule protection
+       fiable contre une clé API écrasée par le mot de passe du site. */
+    function bindSecrets() {
+        var boutons = document.querySelectorAll('[data-secret-modifier]');
+        if (!boutons.length) { return; }
+        Array.prototype.forEach.call(boutons, function (bouton) {
+            bouton.addEventListener('click', function () {
+                var champ = document.getElementById(bouton.getAttribute('data-secret-modifier'));
+                if (!champ) { return; }
+                champ.disabled = false;
+                champ.hidden = false;
+                champ.value = '';
+                champ.focus();
+                bouton.hidden = true;
+            });
+        });
+    }
+
     function bindEtapes() {
         var menus = document.querySelectorAll('[data-etape-fournisseur], [data-etape-modele]');
         if (!menus.length) { return; }
@@ -668,6 +688,7 @@
         bindComparaison();
         bindFournisseur();
         bindEtapes();
+        bindSecrets();
         bindAnalyze();
         bindCouleurs();
         bindEditeur();

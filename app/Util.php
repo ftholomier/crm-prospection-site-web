@@ -144,6 +144,47 @@ final class Util
     }
 
     /** Clamp d'un entier dans un intervalle. */
+    /**
+     * Empreinte d'un secret, affichable sans le divulguer.
+     *
+     * Un champ qui dit seulement « valeur enregistrée » ne permet pas de voir
+     * qu'une clé a été remplacée par autre chose — un gestionnaire de mots de
+     * passe du navigateur remplit volontiers un champ de type « password »,
+     * même marqué autocomplete="off". L'empreinte rend la substitution visible
+     * immédiatement : une clé Anthropic commence par sk-ant- et fait une
+     * centaine de caractères.
+     */
+    public static function secretFingerprint(string $secret): string
+    {
+        $secret = trim($secret);
+        $taille = strlen($secret);
+        if ($taille === 0) {
+            return '';
+        }
+        if ($taille < 12) {
+            // Trop court pour être une clé : on n'en montre rien, mais on le dit.
+            return '(' . $taille . ' caractères — trop court pour une clé API)';
+        }
+        return substr($secret, 0, 8) . '…' . substr($secret, -4) . ' · ' . $taille . ' caractères';
+    }
+
+    /**
+     * Ce secret a-t-il la forme attendue pour ce fournisseur ?
+     *
+     * @return string message d'alerte, vide si la forme est plausible
+     */
+    public static function secretShapeWarning(string $provider, string $secret): string
+    {
+        $secret = trim($secret);
+        $prefixes = ['claude' => 'sk-ant-', 'deepseek' => 'sk-', 'gemini' => 'AIza'];
+        $prefixe = $prefixes[$provider] ?? '';
+        if ($prefixe === '' || $secret === '' || str_starts_with($secret, $prefixe)) {
+            return '';
+        }
+        return 'la clé enregistrée pour ' . $provider . ' ne commence pas par « ' . $prefixe
+            . ' », ce qui est inhabituel — vérifiez que le bon champ a été rempli';
+    }
+
     public static function clamp(int $value, int $min, int $max): int
     {
         return max($min, min($max, $value));
