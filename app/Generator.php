@@ -287,6 +287,8 @@ final class Generator
         $label = Mockup::PAGES[$page];
         $actifs = Assets::forPrompt((string) $prospect['id']);
 
+        $logo = (string) ($actifs['logo']['src'] ?? '');
+
         $context = [
             'entreprise' => $brief['entreprise'] ?? '',
             'baseline' => $brief['baseline'] ?? '',
@@ -334,8 +336,18 @@ final class Generator
                 . " chiffre, un témoignage, un label ou une récompense pour remplir un trou."
                 . "\n- N'utilise comme src que les adresses listées dans photos_disponibles, telles quelles."
                 . " Respecte l'orientation indiquée : une photo portrait ne va pas dans un bandeau panoramique."
-                . " S'il n'y a pas assez de photos, supprime les blocs illustrés plutôt que d'en réutiliser une"
-                . " trois fois."
+                . "\n- Ne supprime JAMAIS un bloc illustré faute de photo : mets « "
+                . ($actifs['emplacement_a_pourvoir'] ?? 'assets/a-fournir.svg')
+                . " » en src, avec un alt décrivant la photo attendue. L'emplacement reste visible et se"
+                . " remplit ensuite depuis l'éditeur. Même chose plutôt que d'employer une troisième fois"
+                . " la même photo."
+                . ($logo !== ''
+                    ? "\n- Le logo de l'entreprise existe. Dans l'en-tête, écris"
+                        . " <a class=\"entete__logo entete__logo--image\" href=\"accueil.html\"><img src=\"" . $logo . "\" alt=\"\"></a>"
+                        . " ; dans le pied de page,"
+                        . " <p class=\"entete__logo pied__marque pied__marque--image\"><img src=\"" . $logo . "\" alt=\"\"></p>."
+                        . " N'écris pas le nom en toutes lettres à la place."
+                    : "\n- Aucun logo n'a été récupéré : garde le nom de l'entreprise écrit en toutes lettres.")
                 . "\n- N'ajoute aucune classe nouvelle, aucun style en ligne, aucune balise <style> ni <script>."
                 . "\n- Navigation entre les pages : accueil.html, a-propos.html, prestations.html, avec"
                 . " aria-current=\"page\" sur la page courante."
@@ -427,7 +439,10 @@ final class Generator
             . "<meta name=\"robots\" content=\"noindex, nofollow\">\n"
             . $head
             . "<link rel=\"stylesheet\" href=\"socle.css\">\n"
-            . "<style>\n" . $root . "\n</style>\n"
+            // Marquée : la charte est remplacée par la palette du jour au
+            // moment de servir la page. Sans cela, modifier une couleur dans la
+            // fiche ne changerait rien à une maquette déjà écrite sur le disque.
+            . "<style data-charte>\n" . $root . "\n</style>\n"
             . "</head>\n<body>\n"
             . trim(self::alterner($corps)) . "\n"
             . "<script src=\"socle.js\"></script>\n"
@@ -600,7 +615,7 @@ final class Generator
                 . implode(', ', array_slice(array_keys($inconnues), 0, 12)) . '.';
         }
 
-        $autorisees = [];
+        $autorisees = ['assets/' . Assets::A_FOURNIR => true];
         foreach ($actifs['photos'] ?? [] as $photo) {
             $autorisees[(string) $photo['src']] = true;
         }

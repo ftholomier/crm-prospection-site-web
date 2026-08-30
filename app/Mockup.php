@@ -118,6 +118,9 @@ final class Mockup
             }
         }
 
+        if (($ressources['palette'] ?? []) !== []) {
+            $html = self::applyCharte($html, (array) $ressources['palette']);
+        }
         $html = self::rewriteResources($html, $ressources);
 
         // Tout JavaScript est retiré, sauf le socle : c'est notre fichier, servi
@@ -211,6 +214,37 @@ final class Mockup
     public static function assetPattern(string $url): string
     {
         return str_replace(['%7Bf%7D', '%7bf%7d'], '{f}', $url);
+    }
+
+    /**
+     * Remplace la charte du document par celle en vigueur.
+     *
+     * La palette est écrite dans le fichier à la génération pour qu'il reste
+     * ouvrable tel quel, mais elle n'y fait pas foi : c'est celle de la fiche
+     * qui est servie. Une couleur corrigée s'applique donc immédiatement, sans
+     * regénérer quoi que ce soit.
+     */
+    public static function applyCharte(string $html, array $palette): string
+    {
+        if (($palette['marque'] ?? '') === '') {
+            return $html;
+        }
+        $bloc = Palette::rootBlock($palette, (string) ($palette['police'] ?? ''), '');
+        $remplace = preg_replace(
+            '~<style\s+data-charte[^>]*>.*?</style>~is',
+            '<style data-charte>' . "\n" . $bloc . "\n" . '</style>',
+            $html,
+            1,
+            $compte
+        );
+        if ($remplace !== null && $compte > 0) {
+            return $remplace;
+        }
+        // Maquette produite avant le marquage : on pose la charte en fin de
+        // <head>, où elle prend le pas sur le socle chargé au-dessus.
+        $position = stripos($html, '</head>');
+        $style = '<style data-charte>' . "\n" . $bloc . "\n" . '</style>' . "\n";
+        return $position === false ? $html : substr($html, 0, $position) . $style . substr($html, $position);
     }
 
     /** Retire un éventuel bloc Markdown autour de la réponse du modèle. */

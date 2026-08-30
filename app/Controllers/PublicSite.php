@@ -82,6 +82,8 @@ final class PublicSite
         $ressources = Mockup::resources(Mockup::assetPattern(
             Router::publicUrl('asset', ['t' => $prospect['tokens']['public'], 'f' => '{f}'])
         ));
+        // La charte servie est celle de la fiche, pas celle figée à la génération.
+        $ressources['palette'] = Generator::palette($prospect);
 
         header('Content-Type: text/html; charset=UTF-8');
         header('X-Robots-Tag: noindex, nofollow');
@@ -96,9 +98,17 @@ final class PublicSite
     public static function asset(array $params): void
     {
         $prospect = Prospect::findByToken((string) ($params['t'] ?? ''), 'public');
-        $path = $prospect === null
-            ? null
-            : Assets::pathOf((string) $prospect['id'], (string) ($params['f'] ?? ''));
+        $fichier = (string) ($params['f'] ?? '');
+        // L'emplacement à pourvoir n'est pas un fichier : il est dessiné ici,
+        // pour qu'un bloc illustré sans photo reste visible et réparable.
+        if (Assets::isPlaceholder($fichier)) {
+            header('Content-Type: image/svg+xml');
+            header('Cache-Control: public, max-age=86400');
+            echo Assets::placeholderSvg();
+            exit;
+        }
+
+        $path = $prospect === null ? null : Assets::pathOf((string) $prospect['id'], $fichier);
         if ($path === null) {
             http_response_code(404);
             exit;

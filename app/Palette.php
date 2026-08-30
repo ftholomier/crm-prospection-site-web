@@ -155,7 +155,15 @@ final class Palette
             ...(array) ($analysis['colors']['palette'] ?? []),
             (string) ($analysis['colors']['dominant'] ?? ''),
         ]));
-        $choisie = self::pick($candidats);
+
+        // Une couleur désignée vaut mieux qu'une couleur comptée : quand la
+        // lecture a nommé la principale, on la prend telle quelle. Le comptage
+        // dans le CSS, lui, fait souvent gagner une couleur de bordure répétée
+        // deux cents fois contre la vraie couleur de marque.
+        $designee = ($analysis['colors']['weights'] ?? []) === []
+            ? self::normalize((string) ($analysis['colors']['dominant'] ?? ''))
+            : null;
+        $choisie = $designee ?? self::pick($candidats);
 
         // Un réglage saisi à la main l'emporte sur ce qui a été relevé, et
         // survit à une nouvelle analyse : sans quoi la correction serait à

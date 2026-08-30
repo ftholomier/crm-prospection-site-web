@@ -10,6 +10,15 @@ namespace App;
  */
 final class Scraper
 {
+    /**
+     * Attributs pouvant porter l'adresse d'une image, du plus standard au plus
+     * spécifique à un thème. Le premier renseigné gagne.
+     */
+    private const ATTRIBUTS_IMAGE = [
+        'src', 'data-src', 'data-lazy-src', 'data-original', 'data-lazy',
+        'data-echo', 'data-url', 'data-full-url',
+    ];
+
     private const MAX_PAGES = 5;
     private const MAX_CSS = 3;
 
@@ -86,7 +95,7 @@ final class Scraper
             'headings' => self::headings($doc),
             'navigation' => self::navigation($doc),
             'texts' => self::texts($pages),
-            'images' => self::images($doc, $finalUrl),
+            'images' => self::images($doc, $finalUrl, $css),
             'colors' => self::colors($home['body'], $css),
             'fonts' => self::fonts($home['body'], $css),
             'logo' => self::logo($doc, $finalUrl),
@@ -427,31 +436,115 @@ final class Scraper
         return $texts;
     }
 
-    private static function images(\DOMDocument $doc, string $base): array
+    /**
+     * Images de la page.
+     *
+     * Lire <img src> ne suffit plus depuis longtemps : un site moderne sert ses
+     * photos par srcset, par <picture>, en fond CSS, ou derrière un attribut de
+     * chargement différé propre à son thème. S'en tenir à src, c'est repartir
+     * les mains vides de la plupart des sites — ce qui vidait la maquette de
+     * toute photo sans qu'on sache pourquoi.
+     */
+    private static function images(\DOMDocument $doc, string $base, array $css = []): array
     {
         $images = [];
-        foreach ($doc->getElementsByTagName('img') as $img) {
-            $src = $img->getAttribute('src') ?: $img->getAttribute('data-src');
-            $abs = Util::absoluteUrl($src, $base);
-            if ($abs === null || str_contains($abs, 'data:image')) {
-                continue;
+        $vues = [];
+        $ajoute = static function (string $src, string $alt) use (&$images, &$vues, $base): void {
+            $abs = Util::absoluteUrl(trim($src), $base);
+            if ($abs === null || str_contains($abs, 'data:image') || isset($vues[$abs])) {
+                return;
             }
+            $vues[$abs] = true;
             $images[] = [
                 'url' => $abs,
-                'alt' => Util::truncate($img->getAttribute('alt'), 120),
-                'width' => $img->getAttribute('width'),
-                'height' => $img->getAttribute('height'),
-                'lazy' => $img->getAttribute('loading') === 'lazy',
+                'alt' => Util::truncate($alt, 120),
                 'modern' => (bool) preg_match('/\.(webp|avif)(\?|$)/i', $abs),
             ];
-            if (count($images) >= 25) {
-                break;
+        };
+
+        // Le plus grand candidat d'un srcset : c'est celui qui sert de photo,
+        // les autres n'en sont que des réductions.
+        $meilleurDuSrcset = static function (string $srcset): string {
+            $meilleur = '';
+            $largeur = -1;
+            foreach (explode(',', $srcset) as $candidat) {
+                $morceaux = preg_split('/\s+/', trim($candidat)) ?: [];
+                $url = $morceaux[0] ?? '';
+                if ($url === '') {
+                    continue;
+                }
+                $poids = isset($morceaux[1]) && preg_match('/(\d+)w/', $morceaux[1], $m) ? (int) $m[1] : 0;
+                if ($poids >= $largeur) {
+                    $largeur = $poids;
+                    $meilleur = $url;
+                }
+            }
+            return $meilleur;
+        };
+
+        $xpath = new \DOMXPath($doc);
+
+        foreach ($doc->getElementsByTagName('img') as $img) {
+            $alt = $img->getAttribute('alt');
+            $srcset = $img->getAttribute('srcset') ?: $img->getAttribute('data-srcset');
+            if ($srcset !== '') {
+                $ajoute($meilleurDuSrcset($srcset), $alt);
+            }
+            foreach (self::ATTRIBUTS_IMAGE as $attribut) {
+                $valeur = $img->getAttribute($attribut);
+                if ($valeur !== '') {
+                    $ajoute($valeur, $alt);
+                    break;
+                }
             }
         }
-        return $images;
+
+        // <picture><source srcset> : la vraie photo n'est parfois que là.
+        foreach ($doc->getElementsByTagName('source') as $source) {
+            $srcset = $source->getAttribute('srcset') ?: $source->getAttribute('data-srcset');
+            if ($srcset !== '') {
+                $ajoute($meilleurDuSrcset($srcset), '');
+            }
+        }
+
+        // Les bandeaux sont presque toujours des fonds CSS, en ligne ou dans la
+        // feuille de style : c'est là que se trouve la plus belle photo du site.
+        $enLigne = $xpath->query('//*[contains(@style,"background")]');
+        foreach ($enLigne ?? [] as $noeud) {
+            if ($noeud instanceof \DOMElement && preg_match_all('/url\(\s*[\'"]?([^\'")]+)/i', $noeud->getAttribute('style'), $m)) {
+                foreach ($m[1] as $url) {
+                    $ajoute($url, '');
+                }
+            }
+        }
+        foreach ($css as $feuille) {
+            if (preg_match_all('/background(?:-image)?\s*:[^;}]*url\(\s*[\'"]?([^\'")]+)/i', $feuille, $m)) {
+                foreach ($m[1] as $url) {
+                    if (preg_match('/\.(jpe?g|png|webp|avif)(\?|$)/i', $url)) {
+                        $ajoute($url, '');
+                    }
+                }
+            }
+        }
+
+        // Certains thèmes ne posent l'adresse que sur un attribut de données.
+        $porteurs = $xpath->query('//*[@data-bg or @data-background or @data-background-image or @data-image]');
+        foreach ($porteurs ?? [] as $noeud) {
+            if (!$noeud instanceof \DOMElement) {
+                continue;
+            }
+            foreach (['data-bg', 'data-background', 'data-background-image', 'data-image'] as $attribut) {
+                $valeur = $noeud->getAttribute($attribut);
+                if ($valeur !== '') {
+                    $ajoute($valeur, '');
+                    break;
+                }
+            }
+        }
+
+        return array_slice($images, 0, 40);
     }
 
-    /** Couleurs dominantes, par fréquence d'apparition dans le HTML et le CSS. */
     private static function colors(string $html, array $css): array
     {
         $source = $html . ' ' . implode(' ', $css);

@@ -12,6 +12,7 @@ use App\Csrf;
 use App\Enrich;
 use App\Events;
 use App\Flash;
+use App\Generator;
 use App\Mail\Smtp;
 use App\Mailer;
 use App\Models;
@@ -488,6 +489,8 @@ final class Admin
         $ressources = Mockup::resources(Mockup::assetPattern(
             Router::url('mockup_asset', ['id' => $id, 'f' => '{f}'])
         ));
+        // La charte servie est celle de la fiche, pas celle figée à la génération.
+        $ressources['palette'] = Generator::palette($prospect);
 
         header('Content-Type: text/html; charset=UTF-8');
         header('X-Robots-Tag: noindex, nofollow');
@@ -600,7 +603,17 @@ final class Admin
     public static function mockupAsset(): void
     {
         Auth::requireLogin();
-        $path = Assets::pathOf((string) ($_GET['id'] ?? ''), (string) ($_GET['f'] ?? ''));
+        $fichier = (string) ($_GET['f'] ?? '');
+        // L'emplacement à pourvoir n'est pas un fichier : il est dessiné ici,
+        // pour qu'un bloc illustré sans photo reste visible et réparable.
+        if (Assets::isPlaceholder($fichier)) {
+            header('Content-Type: image/svg+xml');
+            header('Cache-Control: public, max-age=86400');
+            echo Assets::placeholderSvg();
+            exit;
+        }
+
+        $path = Assets::pathOf((string) ($_GET['id'] ?? ''), $fichier);
         if ($path === null) {
             http_response_code(404);
             exit;

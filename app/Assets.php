@@ -32,11 +32,40 @@ final class Assets
     public const MODE_COPIE = 'copie';
     public const MODE_LIENS = 'liens';
 
+    /** Nom de l'emplacement de photo non pourvu. */
+    public const A_FOURNIR = 'a-fournir.svg';
+
     public static function mode(): string
     {
-        return Config::get('design.assets_mode') === self::MODE_LIENS
-            ? self::MODE_LIENS
-            : self::MODE_COPIE;
+        return Config::get('design.assets_mode', self::MODE_LIENS) === self::MODE_COPIE
+            ? self::MODE_COPIE
+            : self::MODE_LIENS;
+    }
+
+    public static function isPlaceholder(string $fichier): bool
+    {
+        return basename($fichier) === self::A_FOURNIR;
+    }
+
+    /**
+     * L'image d'un emplacement à pourvoir.
+     *
+     * Un bloc illustré sans photo n'est pas supprimé : il reste en place et dit
+     * ce qu'il attend. La mise en page du gabarit est ainsi préservée, et il
+     * suffit de déposer une image depuis l'éditeur pour que le bloc s'anime.
+     */
+    public static function placeholderSvg(): string
+    {
+        return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" role="img" '
+            . 'aria-label="Photo à fournir">'
+            . '<defs><pattern id="h" width="24" height="24" patternTransform="rotate(45)" '
+            . 'patternUnits="userSpaceOnUse">'
+            . '<rect width="24" height="24" fill="#faf7f3"/><rect width="12" height="24" fill="#f1ebe4"/>'
+            . '</pattern></defs>'
+            . '<rect width="800" height="600" fill="url(#h)"/>'
+            . '<text x="400" y="300" text-anchor="middle" dominant-baseline="middle" '
+            . 'font-family="system-ui, sans-serif" font-size="26" letter-spacing="4" fill="#8a7f75">'
+            . 'PHOTO À FOURNIR</text></svg>';
     }
 
     public static function dir(string $prospectId): string
@@ -205,9 +234,19 @@ final class Assets
      */
     private static function store(string $prospectId, string $url, string $base, int $dejaPris): ?array
     {
+        // Les deux mécanismes se complètent : on pointe le fichier distant
+        // quand c'est possible, on le recopie sinon. L'inverse en mode copie.
+        // Dans les deux cas on ne repart pas les mains vides à la première
+        // difficulté — c'est ce qui vidait les maquettes de toute photo.
         if (self::mode() === self::MODE_LIENS) {
-            return self::referencer($url);
+            return self::referencer($url) ?? self::copier($prospectId, $url, $base, $dejaPris);
         }
+        return self::copier($prospectId, $url, $base, $dejaPris) ?? self::referencer($url);
+    }
+
+    /** Télécharge le fichier et l'enregistre sous un nom maîtrisé. */
+    private static function copier(string $prospectId, string $url, string $base, int $dejaPris): ?array
+    {
         if ($dejaPris >= self::MAX_TOTAL) {
             return null;
         }
@@ -514,6 +553,7 @@ final class Assets
                 'description' => ($photo['alt'] ?? '') !== '' ? $photo['alt'] : '(sans description sur le site d\'origine)',
             ];
         }
+        $sortie['emplacement_a_pourvoir'] = 'assets/' . self::A_FOURNIR;
         return $sortie;
     }
 }

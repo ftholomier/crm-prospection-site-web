@@ -548,6 +548,27 @@ p:last-child { margin-bottom: 0; }
    d'écrire du CSS en ligne a le droit d'écrire une couleur, et le contrôle de
    contraste ne veut alors plus rien dire. */
 .pied__marque { color: #fff; margin-bottom: 1.2rem; }
+
+/* Le logo en image, quand le prospect en a un. Sa hauteur est contrainte, sa
+   largeur libre : un logo est rarement carré, et l'écraser dans un cadre fixe
+   le rend méconnaissable. */
+.entete__logo--image, .pied__marque--image { display: block; line-height: 0; }
+.entete__logo--image img { height: 44px; width: auto; max-width: 240px; object-fit: contain; }
+.pied__marque--image img { height: 40px; width: auto; max-width: 220px; object-fit: contain; }
+.entete--pleine .entete__logo--image img { height: 34px; }
+
+/* Emplacement de photo non pourvu. Le bloc reste en place — la mise en page du
+   gabarit ne se juge pas amputée — et dit ce qu'il attend. Il disparaît de
+   lui-même dès qu'une image est fournie. */
+.a-fournir {
+  display: grid; place-items: center; width: 100%; height: 100%;
+  min-height: 180px;
+  background:
+    repeating-linear-gradient(45deg, var(--marque-voile) 0 12px, var(--fond-teinte) 12px 24px);
+  color: var(--marque-texte);
+  font-size: .72rem; letter-spacing: .18em; text-transform: uppercase; font-weight: 600;
+  text-align: center; padding: 1rem;
+}
 .pied__tel { font-size: 1.3rem; font-weight: 600; color: #fff; margin-top: 1rem; }
 .pied__adresse { font-style: normal; }
 

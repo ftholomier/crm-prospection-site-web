@@ -148,11 +148,23 @@ suivant exactement cette structure :
   "navigation": ["intitulés du menu"],
   "prestations": [{"titre": "", "description": "texte du site"}],
   "pages": [{"role": "accueil|contact|mentions|apropos|prestations|autre", "url": "", "titre": "", "contenu": "texte principal de la page, 1500 caractères maximum"}],
+  "logo": "adresse absolue du fichier logo, telle qu'elle figure dans le code de la page",
+  "images": [{"url": "adresse absolue d'une photo du site", "alt": "texte alternatif ou description brève", "role": "banniere|realisation|equipe|illustration|autre"}],
+  "couleurs": ["codes hexadécimaux des couleurs de la charte, la principale en premier"],
+  "polices": ["noms des familles de police utilisées"],
   "points_forts": ["arguments réellement mis en avant par l'entreprise"],
   "reseaux_sociaux": {"facebook": "", "instagram": "", "linkedin": ""},
   "annee_copyright": "",
   "remarques": "ce que tu n'as pas pu lire, ou toute limite rencontrée"
 }
+
+Pour « logo », « images », « couleurs » et « polices », lis le code source de la page :
+les adresses figurent dans les attributs src, srcset, data-src et dans les propriétés CSS
+background-image ; les couleurs dans les déclarations color, background et border du style
+du site. Donne les adresses en absolu (https://…), jamais en relatif. Rapporte jusqu'à
+quinze images, en écartant les pictogrammes, les icônes et les pixels de suivi. Pour les
+couleurs, donne celles de la charte — celles des boutons, des liens et des aplats de marque —
+et non les gris de texte ni les blancs de fond.
 
 Laisse vide tout champ dont l'information ne figure pas sur le site.
 TXT;
@@ -204,10 +216,13 @@ TXT;
             'headings' => ['h2' => $services],
             'navigation' => array_values(array_filter((array) ($profile['navigation'] ?? []))),
             'texts' => $texts,
-            'images' => [],
-            'colors' => ['palette' => [], 'weights' => [], 'dominant' => ''],
-            'fonts' => [],
-            'logo' => '',
+            'images' => self::images($profile, $url),
+            'colors' => self::colors($profile),
+            'fonts' => array_values(array_filter(array_map(
+                static fn ($f): string => trim((string) $f),
+                (array) ($profile['polices'] ?? [])
+            ))),
+            'logo' => (string) (Util::absoluteUrl(trim((string) ($profile['logo'] ?? '')), $url) ?? ''),
             'contact' => [
                 'emails' => $email !== '' ? [$email] : [],
                 'email' => $email,
@@ -229,6 +244,52 @@ TXT;
             'remarques' => (string) ($profile['remarques'] ?? ''),
             'css_size' => 0,
             'raw' => ['home_html' => '', 'css' => []],
+        ];
+    }
+
+    /**
+     * Images rapportées par le modèle, ramenées à des adresses absolues.
+     *
+     * C'est ce qui manquait : sans média, la génération retirait tous les blocs
+     * illustrés et rendait une maquette de texte, sur un site que nous n'avions
+     * pourtant pas fini de lire.
+     */
+    private static function images(array $profile, string $base): array
+    {
+        $images = [];
+        $vues = [];
+        foreach ((array) ($profile['images'] ?? []) as $image) {
+            $url = Util::absoluteUrl(trim((string) ($image['url'] ?? '')), $base);
+            if ($url === null || isset($vues[$url]) || str_contains($url, 'data:image')) {
+                continue;
+            }
+            $vues[$url] = true;
+            $images[] = [
+                'url' => $url,
+                'alt' => Util::truncate((string) ($image['alt'] ?? ''), 120),
+                'role' => (string) ($image['role'] ?? 'autre'),
+                'modern' => (bool) preg_match('/\.(webp|avif)(\?|$)/i', $url),
+            ];
+        }
+        return array_slice($images, 0, 25);
+    }
+
+    /** Couleurs rapportées, normalisées et débarrassées des neutres. */
+    private static function colors(array $profile): array
+    {
+        $palette = [];
+        foreach ((array) ($profile['couleurs'] ?? []) as $couleur) {
+            $hex = Palette::normalize((string) $couleur);
+            if ($hex !== null && !in_array($hex, ['#ffffff', '#000000'], true) && !in_array($hex, $palette, true)) {
+                $palette[] = $hex;
+            }
+        }
+        return [
+            'palette' => $palette,
+            'weights' => [],
+            // Le modèle donne la principale en premier : c'est une désignation,
+            // pas un comptage, et elle vaut mieux qu'une fréquence dans le CSS.
+            'dominant' => $palette[0] ?? '',
         ];
     }
 
