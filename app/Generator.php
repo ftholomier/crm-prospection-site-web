@@ -281,7 +281,8 @@ final class Generator
         string $page,
         ?callable $onDelta = null,
         ?string $currentHtml = null,
-        string $instruction = ''
+        string $instruction = '',
+        array $impose = []
     ): array {
         $page = Mockup::safePage($page);
         $planKey = 'plan_' . str_replace('-', '_', $page);
@@ -361,6 +362,7 @@ final class Generator
 
         $result = Ai::stream([
             'etape' => 'pages',
+            'impose' => $impose,
             'system' => self::systemPrompt($prospect),
             'messages' => [['role' => 'user', 'content' => $task]],
             'max_tokens' => (int) Config::get(Ai::provider() === Ai::DEEPSEEK ? 'deepseek.max_tokens' : 'claude.max_tokens', 24000),

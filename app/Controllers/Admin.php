@@ -7,6 +7,7 @@ use App\Analyzer;
 use App\Assets;
 use App\Auth;
 use App\Claude;
+use App\Compare;
 use App\Config;
 use App\Ai;
 use App\Csrf;
@@ -810,6 +811,49 @@ final class Admin
             'mesures' => $palette['mesures'],
         ], JSON_UNESCAPED_UNICODE);
         exit;
+    }
+
+    /** Résultats de la dernière comparaison de modèles. */
+    public static function compare(): void
+    {
+        Auth::requireLogin();
+        $id = (string) ($_GET['id'] ?? '');
+        $prospect = Prospect::find($id);
+        if ($prospect === null) {
+            Flash::error('Prospect introuvable.');
+            Util::redirect(Router::url('prospects'));
+        }
+        $id = (string) $prospect['id'];
+
+        echo render('admin/compare', [
+            'title' => 'Comparer les modèles — ' . Prospect::displayName($prospect),
+            'p' => $prospect,
+            'id' => $id,
+            'rapport' => Compare::report($id),
+            'candidats' => Compare::defaults(),
+        ]);
+    }
+
+    /** Sert la page produite par un candidat, pour l'aperçu côte à côte. */
+    public static function comparePreview(): void
+    {
+        Auth::requireLogin();
+        $id = (string) ($_GET['id'] ?? '');
+        $path = Compare::pagePath($id, (string) ($_GET['c'] ?? ''));
+        if ($path === null) {
+            http_response_code(404);
+            exit('Page de comparaison introuvable.');
+        }
+
+        $html = (string) file_get_contents($path);
+        $ressources = Mockup::resources(Mockup::assetPattern(
+            Router::url('mockup_asset', ['id' => $id, 'f' => '{f}'])
+        ));
+        $ressources['palette'] = Generator::palette(Prospect::find($id) ?? []);
+
+        header('Content-Type: text/html; charset=UTF-8');
+        header('X-Robots-Tag: noindex, nofollow');
+        echo Mockup::forPublic($html, [], '', $ressources);
     }
 
     /** Télécharge une version complète sous forme de fichiers HTML concaténés. */

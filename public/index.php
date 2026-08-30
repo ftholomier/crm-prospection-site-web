@@ -74,6 +74,8 @@ $routes = [
     'mockup_edit' => [Admin::mockupEdit(...), true],
     'mockup_edit_save' => [Admin::mockupEditSave(...), true],
     'mockup_media' => [Admin::mockupMedia(...), true],
+    'compare' => [Admin::compare(...), true],
+    'compare_preview' => [Admin::comparePreview(...), true],
     'palette_derive' => [Admin::paletteDerive(...), true],
     'mockup_validate' => [Admin::mockupValidate(...), true],
     'mockup_use' => [Admin::mockupUseVersion(...), true],
@@ -105,6 +107,7 @@ $routes = [
     'analyze_stream' => [Stream::analyze(...), true],
     'read_site_stream' => [Stream::readSite(...), true],
     'generate_stream' => [Stream::generate(...), true],
+    'compare_stream' => [Stream::compare(...), true],
 ];
 
 if (!isset($routes[$route])) {

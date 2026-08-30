@@ -3,14 +3,16 @@ declare(strict_types=1);
 
 namespace App\Controllers;
 
+use App\Ai;
 use App\Analyzer;
 use App\Assets;
 use App\Auth;
-use App\Ai;
+use App\Compare;
 use App\Config;
 use App\Events;
 use App\Generator;
 use App\Mockup;
+use App\Models;
 use App\Prospect;
 use App\Store;
 
@@ -195,6 +197,106 @@ final class Stream
             'services' => count($analysis['services'] ?? []),
             'pages' => count($analysis['pages_found'] ?? []),
         ]);
+    }
+
+    // -------------------------------------------------------- Comparaison
+
+    /**
+     * Produit la même page avec plusieurs modèles et mesure chacun.
+     *
+     * Le brief n'est pas rejoué : c'est ce qui fait de la comparaison une
+     * comparaison. Une seule variable change d'un candidat à l'autre.
+     */
+    public static function compare(): void
+    {
+        Auth::requireLogin();
+        self::open();
+
+        $id = (string) ($_GET['id'] ?? '');
+        $prospect = Prospect::find($id);
+        if ($prospect === null) {
+            self::fail('Prospect introuvable.');
+        }
+        $id = (string) $prospect['id'];
+
+        $version = (string) ($prospect['mockup']['current'] ?? '');
+        $brief = $version === '' ? [] : Store::read(Mockup::dir($id, $version) . '/brief.json');
+        if ($brief === [] || empty($brief['entreprise'])) {
+            self::fail('Générez d\'abord une maquette : la comparaison rejoue une page à partir de son brief, '
+                . 'pour que seul le modèle change d\'un candidat à l\'autre.');
+        }
+
+        $page = Mockup::safePage((string) ($_GET['page'] ?? 'accueil'));
+        $candidats = self::candidatsDemandes();
+        if ($candidats === []) {
+            self::fail('Aucun modèle à comparer.');
+        }
+
+        Compare::clear($id);
+        self::emit('step', [
+            'message' => count($candidats) . ' modèles à comparer sur la page « ' . Mockup::PAGES[$page]
+                . ' », à partir du même brief',
+        ]);
+
+        $mesures = [];
+        foreach ($candidats as $rang => $candidat) {
+            $nom = Ai::label($candidat['provider']) . ' · ' . $candidat['model'];
+            self::emit('step', ['message' => 'Génération ' . ($rang + 1) . '/' . count($candidats) . ' — ' . $nom]);
+
+            $resultat = Compare::run($prospect, $brief, $page, $candidat);
+            if (!$resultat['ok']) {
+                self::emit('step', ['message' => $nom . ' : ' . $resultat['error'], 'state' => 'error']);
+                $mesures[] = [
+                    'slug' => Compare::slug($candidat['provider'], $candidat['model']),
+                    'provider' => $candidat['provider'],
+                    'model' => $candidat['model'],
+                    'note' => (string) ($candidat['note'] ?? ''),
+                    'echec' => $resultat['error'],
+                ];
+                continue;
+            }
+
+            $m = $resultat['mesure'];
+            $mesures[] = $m;
+            self::emit('step', [
+                'message' => $nom . ' : ' . ($m['conforme'] ? 'conforme' : count($m['ecarts']) . ' écart(s)')
+                    . ', ' . count($m['chiffres_inventes']) . ' chiffre(s) sans source'
+                    . ', ' . number_format($m['sortie'], 0, ',', ' ') . ' jetons en ' . $m['duree'] . ' s'
+                    . ($m['cout'] === null ? '' : ' — ' . Models::formatCost($m['cout'])),
+                'state' => $m['conforme'] && $m['chiffres_inventes'] === [] ? 'done' : 'warn',
+            ]);
+        }
+
+        Compare::saveReport($id, $page, $mesures);
+        Events::log($id, 'compare', ['page' => $page, 'candidats' => count($mesures)]);
+        self::emit('step', ['message' => 'Comparaison terminée', 'state' => 'done']);
+        self::emit('done', ['id' => $id, 'page' => $page]);
+        self::saveJournal(true, count($mesures) . ' modèle(s) comparé(s)');
+        exit;
+    }
+
+    /** Candidats passés en paramètre : « fournisseur:modèle », séparés par des virgules. */
+    private static function candidatsDemandes(): array
+    {
+        $brut = trim((string) ($_GET['candidats'] ?? ''));
+        if ($brut === '') {
+            return Compare::defaults();
+        }
+
+        $candidats = [];
+        foreach (array_slice(explode(',', $brut), 0, Compare::MAX_CANDIDATS) as $entree) {
+            [$fournisseur, $modele] = array_pad(explode(':', trim($entree), 2), 2, '');
+            $modele = trim($modele);
+            if ($modele === '') {
+                continue;
+            }
+            $candidats[] = [
+                'provider' => $fournisseur === Ai::DEEPSEEK ? Ai::DEEPSEEK : Ai::CLAUDE,
+                'model' => $modele,
+                'note' => '',
+            ];
+        }
+        return $candidats;
     }
 
     // ---------------------------------------------------------- Génération

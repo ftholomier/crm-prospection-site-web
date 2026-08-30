@@ -151,7 +151,18 @@
                 });
                 button.textContent = occupe;
 
-                runStep(button.dataset.analyze, box, {})
+                // Certains déclencheurs portent un champ de saisie : sa valeur
+                // rejoint l'URL au moment du clic, pas à celui du rendu.
+                var url = button.dataset.analyze;
+                var source = button.dataset.candidatsSource
+                    ? document.getElementById(button.dataset.candidatsSource)
+                    : null;
+                if (source && source.value.trim() !== '') {
+                    url += (url.indexOf('?') === -1 ? '?' : '&')
+                        + 'candidats=' + encodeURIComponent(source.value.trim());
+                }
+
+                runStep(url, box, {})
                     .then(function (data) {
                         suivi.terminer(true);
                         logLine(box, resume(data), 'done');
@@ -178,8 +189,11 @@
         if (data && typeof data.score !== 'undefined') {
             return 'Analyse terminée — score ' + data.score + '/100 (' + data.level + ')';
         }
-        if (data && typeof data.pages !== 'undefined') {
+        if (data && typeof data.pages !== 'undefined' && typeof data.services !== 'undefined') {
             return 'Lecture terminée — ' + data.pages + ' page(s), ' + data.services + ' prestation(s) relevée(s)';
+        }
+        if (data && data.page && typeof data.services === 'undefined') {
+            return 'Comparaison terminée — résultats ci-dessous';
         }
         return 'Terminé';
     }
@@ -554,7 +568,24 @@
         afficher();
     }
 
+    /* Les aperçus de comparaison sont rendus en 1280 px puis réduits pour tenir
+       dans leur volet ; le facteur se mesure, une valeur figée laisserait un
+       bord vide ou déborderait selon le nombre de candidats. */
+    function bindComparaison() {
+        var cadres = document.querySelectorAll('[data-apercu-compare]');
+        if (!cadres.length) { return; }
+        function ajuster() {
+            Array.prototype.forEach.call(cadres, function (cadre) {
+                var largeur = cadre.clientWidth;
+                if (largeur > 0) { cadre.style.setProperty('--zoom', (largeur / 1280).toFixed(4)); }
+            });
+        }
+        ajuster();
+        window.addEventListener('resize', ajuster, { passive: true });
+    }
+
     document.addEventListener('DOMContentLoaded', function () {
+        bindComparaison();
         bindFournisseur();
         bindAnalyze();
         bindCouleurs();

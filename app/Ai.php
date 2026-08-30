@@ -163,6 +163,18 @@ final class Ai
         $choix = self::for($etape);
         unset($options['etape']);
 
+        // Un appelant peut imposer le couple fournisseur/modèle : c'est ce qui
+        // permet de comparer plusieurs modèles sans toucher aux réglages.
+        $impose = (array) ($options['impose'] ?? []);
+        unset($options['impose']);
+        if (($impose['provider'] ?? '') !== '') {
+            $choix['provider'] = $impose['provider'] === self::DEEPSEEK ? self::DEEPSEEK : self::CLAUDE;
+            $choix['model'] = trim((string) ($impose['model'] ?? ''));
+            // Un appel imposé n'entre pas dans la ventilation par étape : il ne
+            // reflète pas la consommation ordinaire de l'application.
+            $etape = null;
+        }
+
         if ($choix['model'] !== '') {
             $options['model'] = $choix['model'];
         }
