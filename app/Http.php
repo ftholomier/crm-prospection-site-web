@@ -54,16 +54,17 @@ final class Http
      * Récupère une URL.
      * @return array{ok:bool,status:int,body:string,url:string,error:string,headers:array,elapsed:float,size:int}
      */
-    public static function get(string $url, int $timeout = 20, int $agentVariant = 0): array
+    public static function get(string $url, int $timeout = 20, int $agentVariant = 0, int $maxBytes = 0): array
     {
         $result = [
             'ok' => false, 'status' => 0, 'body' => '', 'url' => $url,
             'error' => '', 'headers' => [], 'elapsed' => 0.0, 'size' => 0,
         ];
         $started = microtime(true);
+        $plafond = $maxBytes > 0 ? $maxBytes : self::MAX_BYTES;
 
         if (!function_exists('curl_init')) {
-            return self::getWithStreams($url, $timeout, $result, $started, $agentVariant);
+            return self::getWithStreams($url, $timeout, $result, $started, $agentVariant, $plafond);
         }
 
         $handle = curl_init();
@@ -91,8 +92,8 @@ final class Http
                 return strlen($line);
             },
             CURLOPT_NOPROGRESS => false,
-            CURLOPT_PROGRESSFUNCTION => static function ($ch, $dlTotal, $dlNow): int {
-                return $dlNow > self::MAX_BYTES ? 1 : 0;
+            CURLOPT_PROGRESSFUNCTION => static function ($ch, $dlTotal, $dlNow) use ($plafond): int {
+                return $dlNow > $plafond ? 1 : 0;
             },
         ]);
 
@@ -102,7 +103,7 @@ final class Http
         if ($body === false) {
             $result['error'] = curl_error($handle) ?: 'Requête impossible';
         } else {
-            $result['body'] = self::toUtf8((string) $body, $headers['content-type'] ?? '');
+            $result['body'] = self::decoder((string) $body, $headers['content-type'] ?? '');
             $result['ok'] = $result['status'] >= 200 && $result['status'] < 400;
         }
         curl_close($handle);
@@ -218,6 +219,69 @@ final class Http
         ];
     }
 
+    /**
+     * Rend le corps utilisable : converti en UTF-8 si c'est du texte, intact
+     * sinon.
+     *
+     * Le tri n'est pas un détail. La conversion d'encodage appliquée à une
+     * image la détruit : chaque octet au-delà de 0x7F devient deux octets, la
+     * signature du fichier ne veut plus rien dire, et le PNG de 688 octets en
+     * pèse 895 dont aucun n'est à sa place. C'est exactement ce qui faisait
+     * échouer toutes les captures d'écran — le service répondait bien, l'image
+     * arrivait bien, et elle était abîmée sur notre propre seuil — et ce qui
+     * corrompait les photos recopiées depuis le site du prospect.
+     */
+    private static function decoder(string $body, string $contentType): string
+    {
+        return self::estTexte($contentType, $body) ? self::toUtf8($body, $contentType) : $body;
+    }
+
+    /** Signatures des formats binaires qu'on rencontre en scrutant un site. */
+    private const SIGNATURES = [
+        "\x89PNG", "\xFF\xD8\xFF", 'GIF8', 'RIFF', 'II*', 'MM', "\x00\x00\x01\x00",
+        '%PDF', "PK\x03\x04", "\x1F\x8B", 'wOFF', 'wOF2', "\x00\x01\x00\x00", 'OTTO',
+    ];
+
+    /**
+     * Le corps reçu est-il du texte, qu'on peut donc réencoder sans risque ?
+     *
+     * Les octets passent avant l'en-tête, et non l'inverse : un service qui
+     * annonce « text/html » en renvoyant un PNG n'est pas une hypothèse
+     * d'école — le serveur PHP intégré le fait par défaut, et plus d'un
+     * service de capture aussi. Se fier à l'annonce détruirait l'image.
+     */
+    private static function estTexte(string $contentType, string $body): bool
+    {
+        foreach (self::SIGNATURES as $signature) {
+            if (str_starts_with($body, $signature)) {
+                return false;
+            }
+        }
+
+        $type = strtolower(trim(explode(';', $contentType)[0]));
+        if ($type !== '') {
+            if (str_starts_with($type, 'text/')) {
+                return true;
+            }
+            // Le SVG est le seul « image/ » qui soit du texte.
+            if ($type === 'image/svg+xml') {
+                return true;
+            }
+            if (str_starts_with($type, 'image/') || str_starts_with($type, 'audio/')
+                || str_starts_with($type, 'video/') || str_starts_with($type, 'font/')) {
+                return false;
+            }
+            if (str_starts_with($type, 'application/')) {
+                return (bool) preg_match('~(json|xml|javascript|ecmascript|yaml|csv|x-sh|x-httpd|x-www-form-urlencoded)~', $type);
+            }
+            return false;
+        }
+
+        // Sans type annoncé et sans signature connue, l'octet nul tranche :
+        // aucun texte n'en contient, presque tout binaire en porte.
+        return !str_contains(substr($body, 0, 4096), "\0");
+    }
+
     /** Convertit le corps en UTF-8 en s'appuyant sur l'en-tête puis sur le HTML. */
     private static function toUtf8(string $body, string $contentType): string
     {
@@ -237,7 +301,7 @@ final class Http
     }
 
     /** Repli sans cURL, pour les hébergements qui ne l'exposent pas. */
-    private static function getWithStreams(string $url, int $timeout, array $result, float $started, int $agentVariant = 0): array
+    private static function getWithStreams(string $url, int $timeout, array $result, float $started, int $agentVariant = 0, int $plafond = self::MAX_BYTES): array
     {
         $context = stream_context_create([
             'http' => [
@@ -251,7 +315,7 @@ final class Http
             ],
             'ssl' => ['verify_peer' => true, 'verify_peer_name' => true],
         ]);
-        $body = @file_get_contents($url, false, $context, 0, self::MAX_BYTES);
+        $body = @file_get_contents($url, false, $context, 0, $plafond);
         $headers = [];
         foreach ($http_response_header ?? [] as $line) {
             if (preg_match('~^HTTP/\S+\s+(\d{3})~', $line, $m)) {
@@ -264,7 +328,7 @@ final class Http
         if ($body === false) {
             $result['error'] = 'Requête impossible (flux PHP)';
         } else {
-            $result['body'] = self::toUtf8($body, $headers['content-type'] ?? '');
+            $result['body'] = self::decoder($body, $headers['content-type'] ?? '');
             $result['ok'] = $result['status'] >= 200 && $result['status'] < 400;
         }
         $result['headers'] = $headers;

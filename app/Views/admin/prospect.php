@@ -563,6 +563,17 @@ $servirActif = static fn (string $src): string => str_starts_with($src, 'assets/
                 </div>
             <?php else: ?>
                 <p class="muted small">Aucune capture. Elle sert au comparatif avant/après montré au prospect, et permet au modèle de voir réellement le site.</p>
+                <?php $chaineShot = App\Screenshot::chaine(); ?>
+                <p class="muted tiny">
+                    <?php if ($chaineShot === []): ?>
+                        Aucun moyen de capture n'est disponible sur ce serveur : seul l'import d'une image
+                        fonctionne. Une copie d'écran prise depuis votre navigateur fait parfaitement l'affaire.
+                    <?php else: ?>
+                        Essayés dans l'ordre :
+                        <?= e(implode(', ', array_map([App\Screenshot::class, 'label'], $chaineShot))) ?>.
+                        En cas d'échec, importez simplement une copie d'écran prise depuis votre navigateur.
+                    <?php endif; ?>
+                </p>
             <?php endif; ?>
             <form method="post" action="<?= e(url('screenshot')) ?>" enctype="multipart/form-data" class="stack mt">
                 <?= Csrf::field() ?>

@@ -285,9 +285,11 @@ final class Config
                 'pappers_api_key' => '',
             ],
             'screenshot' => [
-                'provider' => 'thumio',
+                'provider' => 'auto',
                 'api_key' => '',
                 'custom_template' => '',
+                'browser_path' => '',
+                'fallback' => true,
                 'auto' => true,
                 'send_to_model' => true,
             ],

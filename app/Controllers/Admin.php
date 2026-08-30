@@ -466,7 +466,9 @@ final class Admin
             $result['ok'] ? Flash::success('Capture importée.') : Flash::error($result['error']);
         } else {
             $result = Screenshot::capture($id, (string) $prospect['url']);
-            $result['ok'] ? Flash::success('Capture réalisée.') : Flash::error($result['error']);
+            $result['ok']
+                ? Flash::success('Capture réalisée par « ' . Screenshot::label($result['provider']) . ' ».')
+                : Flash::error($result['error']);
         }
         Util::redirect(Router::url('prospect', ['id' => $id]));
     }
@@ -1334,8 +1336,10 @@ final class Admin
                 'mode' => (string) ($post['enrich_mode'] ?? 'site'),
             ],
             'screenshot' => [
-                'provider' => (string) ($post['shot_provider'] ?? 'thumio'),
+                'provider' => (string) ($post['shot_provider'] ?? 'auto'),
                 'custom_template' => trim((string) ($post['shot_custom'] ?? '')),
+                'browser_path' => trim((string) ($post['shot_browser'] ?? '')),
+                'fallback' => !empty($post['shot_fallback']),
                 'auto' => !empty($post['shot_auto']),
                 'send_to_model' => !empty($post['shot_to_model']),
             ],

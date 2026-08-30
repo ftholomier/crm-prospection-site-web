@@ -882,13 +882,43 @@ $champSecret = static function (string $nom, string $valeur, string $aide, strin
                         <option value="<?= e($value) ?>" <?= $config['screenshot']['provider'] === $value ? 'selected' : '' ?>><?= e($provider['label']) ?></option>
                     <?php endforeach; ?>
                 </select>
-                <span class="hint muted tiny">Un hébergement mutualisé n'a pas de navigateur : la capture passe par un service externe ou par un import manuel.</span>
+                <span class="hint muted tiny">En automatique, le navigateur du serveur est tenté d'abord — c'est la seule capture qui ne dépend d'aucun service tiers — puis les services gratuits.</span>
             </div>
             <div class="field">
                 <label for="shot_key">Clé du service de capture</label>
                 <input type="password" name="shot_key" id="shot_key" autocomplete="off" placeholder="<?= e($secretPlaceholder((string) $config['screenshot']['api_key'])) ?>">
             </div>
         </div>
+        <?php
+        $navigateur = App\Screenshot::navigateur();
+        $execOk = App\Screenshot::execPossible();
+        ?>
+        <div class="field">
+            <label for="shot_browser">Navigateur du serveur</label>
+            <input type="text" name="shot_browser" id="shot_browser"
+                   value="<?= e((string) ($config['screenshot']['browser_path'] ?? '')) ?>"
+                   placeholder="/usr/bin/chromium">
+            <span class="hint muted tiny">
+                <?php if (!$execOk): ?>
+                    <span class="badge warn">indisponible</span>
+                    L'hébergement interdit à PHP de lancer un programme (<code>proc_open</code> désactivé) :
+                    aucune capture locale n'est possible ici, il faut passer par un service ou par l'import manuel.
+                <?php elseif ($navigateur !== null): ?>
+                    <span class="badge ok">détecté</span>
+                    <code><?= e($navigateur) ?></code> — la capture peut se faire entièrement sur votre serveur,
+                    sans service tiers, sans quota et sans envoyer l'adresse du prospect à qui que ce soit.
+                <?php else: ?>
+                    <span class="badge warn">aucun trouvé</span>
+                    Chromium ou Chrome n'a été trouvé à aucun emplacement habituel. Indiquez son chemin ici s'il
+                    est installé ailleurs ; sinon la capture passera par les services gratuits.
+                <?php endif; ?>
+            </span>
+        </div>
+        <label class="check">
+            <input type="checkbox" name="shot_fallback" value="1" <?= !empty($config['screenshot']['fallback']) ? 'checked' : '' ?>>
+            <span>Essayer les autres services si le premier échoue
+                <span class="hint">Un seul service, c'est un seul point de rupture : panne, quota atteint ou sortie réseau filtrée, et la capture disparaît sans recours.</span></span>
+        </label>
         <div class="field">
             <label for="shot_custom">Modèle d'URL personnalisé</label>
             <input type="text" name="shot_custom" id="shot_custom" value="<?= e((string) $config['screenshot']['custom_template']) ?>" placeholder="https://mon-service/capture?url={enc}&amp;key={key}">
@@ -1104,11 +1134,10 @@ $champSecret = static function (string $nom, string $valeur, string $aide, strin
                 <label for="shot_test_url">Capture d'écran — essai sur une adresse</label>
                 <input type="url" name="url" id="shot_test_url" placeholder="https://example.com/">
                 <span class="hint muted tiny">
-                    La capture échouait sans rien dire : il ne restait qu'une image manquante sur la page
-                    de proposition. Cet essai rapporte ce que le serveur a réellement reçu — code HTTP,
-                    type annoncé, poids, et les premiers octets quand ce n'est pas une image. Les trois
-                    causes habituelles : le service refuse ou limite, l'hébergement bloque les connexions
-                    sortantes, ou la réponse est une page d'erreur déguisée en image.
+                    L'essai passe toute la chaîne en revue — navigateur du serveur, puis services — et
+                    rapporte pour chaque maillon ce qui s'est réellement passé : image obtenue et ses
+                    dimensions, refus du service, sortie réseau bloquée par l'hébergement, ou page
+                    d'erreur déguisée en image.
                 </span>
             </div>
             <div><button class="btn" type="submit">Lancer l'essai de capture</button></div>

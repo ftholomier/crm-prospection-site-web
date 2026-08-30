@@ -197,7 +197,9 @@ final class Analyzer
             $notify('Capture du site actuel');
             $shot = Screenshot::capture($prospectId, (string) $analysis['data']['url']);
             $notify(
-                $shot['ok'] ? 'Capture enregistrée' : 'Capture indisponible : ' . $shot['error'],
+                $shot['ok']
+                    ? 'Capture enregistrée (' . Screenshot::label($shot['provider']) . ')'
+                    : 'Capture indisponible : ' . $shot['error'],
                 $shot['ok'] ? 'done' : 'warn'
             );
         }
