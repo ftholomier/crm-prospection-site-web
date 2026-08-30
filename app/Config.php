@@ -74,7 +74,7 @@ final class Config
     }
 
     /** Écriture par chemin pointé, persistée immédiatement. */
-    public static function set(string $path, mixed $value): void
+    public static function set(string $path, mixed $value): bool
     {
         self::load();
         $keys = explode('.', $path);
@@ -87,20 +87,63 @@ final class Config
         }
         $node = $value;
         unset($node);
-        self::save();
+        return self::save();
     }
 
-    /** Fusionne un tableau partiel dans la configuration puis persiste. */
-    public static function merge(array $patch): void
+    /**
+     * Fusionne un tableau partiel dans la configuration puis persiste.
+     *
+     * Le résultat de l'écriture est rendu, et non plus jeté : sur un
+     * hébergement où data/ n'est pas inscriptible, l'application annonçait
+     * « Réglages enregistrés » sans rien avoir écrit — on cherchait ensuite la
+     * panne du côté de la clé API alors qu'aucune n'avait jamais été stockée.
+     */
+    public static function merge(array $patch): bool
     {
         self::load();
         self::$data = self::mergeDeep(self::$data, $patch);
-        self::save();
+        return self::save();
     }
 
-    public static function save(): void
+    public static function save(): bool
     {
-        Store::write(self::path(), self::$data);
+        return Store::write(self::path(), self::$data);
+    }
+
+    /**
+     * Pourquoi la configuration ne peut-elle pas être écrite ?
+     *
+     * Rendue en clair, la cause évite de chercher au mauvais endroit : c'est
+     * presque toujours un dossier déposé par FTP sous un compte différent de
+     * celui qui exécute PHP.
+     */
+    public static function raisonEcritureImpossible(): string
+    {
+        $fichier = self::path();
+        $dossier = dirname($fichier);
+
+        if (!is_dir($dossier)) {
+            return 'le dossier ' . basename($dossier) . '/ n\'existe pas';
+        }
+        if (!is_writable($dossier)) {
+            $proprietaire = function_exists('posix_getpwuid') && function_exists('fileowner')
+                ? (string) (posix_getpwuid((int) @fileowner($dossier))['name'] ?? '?')
+                : '?';
+            $courant = function_exists('posix_geteuid') && function_exists('posix_getpwuid')
+                ? (string) (posix_getpwuid(posix_geteuid())['name'] ?? '?')
+                : (string) (get_current_user() ?: '?');
+            return 'le dossier ' . basename($dossier) . '/ n\'est pas inscriptible'
+                . ' (droits ' . substr(sprintf('%o', @fileperms($dossier) ?: 0), -4)
+                . ', propriétaire « ' . $proprietaire . ' », PHP s\'exécute sous « ' . $courant . ' »)';
+        }
+        if (is_file($fichier) && !is_writable($fichier)) {
+            return 'le fichier ' . basename($fichier) . ' n\'est pas inscriptible'
+                . ' (droits ' . substr(sprintf('%o', @fileperms($fichier) ?: 0), -4) . ')';
+        }
+        if (function_exists('disk_free_space') && @disk_free_space($dossier) === 0.0) {
+            return 'le disque est plein';
+        }
+        return 'cause inconnue — vérifiez les droits du dossier data/ et les journaux d\'erreur PHP';
     }
 
     /** L'application est-elle initialisée (mot de passe défini) ? */

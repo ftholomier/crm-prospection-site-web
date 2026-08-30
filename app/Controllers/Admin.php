@@ -1283,7 +1283,14 @@ final class Admin
             }
         }
 
-        Config::merge($patch);
+        // L'écriture peut échouer sans lever d'erreur — un dossier data/
+        // déposé par FTP sous un autre compte que celui qui exécute PHP suffit.
+        // Annoncer « enregistré » dans ce cas envoie chercher la panne du côté
+        // de la clé API alors que rien n'a jamais été stocké.
+        if (!Config::merge($patch)) {
+            Flash::error('Rien n\'a pu être enregistré : ' . Config::raisonEcritureImpossible() . '.');
+            Util::redirect(Router::url('settings'));
+        }
 
         if (!empty($_FILES['portrait']['name'])) {
             $upload = Portrait::store($_FILES['portrait']);
@@ -1317,7 +1324,18 @@ final class Admin
             }
         }
 
-        Flash::success('Réglages enregistrés.');
+        // On relit le fichier pour confirmer : c'est ce qui distingue
+        // « enregistré » de « la requête s'est bien terminée ».
+        Config::load(true);
+        $clesEnregistrees = [];
+        foreach (Ai::FOURNISSEURS as $cleFournisseur => $nomFournisseur) {
+            if (self::cleEnvoyee($post, $cleFournisseur) && Ai::isConfiguredFor($cleFournisseur)) {
+                $clesEnregistrees[] = Ai::label($cleFournisseur);
+            }
+        }
+        Flash::success('Réglages enregistrés.'
+            . ($clesEnregistrees === [] ? '' : ' Clé API ' . implode(' et ', $clesEnregistrees)
+                . ' enregistrée' . (count($clesEnregistrees) > 1 ? 's' : '') . '.'));
         Util::redirect(Router::url('settings'));
     }
 
@@ -1443,18 +1461,41 @@ final class Admin
         self::rafraichirModeles(Ai::GEMINI);
     }
 
+    /** Une clé API a-t-elle été saisie pour ce fournisseur ? */
+    private static function cleEnvoyee(array $post, string $provider): bool
+    {
+        return trim((string) ($post[$provider . '_api_key'] ?? '')) !== '';
+    }
+
     /**
      * Relit le catalogue d'un fournisseur.
      *
      * La liste est ce qui garantit qu'un nom de modèle proposé existe encore :
      * deux modèles DeepSeek retirés en juillet ont déjà fait échouer des
      * générations au premier appel.
+     *
+     * Le bouton vit dans le formulaire des Réglages : une clé qu'on vient de
+     * taper part avec la requête. La jeter pour aller interroger l'API avec
+     * l'ancienne — ou avec rien — était le moyen le plus sûr de perdre une clé
+     * sans le dire. On l'enregistre donc d'abord.
      */
     private static function rafraichirModeles(string $provider): void
     {
         Auth::requireLogin();
         Csrf::requireValid();
         $nom = Ai::label($provider);
+
+        $cle = trim((string) ($_POST[$provider . '_api_key'] ?? ''));
+        if ($cle !== '') {
+            if (Config::merge([$provider => ['api_key' => $cle]])) {
+                Flash::success('Clé API ' . $nom . ' enregistrée.');
+            } else {
+                Flash::error('Clé API ' . $nom . ' non enregistrée : '
+                    . Config::raisonEcritureImpossible() . '.');
+                Util::redirect(Router::url('settings') . '#claude');
+            }
+        }
+
         $result = $provider === Ai::GEMINI ? Gemini::refresh() : DeepSeek::refresh();
         $result['ok']
             ? Flash::success($result['count'] . ' modèle(s) ' . $nom . ' récupéré(s).')
@@ -1556,10 +1597,15 @@ final class Admin
             'ok' => function_exists('curl_init'),
             'hint' => 'Requise pour l\'API et l\'analyse des sites.',
         ];
+        // Sans écriture, rien de ce qu'on saisit dans les Réglages ne survit à
+        // la redirection : c'est la panne à diagnostiquer en premier.
+        $inscriptible = is_writable(DATA_DIR);
         $checks[] = [
             'label' => 'Dossier data accessible en écriture',
-            'ok' => is_writable(DATA_DIR),
-            'hint' => 'Donnez les droits d\'écriture au dossier data/.',
+            'ok' => $inscriptible,
+            'hint' => $inscriptible
+                ? 'Les réglages et les clés API y sont stockés.'
+                : 'Aucun réglage ne peut être enregistré : ' . Config::raisonEcritureImpossible() . '.',
         ];
         return $checks;
     }
